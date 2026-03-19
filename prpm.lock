@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "packages": {
+    "@prpm/prpm-json-best-practices-skill#claude": {
+      "version": "1.2.0",
+      "resolved": "https://registry.prpm.dev/api/v1/packages/%40prpm%2Fprpm-json-best-practices-skill/1.2.0.tar.gz",
+      "integrity": "sha256-13f5c9204ef0db4cd37ef2339fa9cc5743de993c73244230760e73612476d826",
+      "format": "claude",
+      "subtype": "skill",
+      "sourceFormat": "claude",
+      "sourceSubtype": "skill",
+      "installedPath": ".claude/skills/prpm-json-best-practices-skill"
+    }
+  },
+  "generated": "2026-03-19T11:30:32.068Z"
+}

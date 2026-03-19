@@ -1,0 +1,105 @@
+{
+  "name": "agent-workforce-skills",
+  "version": "1.0.0",
+  "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and headless orchestration",
+  "author": "khaliqgant",
+  "organization": "agent-relay",
+  "license": "MIT",
+  "repository": "https://github.com/AgentWorkforce/skills",
+  "homepage": "https://agentrelay.dev",
+  "packages": [
+    {
+      "name": "choosing-swarm-patterns",
+      "version": "1.0.0",
+      "description": "Use when coordinating multiple AI agents and need to pick the right orchestration pattern - covers 10 patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) with decision framework and reflection protocol",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "multi-agent",
+        "orchestration",
+        "swarm-patterns",
+        "workflow",
+        "coordination",
+        "agent-management"
+      ],
+      "files": [
+        "skills/choosing-swarm-patterns/SKILL.md"
+      ]
+    },
+    {
+      "name": "adding-swarm-patterns",
+      "version": "1.0.0",
+      "description": "Use when implementing custom swarm coordination patterns for multi-agent systems - covers pattern design, implementation strategies, and integration with existing agent orchestration",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "swarm-patterns",
+        "multi-agent",
+        "orchestration",
+        "coordination",
+        "architecture",
+        "workflow-design"
+      ],
+      "files": [
+        "skills/adding-swarm-patterns/SKILL.md"
+      ]
+    },
+    {
+      "name": "writing-agent-relay-workflows",
+      "version": "1.0.4",
+      "description": "Use when building multi-agent workflows with the relay sdk - supports TypeScript (preferred), Python, and YAML. Covers the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, deterministic steps, dedicated channels, swarm patterns, error handling, event listeners, step sizing rules, and the lead+workers team pattern for complex steps",
+      "format": "claude",
+      "subtype": "skill",
+      "languages": ["typescript", "python", "yaml"],
+      "tags": [
+        "workflow",
+        "multi-agent",
+        "dag",
+        "orchestration",
+        "swarm-patterns",
+        "typescript",
+        "python",
+        "yaml"
+      ],
+      "files": [
+        "skills/writing-agent-relay-workflows/SKILL.md"
+      ]
+    },
+    {
+      "name": "using-agent-relay",
+      "version": "1.2.0",
+      "description": "Use when coordinating multiple AI agents in real-time - provides inter-agent messaging via Relaycast MCP tools with channels, threads, reactions, search, and webhooks",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "multi-agent",
+        "agent-communication",
+        "inter-agent",
+        "coordination",
+        "real-time",
+        "messaging"
+      ],
+      "files": [
+        "skills/using-agent-relay/SKILL.md"
+      ]
+    },
+    {
+      "name": "running-headless-orchestrator",
+      "version": "1.0.0",
+      "description": "Use when an agent needs to self-bootstrap agent-relay and autonomously manage a team of workers - covers infrastructure startup, agent spawning, lifecycle monitoring, and team coordination without human intervention",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "multi-agent",
+        "orchestration",
+        "headless",
+        "autonomous",
+        "self-bootstrap",
+        "agent-management"
+      ],
+      "files": [
+        "skills/running-headless-orchestrator/SKILL.md"
+      ]
+    }
+  ]
+}
