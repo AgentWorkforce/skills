@@ -85,7 +85,7 @@
     },
     {
       "name": "running-headless-orchestrator",
-      "version": "1.1.0",
+      "version": "1.0.1",
       "description": "Use when an agent needs to self-bootstrap agent-relay and autonomously manage a team of workers - covers infrastructure startup, agent spawning, lifecycle monitoring, and team coordination without human intervention",
       "format": "claude",
       "subtype": "skill",
