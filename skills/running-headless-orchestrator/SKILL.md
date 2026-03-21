@@ -27,10 +27,10 @@ A headless orchestrator is an agent that:
 | Step | Command/Tool |
 |------|--------------|
 | Verify installation | `which agent-relay` or `npx agent-relay --version` |
-| Start infrastructure | `agent-relay up --background --no-dashboard` |
+| Start infrastructure | `agent-relay up --no-dashboard --verbose` |
 | Check status | `agent-relay status` |
 | Spawn worker | `agent-relay spawn Worker1 claude "task"` |
-| List workers | `agent-relay agents` |
+| List workers | `agent-relay who` |
 | View worker logs | `agent-relay agents:logs Worker1` |
 | Send message | `agent-relay send Worker1 "message"` |
 | Release worker | `agent-relay release Worker1` |
@@ -173,7 +173,7 @@ Run: which agent-relay || npx agent-relay --version
 If not found: npm install -g agent-relay
 
 ## Step 2: Start Infrastructure
-Run: agent-relay up --background --no-dashboard
+Run: agent-relay up --no-dashboard --verbose
 Verify: agent-relay status (should show "running")
 
 ## Step 3: Manage Your Team
@@ -182,7 +182,7 @@ Spawn workers:
   agent-relay spawn Worker1 claude "Task description"
 
 Monitor workers (do this frequently):
-  agent-relay agents          # List active workers
+  agent-relay who              # List active workers
   agent-relay agents:logs Worker1  # View worker output/progress
 
 Send instructions:
