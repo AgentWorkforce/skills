@@ -27,10 +27,10 @@ A headless orchestrator is an agent that:
 | Step | Command/Tool |
 |------|--------------|
 | Verify installation | `which agent-relay` or `npx agent-relay --version` |
-| Start infrastructure | `agent-relay up --background --no-dashboard` |
+| Start infrastructure | `agent-relay up --no-dashboard --verbose` |
 | Check status | `agent-relay status` |
 | Spawn worker | `agent-relay spawn Worker1 claude "task"` |
-| List workers | `agent-relay agents` |
+| List workers | `agent-relay who` |
 | View worker logs | `agent-relay agents:logs Worker1` |
 | Send message | `agent-relay send Worker1 "message"` |
 | Release worker | `agent-relay release Worker1` |
@@ -53,11 +53,17 @@ npx agent-relay --version
 
 ### Step 1: Start Infrastructure
 
-```bash
-# Start broker in background (no dashboard needed for headless)
-agent-relay up --background --no-dashboard
+Prefer a **foreground stdio broker** first. Background mode can be flaky in some environments and may report "started" while `agent-relay status` still shows `STOPPED`.
 
-# Verify it's running
+```bash
+# Preferred: run broker in foreground/stdin mode and keep the session open
+agent-relay up --no-dashboard --verbose
+```
+
+Verify broker readiness before spawning any workers:
+
+```bash
+# Must show "running" before you spawn workers
 agent-relay status
 ```
 
@@ -74,6 +80,12 @@ mcp__relaycast__agent_add(
   cli: "claude",
   task: "Implement the authentication module following the existing patterns"
 )
+```
+
+CLI equivalent:
+
+```bash
+agent-relay spawn Worker1 claude "Implement the authentication module following the existing patterns"
 ```
 
 ### Step 3: Monitor and Coordinate
@@ -121,8 +133,8 @@ agent-relay release Worker1
 ### Monitoring Workers (Essential)
 
 ```bash
-# List all active agents with status
-agent-relay agents
+# Show currently active agents
+agent-relay who
 
 # View real-time output from a worker (critical for debugging)
 agent-relay agents:logs Worker1
@@ -161,7 +173,7 @@ Run: which agent-relay || npx agent-relay --version
 If not found: npm install -g agent-relay
 
 ## Step 2: Start Infrastructure
-Run: agent-relay up --background --no-dashboard
+Run: agent-relay up --no-dashboard --verbose
 Verify: agent-relay status (should show "running")
 
 ## Step 3: Manage Your Team
@@ -170,7 +182,7 @@ Spawn workers:
   agent-relay spawn Worker1 claude "Task description"
 
 Monitor workers (do this frequently):
-  agent-relay agents          # List active workers
+  agent-relay who              # List active workers
   agent-relay agents:logs Worker1  # View worker output/progress
 
 Send instructions:
@@ -204,8 +216,10 @@ The broker emits these events (available via SDK subscriptions):
 |---------|-----|
 | `agent-relay: command not found` | Install with `npm i -g agent-relay` or use `npx agent-relay` |
 | "Nested session" error | Broker handles this automatically; if running manually, unset `CLAUDECODE` env var |
-| Broker not starting | Check `agent-relay status`; may need `agent-relay down` first |
-| Workers not connecting | Ensure broker started; check `agent-relay agents` |
+| Broker not starting | Try `agent-relay down` first, then use foreground `agent-relay up --no-dashboard --verbose` to see readiness logs |
+| Background broker says started but status is STOPPED | Prefer foreground mode for that project/session; background mode may have detached incorrectly |
+| Spawn fails with `internal reply dropped` | Broker likely is not fully ready yet; wait for readiness, then spawn one worker first |
+| Workers not connecting | Ensure broker started; check `agent-relay who` and worker logs |
 | Not monitoring workers | Use `agent-relay agents:logs <name>` frequently to track progress |
 | Workers seem stuck | Check logs with `agent-relay agents:logs <name>` for errors |
 | Messages not delivered | Check `agent-relay history` to verify message flow |
