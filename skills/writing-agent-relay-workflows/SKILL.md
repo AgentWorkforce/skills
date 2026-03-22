@@ -612,6 +612,7 @@ But if the owner doesn't post either format, the runner still resolves completio
 | Passing too much context in `read-context` deterministic steps | Trim to only the relevant code. Use `grep`, `sed -n`, `head` instead of full `cat`. Large context slows lead design |
 | Using `import { workflow }` (ESM) in TypeScript workflows     | Use `const { workflow } = require('@agent-relay/sdk/workflows')` — most projects default to CJS and `tsx` will fail with top-level await or ESM-only imports |
 | Top-level `await` in TypeScript workflow files                | Wrap in `async function main() { ... } main().catch(console.error)` — CJS mode does not support top-level await |
+| Using `export default workflow(...)...build()` pattern        | There is no `.build()` method. The builder chain ends with `.run()` inside an `async main()`. `export default` does not work — the file must call `.run()` and be executed, not imported |
 | Using `import` path `'../workflows/builder.js'` (relative)   | Use `require('@agent-relay/sdk/workflows')` — the package export, not internal file paths |
 | Not validating with `--dry-run` before running                | Always run `agent-relay run --dry-run workflow.ts` first to catch import errors, deadlocks, and missing deps |
 
