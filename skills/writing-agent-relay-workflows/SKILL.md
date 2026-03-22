@@ -206,6 +206,122 @@ Deterministic steps run shell commands without spawning an agent. Use them for:
 .onError('retry', { maxRetries: 3, retryDelayMs: 5000 })
 ```
 
+## Supervisor Pattern and Auto-Resolution
+
+### How the supervisor pattern works
+
+When you set `.pattern('supervisor')` (or any hub pattern: `hub-spoke`, `fan-out`, `supervisor`), the runner **automatically assigns a supervisor agent as the owner/monitor** for all worker steps. This is called "auto-hardening."
+
+The supervisor doesn't need its own steps — it's auto-spawned as a concurrent owner process alongside each worker. The supervisor:
+- Monitors the worker's progress via the Relaycast channel
+- Can nudge idle workers
+- Issues `OWNER_DECISION: COMPLETE|INCOMPLETE_RETRY|INCOMPLETE_FAIL` when satisfied
+- Receives the `WORKER_DONE` / `LEAD_DONE` handoff signals
+
+### Auto-owner role resolution
+
+The runner picks the supervisor automatically using role/name keyword matching. Priority order:
+
+| Priority | Keyword | Example |
+|----------|---------|---------|
+| 6 (highest) | `lead` | `role: 'Lead architect'` |
+| 5 | `coordinator` | `role: 'Build coordinator'` |
+| 4 | `supervisor` | `role: 'Quality supervisor'` |
+| 3 | `orchestrator` | `role: 'Pipeline orchestrator'` |
+| 2 | `hub` | `role: 'Communication hub'` |
+| 1 | Any hub-role match | Fallback to any matching agent |
+
+The runner scans both the agent `name` and `role` fields for these keywords.
+
+### When auto-hardening activates
+
+Auto-hardening **only** activates when ALL of these are true:
+1. The pattern is a hub pattern (`supervisor`, `hub-spoke`, `fan-out`)
+2. The step's agent has `interactive !== false`
+3. The step's agent is not an explicit interactive worker (`preset: 'worker'` with `interactive !== false`)
+
+**It does NOT activate for `pipeline` or `dag` patterns.** This is a common gotcha — if you use `.pattern('pipeline')` with a lead agent, the lead won't auto-monitor workers. Switch to `.pattern('supervisor')` to get the auto-owner behavior.
+
+### Example: supervisor pattern
+
+```typescript
+workflow('review-codebase')
+  .pattern('supervisor')  // enables auto-hardening
+  .channel('wf-review')
+  .maxConcurrency(5)
+
+  // Lead agent — 0 direct steps, auto-assigned as owner for worker steps
+  .agent('lead', {
+    cli: 'claude',
+    role: 'Lead supervisor — monitors workers, validates output',
+  })
+  .agent('analyzer', {
+    cli: 'opencode',
+    model: 'ollama/qwen3:14b-q4_K_M',
+    role: 'Worker — analyzes code patterns',
+  })
+  .agent('reporter', {
+    cli: 'opencode',
+    model: 'ollama/qwen3:14b-q4_K_M',
+    role: 'Worker — writes review report',
+  })
+
+  .step('gather-context', {
+    type: 'deterministic',
+    command: 'find src -name "*.ts" | head -50 && cat package.json',
+    captureOutput: true,
+  })
+  .step('analyze', {
+    agent: 'analyzer',
+    dependsOn: ['gather-context'],
+    task: `Analyze these files:\n{{steps.gather-context.output}}`,
+    verification: { type: 'exit_code' },
+  })
+  // Runner auto-spawns: lead as owner, analyzer as specialist
+  // Lead monitors #wf-review for WORKER_DONE signal from analyzer
+```
+
+### The handoff contract
+
+When the runner spawns a supervised step, it injects two task modifications:
+
+**Worker gets appended:**
+```
+WORKER COMPLETION CONTRACT:
+- You are handing work off to owner "lead" for step "analyze".
+- When your work is ready for review, post to #wf-review: WORKER_DONE: <brief summary>
+- After posting your handoff signal, self-terminate with /exit.
+```
+
+**Owner gets a supervisor task:**
+```
+You are the step owner/supervisor for step "analyze".
+Worker: analyzer (runtime: analyze-worker-xxx) on #wf-review
+Your job: Monitor the worker and determine when the task is complete.
+- Watch #wf-review for the worker's progress messages
+- Check file changes: run git diff --stat or inspect expected files
+- When validated, post LEAD_DONE: <brief summary> to #wf-review
+When you have enough evidence, return:
+OWNER_DECISION: <COMPLETE|INCOMPLETE_RETRY|INCOMPLETE_FAIL|NEEDS_CLARIFICATION>
+REASON: <one sentence>
+```
+
+### Auto-reviewer resolution
+
+In addition to the auto-owner, hub patterns also trigger **auto-reviewer resolution**. The runner finds an eligible reviewer agent using similar keyword matching (`reviewer`, `critic`, `verifier`, `qa` in role/name). The reviewer runs a post-completion review gate on the step output.
+
+### pipeline vs supervisor: when to use each
+
+| Use case | Pattern | Why |
+|----------|---------|-----|
+| Sequential handoff, no monitoring needed | `pipeline` | Simple, no overhead |
+| Workers need oversight (nudging, retries) | `supervisor` | Auto-owner monitors and intervenes |
+| Local/small models that may not complete cleanly | `supervisor` | Supervisor catches idle/stuck workers |
+| All agents are non-interactive (`preset: 'worker'`) | `pipeline` or `dag` | No PTY = no supervision needed |
+| Mixed interactive + non-interactive agents | `supervisor` | Supervisor handles interactive workers |
+
+**Key insight:** If you're using local models (Ollama, etc.) or models that may not reliably produce completion signals, use `supervisor` pattern with a stronger model as the lead. The lead compensates for worker unreliability.
+
 ## Non-Interactive Agents (preset: worker / reviewer / analyst)
 
 Use presets instead of manually setting `interactive: false`. Presets configure interactive mode and inject guardrails automatically:
@@ -605,6 +721,8 @@ But if the owner doesn't post either format, the runner still resolves completio
 | Designing prompts around output ceremony instead of work    | Describe the deliverable and acceptance criteria, not what to print |
 | Treating markers as mandatory truth                          | Markers are optional accelerators; verification and evidence decide completion |
 | Using `fan-out`/`hub-spoke` for simple parallel workers     | Use `dag` — hub patterns trigger auto owner/supervisor/reviewer pipeline |
+| Using `pipeline` pattern but expecting auto-supervisor      | Auto-hardening only activates for hub patterns (`supervisor`, `hub-spoke`, `fan-out`). Switch to `.pattern('supervisor')` |
+| Local/small models timing out without completion signals    | Use `supervisor` pattern with a stronger model as lead — compensates for worker unreliability |
 | Workers without `preset: 'worker'` in lead+worker workflows | Add `preset: 'worker'` — it auto-sets `interactive: false` and produces clean stdout for `{{steps.X.output}}` injection |
 | Lead running concurrently with workers, monitoring channel  | Make lead `dependsOn` workers — use `{{steps.X.output}}` injection instead of real-time channel monitoring |
 | Using `_` in YAML numbers (e.g., `timeoutMs: 1_200_000`)   | YAML doesn't support `_` as a numeric separator — use `1200000`. TypeScript separators don't work in YAML |
