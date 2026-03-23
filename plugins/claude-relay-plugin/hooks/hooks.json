@@ -40,6 +40,16 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-allow-relaycast.sh"
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [

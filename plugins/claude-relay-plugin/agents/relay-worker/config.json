@@ -19,6 +19,16 @@
     "relaycast"
   ],
   "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-allow-worker.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Read|Write|Edit|MultiEdit|Grep|Glob|Bash|WebFetch|WebSearch",

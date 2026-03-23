@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SETTINGS_DIR=".claude"
-PERMISSION="mcp__plugin_agent-relay_relaycast"
+PERMISSION="mcp__relaycast__*"
 
 # jq is required for JSON manipulation
 command -v jq >/dev/null 2>&1 || exit 0
