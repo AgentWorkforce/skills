@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with the relay broker-sdk - covers the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, swarm patterns, error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
+description: Use when building multi-agent workflows with the relay broker-sdk - covers the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, dynamic channel management (subscribe/unsubscribe/mute/unmute), swarm patterns, error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
 ---
 
 # Writing Agent Relay Workflows
@@ -17,6 +17,7 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 - Orchestrating different AI CLIs (claude, codex, gemini, aider, goose)
 - Creating DAG, pipeline, fan-out, or other swarm patterns
 - Needing verification gates, retries, or step output chaining
+- Dynamic channel management: agents joining/leaving/muting channels mid-workflow
 
 ## Quick Reference
 
@@ -112,6 +113,71 @@ Steps complete through a multi-signal pipeline (highest priority first):
 
 **Key principle:** No single signal is mandatory. Describe the deliverable, not what to print.
 
+### Dynamic Channel Management
+
+Agents can dynamically subscribe, unsubscribe, mute, and unmute channels **after spawn**. This eliminates the need for client-side channel filtering and manual peer fanout.
+
+#### SDK API
+
+```typescript
+// Subscribe an agent to additional channels post-spawn
+relay.subscribe({ agent: 'security-auditor', channels: ['review-pr-456'] });
+
+// Unsubscribe — agent leaves the channel entirely
+relay.unsubscribe({ agent: 'security-auditor', channels: ['general'] });
+
+// Mute — agent stays subscribed (history access) but messages are NOT injected into PTY
+relay.mute({ agent: 'security-auditor', channel: 'review-pr-123' });
+
+// Unmute — resume PTY injection
+relay.unmute({ agent: 'security-auditor', channel: 'review-pr-123' });
+```
+
+Agent-level methods are also available:
+
+```typescript
+const agent = await relay.claude.spawn({ name: 'auditor', channels: ['ch-a'] });
+await agent.subscribe(['ch-b']);       // now subscribed to ch-a and ch-b
+await agent.mute('ch-a');              // ch-a messages silenced (still in history)
+await agent.unmute('ch-a');            // ch-a messages resume
+await agent.unsubscribe(['ch-b']);     // leaves ch-b
+console.log(agent.channels);          // ['ch-a']
+console.log(agent.mutedChannels);     // []
+```
+
+#### Semantics
+
+| Operation     | Channel membership | PTY injection | History access |
+|---------------|-------------------|---------------|----------------|
+| `subscribe`   | Yes               | Yes           | Yes            |
+| `unsubscribe` | No                | No            | No (leaves)    |
+| `mute`        | Yes (stays)       | No (silenced) | Yes (can query)|
+| `unmute`      | Yes               | Yes (resumes) | Yes            |
+
+#### Events
+
+```typescript
+relay.onChannelSubscribed = (agent, channels) => { /* ... */ };
+relay.onChannelUnsubscribed = (agent, channels) => { /* ... */ };
+relay.onChannelMuted = (agent, channel) => { /* ... */ };
+relay.onChannelUnmuted = (agent, channel) => { /* ... */ };
+```
+
+#### When to Use in Workflows
+
+- **Multi-PR chat sessions**: Agents focused on one PR can mute other PR channels to reduce noise
+- **Phase transitions**: Subscribe agents to new channels as work progresses between phases
+- **Team isolation**: Workers mute the main coordination channel during focused work, unmute for review
+- **Dynamic fanout**: A lead subscribes workers to sub-channels at runtime based on task decomposition
+
+#### What This Eliminates
+
+With broker-managed subscriptions, you no longer need:
+1. Client-side persona filtering (`personaNames.has(from)` checks)
+2. Channel prefix regex for message routing
+3. Manual peer fanout (iterating agents to forward messages)
+4. Dedup caches for dual-path delivery
+
 ## Agent Definition
 
 ```typescript
@@ -123,6 +189,24 @@ Steps complete through a multi-signal pipeline (highest priority first):
   model?: string,
   interactive?: boolean, // default: true
 })
+```
+
+**Post-spawn channel operations** (available on Agent instances and AgentRelay facade):
+
+```typescript
+// Agent instance methods
+agent.subscribe(channels: string[]): Promise<void>
+agent.unsubscribe(channels: string[]): Promise<void>
+agent.mute(channel: string): Promise<void>
+agent.unmute(channel: string): Promise<void>
+agent.channels: string[]          // current subscribed channels
+agent.mutedChannels: string[]     // currently muted channels
+
+// AgentRelay facade methods (by agent name)
+relay.subscribe({ agent: string, channels: string[] }): Promise<void>
+relay.unsubscribe({ agent: string, channels: string[] }): Promise<void>
+relay.mute({ agent: string, channel: string }): Promise<void>
+relay.unmute({ agent: string, channel: string }): Promise<void>
 ```
 
 | Preset     | Interactive   | Relay access | Use for                                              |
@@ -381,6 +465,10 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Single step editing 4+ files | Agents modify 1-2 then exit. Split to one file per step with verify gates |
 | Relying on agents to `git commit` | Agents emit markers without running git. Use deterministic commit step |
 | File-writing steps without `file_exists` verification | `exit_code` auto-passes even if no file written |
+| Manual peer fanout in `handleChannelMessage()` | Use broker-managed channel subscriptions — broker fans out to all subscribers automatically |
+| Client-side `personaNames.has(from)` filtering | Use `relay.subscribe()`/`relay.unsubscribe()` — only subscribed agents receive messages |
+| Agents receiving noisy cross-channel messages during focused work | Use `relay.mute({ agent, channel })` to silence non-primary channels without leaving them |
+| Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
 
 ## YAML Alternative
 
