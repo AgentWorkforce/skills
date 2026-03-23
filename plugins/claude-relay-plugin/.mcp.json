@@ -7,7 +7,6 @@
         "@relaycast/mcp"
       ],
       "env": {
-        "RELAY_API_KEY": "${RELAY_API_KEY}",
         "RELAY_BASE_URL": "https://api.relaycast.dev",
         "RELAY_AGENT_TYPE": "agent"
       }
