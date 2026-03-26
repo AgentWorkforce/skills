@@ -100,19 +100,19 @@
       ],
       "packages": [
         {
-          "packageId": "@agent-relay/choosing-swarm-patterns#claude",
+          "packageId": "@agent-relay/choosing-swarm-patterns",
           "version": "1.0.0",
           "required": true,
           "reason": "Decision framework for picking the right multi-agent orchestration pattern"
         },
         {
-          "packageId": "@agent-relay/writing-agent-relay-workflows#claude",
+          "packageId": "@agent-relay/writing-agent-relay-workflows",
           "version": "1.1.0",
           "required": true,
           "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows"
         },
         {
-          "packageId": "@agent-workforce/trail-snippet#claude:AGENTS.md",
+          "packageId": "@agent-workforce/trail-snippet",
           "version": "latest",
           "required": true,
           "reason": "Trail snippet utility for debugging and inspecting agent execution traces"
