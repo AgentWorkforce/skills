@@ -83,5 +83,41 @@
         "skills/running-headless-orchestrator/SKILL.md"
       ]
     }
+  ],
+  "collections": [
+    {
+      "id": "agent-relay-starter",
+      "name": "Agent Relay Starter",
+      "description": "Essential skills for building multi-agent systems with Agent Relay - swarm pattern selection, workflow authoring, and trail debugging",
+      "version": "1.0.0",
+      "category": "development",
+      "tags": [
+        "multi-agent",
+        "orchestration",
+        "swarm-patterns",
+        "workflow",
+        "agent-relay"
+      ],
+      "packages": [
+        {
+          "packageId": "@agent-relay/choosing-swarm-patterns#claude",
+          "version": "1.0.0",
+          "required": true,
+          "reason": "Decision framework for picking the right multi-agent orchestration pattern"
+        },
+        {
+          "packageId": "@agent-relay/writing-agent-relay-workflows#claude",
+          "version": "1.0.6",
+          "required": true,
+          "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows"
+        },
+        {
+          "packageId": "@agent-workforce/trail-snippet#claude:AGENTS.md",
+          "version": "latest",
+          "required": true,
+          "reason": "Trail snippet utility for debugging and inspecting agent execution traces"
+        }
+      ]
+    }
   ]
 }
