@@ -63,6 +63,85 @@ main().catch(console.error);
 3. Use `.run({ cwd: process.cwd() })` — `createWorkflowRenderer` does not exist
 4. Validate with `--dry-run` before running: `agent-relay run --dry-run workflow.ts`
 
+## ⚡ Parallelism — Design for Speed
+
+**This is the most important design consideration.** Sequential workflows waste hours. Always design for maximum parallelism.
+
+### Cross-Workflow Parallelism: Wave Planning
+
+When a project has multiple workflows, group independent ones into parallel waves:
+
+```bash
+# BAD — sequential (14 hours for 27 workflows at ~30 min each)
+agent-relay run workflows/34-sst-wiring.ts
+agent-relay run workflows/35-env-config.ts
+agent-relay run workflows/36-loading-states.ts
+# ... one at a time
+
+# GOOD — parallel waves (3-4 hours for 27 workflows)
+# Wave 1: independent infra (parallel)
+agent-relay run workflows/34-sst-wiring.ts &
+agent-relay run workflows/35-env-config.ts &
+agent-relay run workflows/36-loading-states.ts &
+agent-relay run workflows/37-responsive.ts &
+wait
+git add -A && git commit -m "Wave 1"
+
+# Wave 2: testing (parallel — independent test suites)
+agent-relay run workflows/40-unit-tests.ts &
+agent-relay run workflows/41-integration-tests.ts &
+agent-relay run workflows/42-e2e-tests.ts &
+wait
+git add -A && git commit -m "Wave 2"
+```
+
+### Wave Planning Heuristics
+
+Two workflows can run in parallel if they don't have write-write or write-read file conflicts:
+
+| Touch Zone | Can Parallelize? |
+|---|---|
+| Different `packages/*/src/` dirs | ✅ Yes |
+| Different `app/` routes | ✅ Yes |
+| Same package, different subdirs | ⚠️ Usually yes |
+| Same files (shared config, root package.json) | ❌ No — sequential or same wave with merge |
+| Explicit dependency | ❌ No — ordered waves |
+
+### Declare File Scope for Planning
+
+Help wave planners (human or automated) understand what each workflow touches:
+
+```typescript
+workflow('48-comparison-mode')
+  .packages(['web', 'core'])                // monorepo packages touched
+  .isolatedFrom(['49-feedback-system'])      // explicitly safe to parallelize
+  .requiresBefore(['46-admin-dashboard'])    // explicit ordering constraint
+```
+
+### Within-Workflow Parallelism
+
+Use shared `dependsOn` to fan out independent sub-tasks:
+
+```typescript
+// BAD — unnecessary sequential chain
+.step('fix-component-a', { agent: 'worker', dependsOn: ['review'] })
+.step('fix-component-b', { agent: 'worker', dependsOn: ['fix-component-a'] })  // why wait?
+
+// GOOD — parallel fan-out, merge at the end
+.step('fix-component-a', { agent: 'impl-1', dependsOn: ['review'] })
+.step('fix-component-b', { agent: 'impl-2', dependsOn: ['review'] })  // same dep = parallel
+.step('verify-all', { agent: 'reviewer', dependsOn: ['fix-component-a', 'fix-component-b'] })
+```
+
+### Impact
+
+Real-world example (Relayed — 60 workflows):
+- **Sequential**: ~30 min × 60 = **30 hours**
+- **Parallel waves (4-6 per wave)**: ~12 waves × 35 min = **~7 hours** (4x faster)
+- **Aggressive parallelism (8-way)**: **~4 hours** (7.5x faster)
+
+---
+
 ## Key Concepts
 
 ### Step Output Chaining
@@ -439,6 +518,10 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 
 | Mistake | Fix |
 |---------|-----|
+| All workflows run sequentially | Group independent workflows into parallel waves (4-7x speedup) |
+| Every step depends on the previous one | Only add `dependsOn` when there's a real data dependency |
+| Self-review step with no timeout | Set `timeout: 300_000` (5 min) — Codex hangs in non-interactive review |
+| One giant workflow per feature | Split into smaller workflows that can run in parallel waves |
 | Adding exit instructions to tasks | Runner handles self-termination automatically |
 | Setting `timeoutMs` on agents/steps | Use global `.timeout()` only |
 | Using `general` channel | Set `.channel('wf-name')` for isolation |
