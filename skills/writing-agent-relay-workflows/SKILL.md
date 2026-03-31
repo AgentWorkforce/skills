@@ -22,9 +22,8 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 ## Quick Reference
 
 ```typescript
-const { workflow } = require('@agent-relay/sdk/workflows');
+import { workflow } from '@agent-relay/sdk/workflows';
 
-async function main() {
 const result = await workflow('my-workflow')
   .description('What this workflow does')
   .pattern('dag') // or 'pipeline', 'fan-out', etc.
@@ -52,14 +51,11 @@ const result = await workflow('my-workflow')
   .run({ cwd: process.cwd() });
 
   console.log('Result:', result.status);
-}
-
-main().catch(console.error);
 ```
 
 **Critical TypeScript rules:**
-1. Use `require()`, not `import` — most projects default to CJS
-2. Wrap in `async function main()` — CJS does not support top-level await
+1. Check the project's `package.json` for `"type": "module"` — if ESM, use `import` and top-level `await`. If CJS, use `require()` and wrap in `async function main()`.
+2. `agent-relay run <file.ts>` executes the file as a standalone subprocess — it does NOT inspect exports. The file MUST call `.run()`.
 3. Use `.run({ cwd: process.cwd() })` — `createWorkflowRenderer` does not exist
 4. Validate with `--dry-run` before running: `agent-relay run --dry-run workflow.ts`
 
@@ -536,11 +532,12 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Workers without `preset: 'worker'` in lead+worker flows | Add preset for clean stdout |
 | Using `_` in YAML numbers (`timeoutMs: 1_200_000`) | YAML doesn't support `_` separators |
 | Workflow timeout under 30 min for complex workflows | Use `3600000` (1 hour) as default |
-| `import { workflow }` (ESM) in TypeScript workflows | Use `require('@agent-relay/sdk/workflows')` — most repos are CJS |
-| Top-level `await` in TypeScript | Wrap in `async function main() { ... } main().catch(console.error)` |
+| Using `require()` in ESM projects | Check `package.json` for `"type": "module"` — use `import` if ESM |
+| Wrapping in `async function main()` in ESM | ESM supports top-level `await` — no wrapper needed |
 | Using `createWorkflowRenderer` | Does not exist. Use `.run({ cwd: process.cwd() })` |
-| `export default workflow(...)...build()` | No `.build()`. Chain ends with `.run()` inside async main |
-| Relative import `'../workflows/builder.js'` | Use `require('@agent-relay/sdk/workflows')` |
+| `export default workflow(...)...build()` | No `.build()`. Chain ends with `.run()` — the file must call `.run()`, not just export config |
+| Relative import `'../workflows/builder.js'` | Use `import { workflow } from '@agent-relay/sdk/workflows'` |
+| Thinking `agent-relay run` inspects exports | It executes the file as a subprocess. Only `.run()` invocations trigger steps |
 | `pattern('single')` on cloud runner | Not supported — use `dag` |
 | `pattern('supervisor')` with one agent | Same agent is owner + specialist. Use `dag` |
 | Invalid verification type (`type: 'deterministic'`) | Only `exit_code`, `output_contains`, `file_exists`, `custom` are valid |
