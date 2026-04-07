@@ -137,6 +137,117 @@ Real-world example (Relayed — 60 workflows):
 - **Aggressive parallelism (8-way)**: **~4 hours** (7.5x faster)
 
 ---
+## Failure Prevention
+
+These workflow files are easy to break in ways that only appear mid-run. Follow these rules when authoring or editing workflow `.ts` files.
+
+### 1. Do not use raw top-level `await`
+
+Executor-driven workflow files may be run through a `tsx`/`esbuild` path that behaves like CJS. Raw top-level `await` can fail with:
+
+- `Top-level await is currently not supported with the "cjs" output format`
+
+Always wrap execution like this:
+
+```ts
+async function runWorkflow() {
+  const result = await workflow('my-workflow')
+    // ...
+    .run({ cwd: process.cwd() });
+
+  console.log('Workflow status:', result.status);
+}
+
+runWorkflow().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+```
+
+Do not end workflow files with bare top-level `await workflow(...).run(...)`.
+
+### 2. Avoid raw fenced code blocks inside workflow task template literals
+
+Raw triple-backtick code fences inside large inline `task: \`...\`` template strings are fragile and can break outer TypeScript parsing, especially when they contain language tags like `swift` or `diff`.
+
+Preferred options, in order:
+
+1. Avoid inline fenced examples entirely
+2. Move larger examples to referenced files
+3. Use plain indented examples instead of fenced blocks
+4. If fenced blocks must exist inside generated inner code, escape them consistently and syntax-check the outer workflow file afterward
+
+### 3. Keep final verification boring and deterministic
+
+Final verification should validate real outputs with simple, portable shell commands. If checking for multiple symbols, use extended regex explicitly:
+
+```bash
+grep -Eq "foo|bar|baz" file.ts
+```
+
+Do **not** rely on basic `grep` alternation like:
+
+```bash
+grep -c "foo\|bar\|baz" file.ts
+```
+
+That can silently misbehave and create fake failures even when the generated code is correct.
+
+### 4. Separate durable outputs from execution exhaust
+
+Commit:
+
+- generated product code
+- migrations
+- tests
+- docs
+- workflow-definition fixes
+
+Do not commit by default:
+
+- `.logs/`
+- transient executor output
+- retry artifacts
+- temporary step-output files
+
+### 5. Prefer Codex for implementation-heavy roles and Claude for review
+
+Default team split for workflow-authored agent roles:
+
+- **lead / implementer / writer / fixer** → `codex`
+- **reviewer** → `claude`
+
+Use Claude as the primary implementer only when there is a specific reason.
+
+### 6. Be explicit about shell requirements
+
+If executor scripts use Bash-only features such as associative arrays, require modern Bash explicitly. On macOS, prefer a known-good Bash path when needed, for example:
+
+```bash
+/opt/homebrew/bin/bash workflows/your-workflow/execute.sh --wave 2
+```
+
+### 7. Make resume semantics explicit
+
+Document clearly whether the executor supports:
+
+- full-run continuation
+- `--wave`
+- `--workflow`
+- `--resume`
+
+Do not assume users will infer the behavior. In particular, `--wave N` should be understood as "run only this wave" unless the executor explicitly chains onward.
+
+### 8. Syntax-check workflow files after editing
+
+After editing workflow `.ts` files, run a lightweight syntax check before launching a large batch run. This is especially important if the workflow contains:
+
+- large inline `task` template literals
+- embedded code examples
+- escaped backticks
+- wrapper changes around workflow execution
+
+---
 
 ## Key Concepts
 
