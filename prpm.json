@@ -32,7 +32,11 @@
       "description": "Use when building multi-agent workflows with the relay broker-sdk - covers WorkflowBuilder API, DAG step dependencies, agent definitions, output chaining via {{steps.X.output}}, verification gates, evidence-based completion, channels, swarm patterns, error handling, event listeners, step sizing, lead+workers team pattern, and parallel wave planning",
       "format": "claude",
       "subtype": "skill",
-      "languages": ["typescript", "python", "yaml"],
+      "languages": [
+        "typescript",
+        "python",
+        "yaml"
+      ],
       "tags": [
         "workflow",
         "multi-agent",
@@ -67,7 +71,7 @@
     },
     {
       "name": "running-headless-orchestrator",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when an agent needs to self-bootstrap agent-relay and autonomously manage a team of workers - covers infrastructure startup, agent spawning, lifecycle monitoring, and team coordination without human intervention",
       "format": "claude",
       "subtype": "skill",
