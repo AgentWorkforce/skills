@@ -266,6 +266,18 @@ With broker-managed subscriptions, you no longer need:
 })
 ```
 
+### Model Constants
+
+**Always use model constants from `@agent-relay/config` instead of string literals.** Each CLI has a typed constants object with its available models:
+
+```typescript
+import { ClaudeModels, CodexModels, GeminiModels } from '@agent-relay/config';
+
+.agent('planner', { cli: 'claude', model: ClaudeModels.OPUS })    // not 'opus'
+.agent('worker',  { cli: 'claude', model: ClaudeModels.SONNET })  // not 'sonnet'
+.agent('coder',   { cli: 'codex',  model: CodexModels.GPT_5_4 })  // not 'gpt-5.4'
+```
+
 **Post-spawn channel operations** (available on Agent instances and AgentRelay facade):
 
 ```typescript
@@ -537,6 +549,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Using `createWorkflowRenderer` | Does not exist. Use `.run({ cwd: process.cwd() })` |
 | `export default workflow(...)...build()` | No `.build()`. Chain ends with `.run()` — the file must call `.run()`, not just export config |
 | Relative import `'../workflows/builder.js'` | Use `import { workflow } from '@agent-relay/sdk/workflows'` |
+| Hardcoded model strings (`model: 'opus'`) | Use constants: `import { ClaudeModels } from '@agent-relay/config'` → `model: ClaudeModels.OPUS` |
 | Thinking `agent-relay run` inspects exports | It executes the file as a subprocess. Only `.run()` invocations trigger steps |
 | `pattern('single')` on cloud runner | Not supported — use `dag` |
 | `pattern('supervisor')` with one agent | Same agent is owner + specialist. Use `dag` |
