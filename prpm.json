@@ -112,7 +112,7 @@
       "id": "agent-relay-starter",
       "name": "Agent Relay Starter",
       "description": "Essential skills for building multi-agent systems with Agent Relay - swarm pattern selection, workflow authoring, and trail debugging",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "category": "development",
       "tags": [
         "multi-agent",
