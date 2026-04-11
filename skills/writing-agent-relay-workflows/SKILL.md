@@ -11,6 +11,8 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 
 **Language preference:** TypeScript > Python > YAML. Use TypeScript unless the project is Python-only or a simple config-driven workflow suits YAML.
 
+**Pattern selection:** Do not default to `dag` blindly. If the job needs a different swarm/workflow type, consult the `choosing-swarm-patterns` skill when available and select the pattern that best matches the coordination problem.
+
 ## When to Use
 
 - Building multi-agent workflows with step dependencies
@@ -249,6 +251,51 @@ After editing workflow `.ts` files, run a lightweight syntax check before launch
 
 ---
 
+## End-to-End Bug Fix Workflows
+
+For bug-fix or reliability workflows, do **not** stop at unit or integration tests. The workflow should explicitly prove that the original user-visible problem is fixed.
+
+### Required phases for fix workflows
+
+1. **Capture the original failure**
+   - Reproduce the bug first in a deterministic or evidence-capturing step
+   - Save exact commands, logs, status codes, or screenshots/artifacts
+2. **State the acceptance contract**
+   - Define the exact end-to-end success criteria before implementation
+   - Include the real entrypoint a user would run
+3. **Implement the fix**
+4. **Rebuild / reinstall from scratch**
+   - Do not trust dirty local state
+   - Prefer a clean environment when install/bootstrap behavior is involved
+5. **Run targeted regression checks**
+   - Unit/integration tests are helpful but not sufficient by themselves
+6. **Run a full end-to-end validation**
+   - Use the real CLI / API / install path
+   - Prefer a clean environment (Docker, sandbox, cloud workspace, Daytona, etc.) for install/runtime issues
+7. **Compare before vs after evidence**
+   - Show that the original failure no longer occurs
+8. **Record residual risks**
+   - Call out what was not covered
+
+### Clean-environment validation guidance
+
+When the bug involves install, bootstrap, PATH/shims, auth, brokers, background services, OS-specific packaging, or first-run UX, add a second workflow (or second phase) that validates the fix in a **fresh environment**.
+
+Preferred order of proving environments:
+1. disposable sandbox / cloud workspace
+2. Docker / containerized environment
+3. fresh local shell with isolated paths
+
+### Meta-workflow guidance
+
+If the right proving environment is unclear, first write a **meta-workflow** that:
+- compares candidate validation environments
+- defines the acceptance contract
+- chooses the best swarm pattern
+- then authors the final fix/validation workflow
+
+This is often better than jumping straight to implementation.
+
 ## Key Concepts
 
 ### Step Output Chaining
@@ -375,6 +422,18 @@ With broker-managed subscriptions, you no longer need:
   model?: string,
   interactive?: boolean, // default: true
 })
+```
+
+### Model Constants
+
+**Always use model constants from `@agent-relay/config` instead of string literals.** Each CLI has a typed constants object with its available models:
+
+```typescript
+import { ClaudeModels, CodexModels, GeminiModels } from '@agent-relay/config';
+
+.agent('planner', { cli: 'claude', model: ClaudeModels.OPUS })    // not 'opus'
+.agent('worker',  { cli: 'claude', model: ClaudeModels.SONNET })  // not 'sonnet'
+.agent('coder',   { cli: 'codex',  model: CodexModels.GPT_5_4 })  // not 'gpt-5.4'
 ```
 
 **Post-spawn channel operations** (available on Agent instances and AgentRelay facade):
@@ -648,6 +707,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Using `createWorkflowRenderer` | Does not exist. Use `.run({ cwd: process.cwd() })` |
 | `export default workflow(...)...build()` | No `.build()`. Chain ends with `.run()` — the file must call `.run()`, not just export config |
 | Relative import `'../workflows/builder.js'` | Use `import { workflow } from '@agent-relay/sdk/workflows'` |
+| Hardcoded model strings (`model: 'opus'`) | Use constants: `import { ClaudeModels } from '@agent-relay/config'` → `model: ClaudeModels.OPUS` |
 | Thinking `agent-relay run` inspects exports | It executes the file as a subprocess. Only `.run()` invocations trigger steps |
 | `pattern('single')` on cloud runner | Not supported — use `dag` |
 | `pattern('supervisor')` with one agent | Same agent is owner + specialist. Use `dag` |
