@@ -86,6 +86,25 @@
       "files": [
         "skills/running-headless-orchestrator/SKILL.md"
       ]
+    },
+    {
+      "name": "relay-80-100-workflow",
+      "version": "1.0.0",
+      "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "workflow",
+        "testing",
+        "e2e-validation",
+        "pglite",
+        "quality-assurance",
+        "multi-agent",
+        "best-practices"
+      ],
+      "files": [
+        "skills/relay-80-100-workflow/SKILL.md"
+      ]
     }
   ],
   "collections": [
@@ -120,6 +139,12 @@
           "version": "latest",
           "required": true,
           "reason": "Trail snippet utility for debugging and inspecting agent execution traces"
+        },
+        {
+          "packageId": "@agent-relay/relay-80-100-workflow",
+          "version": "latest",
+          "required": false,
+          "reason": "E2E validation patterns for workflows that must be production-ready before merging"
         }
       ]
     }
