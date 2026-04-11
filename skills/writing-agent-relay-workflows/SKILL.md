@@ -495,6 +495,75 @@ Use for: file checks, reading files for injection, build/test gates, git operati
 
 ## Common Patterns
 
+### Interactive Team (lead + workers on shared channel)
+
+When a task involves creating/modifying multiple files with review feedback, use **interactive agents on a shared channel** instead of non-interactive one-shot workers. The lead coordinates, reviews, and posts feedback; workers implement and iterate.
+
+```typescript
+.agent('lead', {
+  cli: 'claude',
+  model: ClaudeModels.OPUS,
+  role: 'Architect and reviewer — assigns work, reviews, posts feedback',
+  retries: 1,
+  // No preset — interactive by default
+})
+
+.agent('impl-new', {
+  cli: 'codex',
+  model: CodexModels.O3,
+  role: 'Creates new files. Listens on channel for assignments and feedback.',
+  retries: 2,
+  // No preset — interactive, receives channel messages
+})
+
+.agent('impl-modify', {
+  cli: 'codex',
+  model: CodexModels.O3,
+  role: 'Edits existing files. Listens on channel for assignments and feedback.',
+  retries: 2,
+})
+
+// All three share the same dependsOn — they start concurrently (no deadlock)
+.step('lead-coordinate', {
+  agent: 'lead',
+  dependsOn: ['context'],
+  task: `You are the lead on #channel. Workers: impl-new, impl-modify.
+Post the plan. Assign files. Review their work. Post feedback if needed.
+Workers iterate based on your feedback. Exit when all files are correct.`,
+})
+.step('impl-new-work', {
+  agent: 'impl-new',
+  dependsOn: ['context'],   // same dep as lead = parallel start
+  task: `You are impl-new on #channel. Wait for the lead's plan.
+Create files as assigned. Report completion. Fix issues from feedback.`,
+})
+.step('impl-modify-work', {
+  agent: 'impl-modify',
+  dependsOn: ['context'],   // same dep as lead = parallel start
+  task: `You are impl-modify on #channel. Wait for the lead's plan.
+Edit files as assigned. Report completion. Fix issues from feedback.`,
+})
+// Downstream gates on lead (lead exits when satisfied)
+.step('verify', { type: 'deterministic', dependsOn: ['lead-coordinate'], ... })
+```
+
+**Key behaviors observed in production:**
+
+- **Workers self-organize from channel context.** Workers read each other's completion messages and start dependent work without waiting for the lead to relay. The shared channel gives them ambient awareness.
+- **Lead-as-reviewer is more efficient than a separate reviewer agent.** The lead reads actual files and runs typecheck between rounds — one agent doing coordination + review eliminates a step.
+- **Codex interactive mode works well with PTY channel injection.** Don't default to `preset: 'worker'` — interactive Codex agents receive and act on channel messages reliably.
+- **Workers may outpace the lead.** If the lead is reviewing while workers are fast, the lead's "proceed" message may arrive after the worker already started from channel context. This is harmless but worth knowing.
+- **No feedback loop needed = fast path.** If workers get it right first try, the interactive pattern completes just as fast as one-shot. The feedback loop is insurance, not overhead.
+
+**When to use interactive team vs one-shot DAG:**
+
+| Scenario | Pattern |
+|----------|---------|
+| 4+ files, likely needs iteration | Interactive team |
+| Simple edits, well-specified | One-shot DAG with `preset: 'worker'` |
+| Cross-agent review feedback loop | Interactive team |
+| Independent tasks, no coordination | Fan-out with non-interactive workers |
+
 ### Pipeline (sequential handoff)
 
 ```typescript
@@ -720,6 +789,10 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Client-side `personaNames.has(from)` filtering | Use `relay.subscribe()`/`relay.unsubscribe()` — only subscribed agents receive messages |
 | Agents receiving noisy cross-channel messages during focused work | Use `relay.mute({ agent, channel })` to silence non-primary channels without leaving them |
 | Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
+| Using `preset: 'worker'` for Codex when coordination needed | Codex interactive mode works fine with PTY channel injection. Drop the preset for team patterns |
+| Separate reviewer agent from lead in interactive team | Merge lead + reviewer into one interactive Claude agent — reviews between rounds, fewer agents |
+| Not printing PR URL after `gh pr create` | Add a final deterministic step: `echo "PR: $(cat pr-url.txt)"` or capture in the `gh pr create` command |
+| Workflow ending without worktree + PR for cross-repo changes | Add `setup-worktree` at start and `push-and-pr` + `cleanup-worktree` at end |
 
 ## YAML Alternative
 

@@ -28,7 +28,7 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.3.1",
+      "version": "1.4.0",
       "description": "Use when building multi-agent workflows with the relay broker-sdk - covers WorkflowBuilder API, DAG step dependencies, agent definitions, output chaining via {{steps.X.output}}, verification gates, evidence-based completion, channels, swarm patterns, error handling, event listeners, step sizing, lead+workers team pattern, and parallel wave planning",
       "format": "claude",
       "subtype": "skill",
