@@ -23,6 +23,8 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 
 ## Quick Reference
 
+> **Note:** this Quick Reference assumes an **ESM** workflow file (the host `package.json` has `"type": "module"`). For CJS repos, see rule #1 in **Critical TypeScript rules** below — convert `import { workflow } from '@agent-relay/sdk/workflows'` to `const { workflow } = require('@agent-relay/sdk/workflows')` and wrap the workflow in `async function main() { ... } main().catch(console.error)` since CJS does not support top-level `await`. **Always check `package.json` before copy-pasting the snippet.**
+
 ```typescript
 import { workflow } from '@agent-relay/sdk/workflows';
 
