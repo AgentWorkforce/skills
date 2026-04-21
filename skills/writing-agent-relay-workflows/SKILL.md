@@ -179,7 +179,27 @@ Preferred options, in order:
 3. Use plain indented examples instead of fenced blocks
 4. If fenced blocks must exist inside generated inner code, escape them consistently and syntax-check the outer workflow file afterward
 
-### 3. Keep final verification boring and deterministic
+### 3. Template-literal escape sequences are processed once before the string is rendered
+
+If your file generates code as a giant template literal (the pattern used by `packages/core/src/bootstrap/script-generator.ts` in cloud), every backslash in that template gets processed by JavaScript before the string is returned. This silently breaks regexes and escape sequences that are meant to appear in the *generated* output.
+
+Specifically:
+
+- `\s` is not a recognized string escape → the backslash is stripped → `\s` renders as a literal `s`
+- `\b` *is* a recognized string escape (backspace, U+0008) → `\b` renders as a backspace character in the output
+- `\n`, `\t`, `\r`, `\\`, `\0`, `\uXXXX`, `\xXX` all get resolved at template time
+
+The footgun: the outer TypeScript compiles cleanly, the rendered code parses and runs, and the regex/escape just never matches what the author intended. See AgentWorkforce/cloud#113 for the exact incident (`hasConfigExport = /^export\s+.../m` silently became `/^exports+.../m` in the generated bootstrap, making every TS workflow fall through to the standalone-script fallback).
+
+Guidelines:
+
+1. If you want a regex pattern that survives the template-literal pass unchanged, double every backslash in the source: `\\s`, `\\b`, `\\n` (the `\\` renders to `\` in the output, producing a correct regex at runtime).
+2. If you want to write a long string-literal newline into the output, `'\\n'` in the template renders to `'\n'` in the output, which the runtime JS interprets as a newline. Using a literal `'\n'` would render an actual newline into the JS source — visually messy and sometimes surprising.
+3. If you add anything non-trivial to a generator file that returns a big template literal, add a unit test that calls the generator with canonical inputs and asserts something about the rendered output — either exact string matches or, for regexes, `eval`/construct the regex and test it against known samples. See `tests/orchestrator/script-generator.test.ts` in cloud for prior art.
+
+Task-prompt workaround: for agent-relay workflow *task prompts* (where the contents go into a template literal but the inner content is plain text for an LLM), it's often cleaner to build the string as an array and `.join('\n')` at the boundary. That sidesteps the "does this backslash survive?" question entirely — no backslashes in the source, no processing to reason about. Several workflows in `cloud/workflows/` use this pattern (see the sage migration PRs).
+
+### 4. Keep final verification boring and deterministic
 
 Final verification should validate real outputs with simple, portable shell commands. If checking for multiple symbols, use extended regex explicitly:
 
@@ -195,7 +215,7 @@ grep -c "foo\|bar\|baz" file.ts
 
 That can silently misbehave and create fake failures even when the generated code is correct.
 
-### 4. Separate durable outputs from execution exhaust
+### 5. Separate durable outputs from execution exhaust
 
 Commit:
 
@@ -212,7 +232,7 @@ Do not commit by default:
 - retry artifacts
 - temporary step-output files
 
-### 5. Prefer Codex for implementation-heavy roles and Claude for review
+### 6. Prefer Codex for implementation-heavy roles and Claude for review
 
 Default team split for workflow-authored agent roles:
 
@@ -221,7 +241,7 @@ Default team split for workflow-authored agent roles:
 
 Use Claude as the primary implementer only when there is a specific reason.
 
-### 6. Be explicit about shell requirements
+### 7. Be explicit about shell requirements
 
 If executor scripts use Bash-only features such as associative arrays, require modern Bash explicitly. On macOS, prefer a known-good Bash path when needed, for example:
 
@@ -229,7 +249,7 @@ If executor scripts use Bash-only features such as associative arrays, require m
 /opt/homebrew/bin/bash workflows/your-workflow/execute.sh --wave 2
 ```
 
-### 7. Make resume semantics explicit
+### 8. Make resume semantics explicit
 
 Document clearly whether the executor supports:
 
@@ -240,7 +260,7 @@ Document clearly whether the executor supports:
 
 Do not assume users will infer the behavior. In particular, `--wave N` should be understood as "run only this wave" unless the executor explicitly chains onward.
 
-### 8. Syntax-check workflow files after editing
+### 9. Syntax-check workflow files after editing
 
 After editing workflow `.ts` files, run a lightweight syntax check before launching a large batch run. This is especially important if the workflow contains:
 
