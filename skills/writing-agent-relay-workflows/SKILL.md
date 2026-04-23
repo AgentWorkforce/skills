@@ -280,6 +280,26 @@ command: [
 
 This pattern is specifically recommended over `git commit -m "$(cat <<'EOF' ... EOF)"` and `gh pr create --body "$(cat <<'BODY' ... BODY)"`. Nesting a heredoc inside `$(...)` forces the shell to match a closing paren across many lines of unparsed body text, and any stray parenthesis in the body text can silently break the match. `--body-file` + `mktemp` + `printf` is immune to that entire class of bug.
 
+### 2d. Template-literal escape sequences are processed once before the string is rendered
+
+If your file generates code as a giant template literal (the pattern used by `packages/core/src/bootstrap/script-generator.ts` in cloud), every backslash in that template gets processed by JavaScript before the string is returned. This silently breaks regexes and escape sequences that are meant to appear in the *generated* output.
+
+Specifically:
+
+- `\s` is not a recognized string escape → the backslash is stripped → `\s` renders as a literal `s`
+- `\b` *is* a recognized string escape (backspace, U+0008) → `\b` renders as a backspace character in the output
+- `\n`, `\t`, `\r`, `\\`, `\0`, `\uXXXX`, `\xXX` all get resolved at template time
+
+The footgun: the outer TypeScript compiles cleanly, the rendered code parses and runs, and the regex/escape just never matches what the author intended. See AgentWorkforce/cloud#113 for the exact incident (`hasConfigExport = /^export\s+.../m` silently became `/^exports+.../m` in the generated bootstrap, making every TS workflow fall through to the standalone-script fallback).
+
+Guidelines:
+
+1. If you want a regex pattern that survives the template-literal pass unchanged, double every backslash in the source: `\\s`, `\\b`, `\\n` (the `\\` renders to `\` in the output, producing a correct regex at runtime).
+2. If you want to write a long string-literal newline into the output, `'\\n'` in the template renders to `'\n'` in the output, which the runtime JS interprets as a newline. Using a literal `'\n'` would render an actual newline into the JS source — visually messy and sometimes surprising.
+3. If you add anything non-trivial to a generator file that returns a big template literal, add a unit test that calls the generator with canonical inputs and asserts something about the rendered output — either exact string matches or, for regexes, `eval`/construct the regex and test it against known samples. See `tests/orchestrator/script-generator.test.ts` in cloud for prior art.
+
+Task-prompt workaround: for agent-relay workflow *task prompts* (where the contents go into a template literal but the inner content is plain text for an LLM), it's often cleaner to build the string as an array and `.join('\n')` at the boundary. That sidesteps the "does this backslash survive?" question entirely — no backslashes in the source, no processing to reason about. Several workflows in `cloud/workflows/` use this pattern (see the sage migration PRs).
+
 ### 3. Keep final verification boring and deterministic
 
 Final verification should validate real outputs with simple, portable shell commands. If checking for multiple symbols, use extended regex explicitly:
