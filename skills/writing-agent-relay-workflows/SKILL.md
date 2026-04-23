@@ -390,6 +390,57 @@ After editing workflow `.ts` files, run a lightweight syntax check before launch
 - escaped backticks
 - wrapper changes around workflow execution
 
+### 9. Factor repo-specific setup into a shared helper
+
+If multiple workflows in the same repo need the same boilerplate before any agent touches code (branch checkout, `npm install`, workspace-package prebuild, language toolchain init, etc.), do **not** copy-paste those steps into every workflow. Put them in `workflows/lib/<repo>-setup.ts` and import from there.
+
+**Why it matters:** without a shared helper, the first workflow that needs a new prerequisite step (e.g. `npm run build:platform` because a workspace package's `package.json` points `types` at `dist/`) adds it locally, and every other workflow silently misses it. In a fresh cloud sandbox that means agents hit `Cannot find module '@cloud/platform'` during typecheck and paper over it with ad-hoc `external-modules.d.ts` shims or `as GetObjectCommandOutput` casts scattered across unrelated files. Those workarounds sync back down with the patch and pollute the PR.
+
+**Pattern:**
+
+```ts
+// workflows/lib/cloud-repo-setup.ts
+export interface CloudRepoSetupOptions {
+  branch: string;
+  committerName?: string;
+  extraSetupCommands?: string[];
+  skipWorkspaceBuild?: boolean;
+}
+
+export function applyCloudRepoSetup<T>(wf: T, opts: CloudRepoSetupOptions): T {
+  // adds two steps: setup-branch, install-deps
+  // install-deps runs: npm install + workspace prebuilds (build:platform, build:core, etc.)
+  // ...
+}
+```
+
+Consumer workflows break the builder chain once and call through:
+
+```ts
+const baseWf = workflow(NAME)
+  .description(...)
+  .pattern('dag')
+  .agent(...)
+  .agent(...);
+
+const wf = applyCloudRepoSetup(baseWf, {
+  branch: BRANCH,
+  committerName: 'My Workflow Bot',
+});
+
+await wf
+  .step('read-spec', { dependsOn: ['install-deps'], ... })
+  ...
+  .run(...);
+```
+
+**Rules:**
+
+- The helper lives in the **consumer repo**, not in the SDK. Different customer repos have different languages, package managers, and build graphs — `@agent-relay/sdk` should stay agnostic.
+- Pre-build any workspace package whose `package.json` `main`/`types` point at a generated `dist/`. Fresh sandboxes don't have that `dist/` yet, and agents will invent workarounds rather than run the build. See the `@cloud/platform` case above.
+- Every install step includes `--legacy-peer-deps --no-audit --no-fund 2>&1 | tail -10` (or equivalent noise-trimming) because full install output blows past `captureOutput` size limits.
+- Document the helper in the repo's `CLAUDE.md` / `AGENTS.md` so new workflow authors (and agents writing workflows) discover it.
+
 ---
 
 ## End-to-End Bug Fix Workflows
