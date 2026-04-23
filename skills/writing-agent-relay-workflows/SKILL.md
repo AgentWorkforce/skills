@@ -179,6 +179,105 @@ Preferred options, in order:
 3. Use plain indented examples instead of fenced blocks
 4. If fenced blocks must exist inside generated inner code, escape them consistently and syntax-check the outer workflow file afterward
 
+### 2b. Standard preflight template for resumable workflows
+
+Every non-trivial workflow should start with a deterministic `preflight` step that validates the environment before any agent runs. A workflow that fails mid-DAG and gets re-run (or resumed via `--start-from`) will re-execute preflight, so preflight must tolerate the partial state left behind by the previous run — specifically, dirty files that the workflow itself is expected to edit.
+
+The battle-tested template:
+
+```ts
+.step('preflight', {
+  type: 'deterministic',
+  command: [
+    'set -e',
+    'BRANCH=$(git rev-parse --abbrev-ref HEAD)',
+    'echo "branch: $BRANCH"',
+    'if [ "$BRANCH" != "fix/your-branch-name" ]; then echo "ERROR: wrong branch"; exit 1; fi',
+    // Files the workflow is allowed to find dirty on entry:
+    //   - package-lock.json: npm install is idempotent and often touches it
+    //   - every file the workflow's edit steps will rewrite: a prior partial
+    //     run may have left them dirty, and the edit step will rewrite
+    //     them cleanly before commit
+    // Everything else is unexpected drift and must fail preflight.
+    'ALLOWED_DIRTY="package-lock.json|path/to/file1\\\\.ts|path/to/file2\\\\.ts"',
+    'DIRTY=$(git diff --name-only | grep -vE "^(${ALLOWED_DIRTY})$" || true)',
+    'if [ -n "$DIRTY" ]; then echo "ERROR: unexpected tracked drift:"; echo "$DIRTY"; exit 1; fi',
+    'if ! git diff --cached --quiet; then echo "ERROR: staging area is dirty"; git diff --cached --stat; exit 1; fi',
+    'gh auth status >/dev/null 2>&1 || (echo "ERROR: gh CLI not authenticated"; exit 1)',
+    'echo PREFLIGHT_OK',
+  ].join(' && '),
+  captureOutput: true,
+  failOnError: true,
+}),
+```
+
+**Rules baked into this template:**
+
+- **Always include `package-lock.json`** in `ALLOWED_DIRTY`. Both `npm install` and `npm ci` can touch it idempotently.
+- **Include every file the workflow's edit steps will rewrite.** The commit step uses explicit `git add <path>` (never `git add -A`), so allowing these files to be dirty on entry is safe — unrelated drift in other files still fails preflight.
+- **Escape dots in regex paths:** `setup\.ts` not `setup.ts`. In a JS template literal this means four backslashes: `"setup\\\\.ts"`.
+- **Use `grep -vE "^(...)$"` for full-line match.** Substring matches bleed across unrelated files (e.g., `setup.ts` would also match `packages/core/src/bootstrap/setup.ts`).
+- **Append `|| true` to the grep.** Without it, an empty result triggers `set -e` and the whole preflight fails before the `if` can even run.
+- **Check the staging area separately.** A dirty index is different from a dirty working tree and both must be clean (modulo allow-list).
+- **Check `gh auth status` early** if any downstream step uses `gh pr create` or similar. Failing on auth at the end of a long DAG is painful.
+
+**Never use `git diff --quiet` alone as your "clean tree" check.** It fails on any dirty file, including the ones the workflow is expected to rewrite, which causes false failures on every resume / re-run.
+
+### 2c. Picking the right `.join()` for multi-line shell commands
+
+When a `command:` field is a JS array that gets joined into a shell command string, the join delimiter determines what kinds of content the array can contain.
+
+**`.join(' && ')`** — use when every element is a self-contained shell statement. Each element becomes independent and the next one runs only if the previous succeeded. Works for linear scripts with `set -e`.
+
+```ts
+command: [
+  'set -e',
+  'HITS=$(grep -c diag src/cli/commands/setup.ts || true)',
+  'if [ "$HITS" -lt 6 ]; then echo "FAIL"; exit 1; fi',
+  'echo OK',
+].join(' && '),
+```
+
+**`.join('\n')`** — use when array elements must be part of a larger compound statement that spans multiple physical lines:
+
+- heredocs (`cat <<EOF ... EOF`)
+- multi-line `if` / `while` / `for` bodies
+- shell functions defined inline
+
+`&&` is a command separator. It cannot appear between a heredoc's opening line and its body, between a `for` and its body, or inside an `if`'s consequent block. Joining such content with `&&` produces a shell syntax error.
+
+**Never mix heredocs with `&&` joining.** The most common failure mode:
+
+```ts
+// ❌ BROKEN — heredoc body gets && inserted between each line
+command: [
+  'set -e',
+  'cat > /tmp/f <<EOF',
+  'line 1',
+  'line 2',
+  'EOF',
+  'next-command',
+].join(' && '),
+```
+
+Results in `set -e && cat > /tmp/f <<EOF && line 1 && line 2 && EOF && next-command` — a shell syntax error because `&&` cannot appear inside a heredoc body. Use `.join('\n')` or (better) sidestep the heredoc entirely.
+
+**The `printf` + `mktemp` alternative — use this for commit messages, PR bodies, and any other multi-line file content.** It avoids heredocs altogether and composes with `.join(' && ')`:
+
+```ts
+command: [
+  'set -e',
+  'BODY=$(mktemp)',
+  // Each line of the file is a separate printf argument. No heredoc,
+  // no shell metacharacter hazards, no command-substitution nesting.
+  'printf "%s\\n" "## Summary" "" "body line 1" "body line 2" > "$BODY"',
+  'gh pr create --title "..." --body-file "$BODY"',
+  'rm -f "$BODY"',
+].join(' && '),
+```
+
+This pattern is specifically recommended over `git commit -m "$(cat <<'EOF' ... EOF)"` and `gh pr create --body "$(cat <<'BODY' ... BODY)"`. Nesting a heredoc inside `$(...)` forces the shell to match a closing paren across many lines of unparsed body text, and any stray parenthesis in the body text can silently break the match. `--body-file` + `mktemp` + `printf` is immune to that entire class of bug.
+
 ### 3. Keep final verification boring and deterministic
 
 Final verification should validate real outputs with simple, portable shell commands. If checking for multiple symbols, use extended regex explicitly:
@@ -239,6 +338,26 @@ Document clearly whether the executor supports:
 - `--resume`
 
 Do not assume users will infer the behavior. In particular, `--wave N` should be understood as "run only this wave" unless the executor explicitly chains onward.
+
+### 7a. `--resume` vs `--start-from` when fixing a buggy step
+
+When a workflow fails at step X and you want to re-run it after editing the workflow file, the flag choice matters:
+
+| Flag | Reads workflow file fresh? | Uses cached step outputs? |
+|---|---|---|
+| `--resume <id>` | ❌ replays **stored config from DB** | ✅ from same run id |
+| `--start-from <step> --previous-run-id <id>` | ✅ reads fresh file | ✅ from previous run id's cached outputs |
+
+**Rule:** if you edited the workflow file to fix the failing step, use `--start-from <failing-step> --previous-run-id <id>`, **not** `--resume <id>`. `--resume` pulls the entire workflow config from the run's DB record and replays it — your edits to the workflow file are ignored, and the step re-runs with its original (broken) definition.
+
+This is counterintuitive because "resume" sounds like "pick up where you left off with whatever I just changed." It does not. It picks up where you left off with the **stored** config from when the run first started.
+
+**When to use each:**
+
+- Transient failure (network hiccup, rate limit, flaky agent), no code edits: `--resume <id>` is fine, fast, and correct.
+- You edited the workflow file (any step definition, any prompt, any verify gate): **always** `--start-from <failing-step> --previous-run-id <id>`. Everything upstream of the failing step loads from cache, the fresh file supplies the fixed definition, and downstream steps run as normal.
+
+If the runner complains that `--start-from` can't find cached outputs for the previous run id, fall back to a clean from-scratch run. The workflow's preflight should be forgiving enough (see §2b "Standard preflight template") that a from-scratch re-run succeeds even when a prior partial run left files dirty.
 
 ### 8. Syntax-check workflow files after editing
 
