@@ -10,7 +10,7 @@
   "packages": [
     {
       "name": "choosing-swarm-patterns",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Use when coordinating multiple AI agents with Agent Relay's workflow engine and need to pick the right orchestration pattern - covers the 10 core patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) plus 14 specialized ones, with decision framework and accurate SDK/YAML examples.",
       "format": "claude",
       "subtype": "skill",

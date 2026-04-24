@@ -85,14 +85,16 @@ Is cost the primary concern?
 
 ## Additional Patterns (role-driven)
 
-These 14 additional patterns exist in `SwarmPattern` (types.ts:114-139). They auto-select based on **agent roles** via heuristics in `coordinator.ts:51-165`:
+These 14 additional patterns exist in `SwarmPattern` (types.ts:114-139). The coordinator has role-based auto-selection heuristics (`coordinator.ts:51-165`), but they only fire when `swarm.pattern` is **omitted** — YAML validation requires it (`runner.ts:2105-2117`), so auto-selection is effectively a programmatic-API feature. In YAML, set `swarm.pattern` explicitly.
 
-| Pattern | Triggering roles | Topology |
-|---------|------------------|----------|
+Topology is still resolved per-pattern once selected; the "Triggering roles" column reflects what the coordinator looks for to shape edges (per `coordinator.ts:250-450`):
+
+| Pattern | Roles the topology keys off | Topology |
+|---------|-----------------------------|----------|
 | `map-reduce` | `mapper` + `reducer` | coordinator → mappers → reducers → coordinator |
 | `scatter-gather` | — | hub → workers → hub |
 | `supervisor` | `supervisor` | supervisor ↔ workers |
-| `reflection` | `critic` (or `reviewer`) | producers → critic → producers (loop) |
+| `reflection` | `critic` or `reviewer` (auto-select uses `critic` only) | producers → critic → producers (loop) |
 | `red-team` | `attacker`/`red-team` + `defender`/`blue-team` | adversarial mesh with optional judges |
 | `verifier` | `verifier` | producers → verifiers → back to producers |
 | `auction` | `auctioneer` | auctioneer → bidders → auctioneer |
@@ -107,6 +109,10 @@ These 14 additional patterns exist in `SwarmPattern` (types.ts:114-139). They au
 ## Pattern Details
 
 All examples below use real API shapes (`WorkflowBuilder` / YAML), verified against `packages/sdk/src/workflows/builder.ts` and `packages/sdk/src/workflows/types.ts`.
+
+> **YAML fragments vs complete configs:** The per-pattern YAML snippets below are fragments that show only the pattern-relevant shape. A runnable YAML file also requires `version: "1.0"` and `name: <id>` at the top (`runner.ts:2105-2117`). See the [Complete YAML Example](#complete-yaml-example) for the full structure.
+>
+> **Topology edges exclude `interactive: false` agents.** `resolveTopology` (`coordinator.ts:218-237`) drops non-interactive agents from the message graph — they run as one-shot subprocesses with no relay connection. Topology claims like "hub ↔ spokes" describe the interactive-agent edges; workers marked `interactive: false` are spawned and collected via stdout, not via relay messages.
 
 ### 1. fan-out — Parallel Workers
 
@@ -167,7 +173,7 @@ agents:
   - { name: dx,    cli: claude, role: reviewer }
   - { name: sec,   cli: claude, role: reviewer }
 coordination:
-  consensusStrategy: majority   # or: unanimous | quorum
+  consensusStrategy: majority   # declarative marker: majority | unanimous | quorum
   votingThreshold: 0.66
 workflows:
   - name: decide
@@ -176,7 +182,7 @@ workflows:
       - { name: evaluate-dx,   agent: dx,   task: "Evaluate DX of Fastify migration" }
       - { name: evaluate-sec,  agent: sec,  task: "Evaluate security of Fastify migration" }
 ```
-Full-mesh topology. Decision strategy lives in `coordination.consensusStrategy`.
+Full-mesh topology. **Caveat:** `coordination.consensusStrategy` and `votingThreshold` are declared in `CoordinationConfig` (`types.ts:768-772`) but the runner has **no built-in vote-tallying logic** — the fields only influence coordinator auto-selection (`coordinator.ts:63-64`). To implement voting, aggregate the step outputs in a downstream lead/judge step that reads `{{steps.evaluate-*.output}}`.
 
 ### 5. mesh — Peer Collaboration
 
@@ -209,7 +215,7 @@ workflows:
       - { name: billing, agent: billing, dependsOn: [triage], task: "Handle billing" }
       - { name: tech,    agent: tech,    dependsOn: [triage], task: "Handle tech issues" }
 ```
-Chain passes control forward. For true "pick-one" routing, branch at triage using `verification` + downstream step skipping.
+Chain passes control forward. **Note:** The runner doesn't support "route to one branch and skip the others" declaratively — `dependsOn` steps all run when their dependencies complete, and skipping is only triggered by upstream **failure** (`runner.ts:7057-7088`). For true pick-one routing, have the triage step emit a routing token in its output and let each downstream step's prompt check `{{steps.triage.output}}` and no-op if it doesn't match.
 
 ### 7. cascade — Cost-Aware Fallthrough
 
@@ -219,14 +225,16 @@ await workflow("answer")
   .agent("haiku",  { cli: "claude", model: "claude-haiku-4-5-20251001" })
   .agent("sonnet", { cli: "claude", model: "claude-sonnet-4-6" })
   .agent("opus",   { cli: "claude", model: "claude-opus-4-7" })
-  .step("try-haiku",  { agent: "haiku",  task: "{{question}}",
-                        verification: { type: "output_contains", value: "DONE" },
-                        retries: 0 })
-  .step("try-sonnet", { agent: "sonnet", task: "{{question}}", dependsOn: ["try-haiku"] })
-  .step("try-opus",   { agent: "opus",   task: "{{question}}", dependsOn: ["try-sonnet"] })
+  .step("try-haiku",  { agent: "haiku",  task: "{{question}}" })
+  .step("try-sonnet", { agent: "sonnet",
+                        task: "If this is a complete answer, echo it verbatim. Otherwise answer anew:\n{{steps.try-haiku.output}}",
+                        dependsOn: ["try-haiku"] })
+  .step("try-opus",   { agent: "opus",
+                        task: "Final-tier answer, using prior attempts for context:\n{{steps.try-sonnet.output}}",
+                        dependsOn: ["try-sonnet"] })
   .run();
 ```
-Each step runs only if predecessors don't satisfy verification. No built-in "confidence score" — use `verification.type: output_contains` as the escalation gate.
+**Important:** `cascade` only sets edge topology. The runner has **no skip-on-success logic** for the cascade pattern — a chain of `dependsOn` steps all execute in order on success, and failed upstream steps mark their dependents as **skipped** (`step-executor.ts:329-334`, `runner.ts:7057-7088`). So a verification-gated first step won't "fall through" to later steps on failure, and won't skip them on success either. The idiom above delegates the escalation decision to the prompt of each downstream step (read the upstream answer and pass-through or redo). No confidence-score parsing exists in-engine.
 
 ### 8. dag — Directed Acyclic Graph
 
@@ -280,8 +288,13 @@ Coordinator/worker distinction is expressed in step `dependsOn` graph, not topol
 
 ## Verification & Completion Signals
 
-Agent steps complete when their output matches a `verification` check:
+An agent step can complete in several ways (`runner.ts:5353-5395`, `runner.ts:4527-4538`):
+- **Verification pass** — when the step declares a `verification` block and the output satisfies it.
+- **Clean process exit** — agent exits 0 with no verification configured.
+- **Evidence-based** — channel posts, file changes, or coordination signals trigger completion.
+- **Owner decision** — a `lead`-role agent posts `COMPLETE` / `INCOMPLETE_RETRY` / `INCOMPLETE_FAIL` for the step.
 
+Verification block shape:
 ```yaml
 verification:
   type: output_contains   # or: exit_code | file_exists | custom
@@ -292,39 +305,41 @@ Conventional signals baked into the adapter (`relay-adapter.ts:29-36`):
 - `ACK: ...` — received a task
 - `DONE: ...` — task complete
 
-Agents send these via the Relaycast MCP; the runner captures PTY chunks as step output. Legacy fallback: a file at `.relay/summaries/{stepName}.md` is read if PTY output is empty (`runner.ts:6607`).
+The runner captures PTY chunks as step output and also records channel posts + file changes as `StepCompletionEvidence`. Legacy fallback: a file at `.relay/summaries/{stepName}.md` is read if PTY output is empty (`runner.ts:6607`).
 
 ## Relaycast MCP — Correct Tool Names
 
-The skill previously referenced `mcp__relaycast__send` / `mcp__relaycast__dm` — those names are wrong. The real tools (verified against `relay-adapter.ts` and the live MCP server):
+The skill previously referenced `mcp__relaycast__send` / `mcp__relaycast__dm` — those names are wrong. The real tools (the first three are cited in the workflow convention-injection at `relay-adapter.ts:31-35`; the rest are exposed by the live `relaycast` MCP server):
 
-| Purpose | Tool |
-|---------|------|
-| Send DM to another agent | `mcp__relaycast__message_dm_send` |
-| Post to a channel | `mcp__relaycast__message_post` |
-| Reply in a thread | `mcp__relaycast__message_reply` |
-| Check inbox | `mcp__relaycast__message_inbox_check` |
-| List agents | `mcp__relaycast__agent_list` |
-| Spawn sub-agent | `mcp__relaycast__agent_add` |
-| Remove sub-agent | `mcp__relaycast__agent_remove` |
+| Purpose | Tool | Source |
+|---------|------|--------|
+| Send DM to another agent | `mcp__relaycast__message_dm_send` | `relay-adapter.ts:31` |
+| Check inbox | `mcp__relaycast__message_inbox_check` | `relay-adapter.ts:35` |
+| List agents | `mcp__relaycast__agent_list` | `relay-adapter.ts:35` |
+| Post to a channel | `mcp__relaycast__message_post` | relaycast MCP server |
+| Reply in a thread | `mcp__relaycast__message_reply` | relaycast MCP server |
+| Spawn sub-agent | `mcp__relaycast__agent_add` | relaycast MCP server |
+| Remove sub-agent | `mcp__relaycast__agent_remove` | relaycast MCP server |
 
 > `interactive: false` agents run as non-interactive subprocesses with no relay connection — they must NOT call any `mcp__relaycast__*` tool (validator warns on this at `validator.ts:138-150`, check `NONINTERACTIVE_RELAY`).
 
 ## Reflection (Trajectories)
 
-Reflection is **not** a `reflectionThreshold` callback. It's configured via the `trajectories:` block and runs automatically at barrier resolution and parallel convergence points (`trajectory.ts:173-190`):
+Reflection is **not** a `reflectionThreshold` callback. It's configured via the `trajectories:` block:
 
 ```yaml
 trajectories:
   enabled: true
-  reflectOnBarriers: true   # reflect when a coordination.barrier resolves
-  reflectOnConverge: true   # reflect when parallel tracks merge
-  autoDecisions: true        # record retry/skip/fail decisions
+  reflectOnBarriers: true   # config flag exists but runner does NOT currently invoke this path
+  reflectOnConverge: true   # fires at parallel convergence points (runner.ts:2762-2779)
+  autoDecisions: true       # record retry/skip/fail decisions
 ```
 
-Or programmatically:
+**What actually runs today:** only `reflectOnConverge` is wired into the runner (`runner.ts:2762-2779`). `shouldReflectOnBarriers` is defined in `trajectory.ts:486-487` but not called — set the flag if you want forward compatibility, but don't depend on it.
+
+Programmatic equivalent:
 ```ts
-workflow("x").trajectories({ enabled: true, reflectOnBarriers: true })
+workflow("x").trajectories({ enabled: true, reflectOnConverge: true })
 ```
 
 For a first-class critic loop, use the `reflection` **pattern** (agents with `role: critic` get wired as reviewers in `coordinator.ts:363-378`).
@@ -336,9 +351,10 @@ For a first-class critic loop, use the `reflection` **pattern** (agents with `ro
 | Using mesh/debate for everything | Full-mesh blows up message volume past ~5 agents | Use hub-spoke or dag for most tasks |
 | Pipeline for independent work | Sequential bottleneck | Use fan-out or dag |
 | Hub-spoke for 2 agents | Hub is unnecessary overhead | Use pipeline or fan-out |
-| Consensus without `consensusStrategy` | Voting logic has no threshold | Set `coordination.consensusStrategy` |
-| Handoff without verification gates | Every step runs regardless of routing | Gate follow-ups with `verification` + `dependsOn` |
-| Cascade expecting confidence scores | No confidence parsing in-engine | Use `verification.type: output_contains` to gate escalation |
+| Expecting `consensusStrategy` to tally votes | Runner has no vote-tally logic; field only affects coordinator auto-selection | Aggregate votes in a judge/lead step that reads `{{steps.*.output}}` |
+| Handoff with "routing = skip other branches" | Skipping only fires on upstream **failure**, not routing decisions | Emit a routing token in triage output; downstream prompts self-no-op if token doesn't match |
+| Cascade expecting skip-on-success | Runner has no cascade skip logic; failed upstream skips downstream | Chain downstream prompts to pass-through or redo based on `{{steps.previous.output}}` |
+| Relying on `reflectOnBarriers` | Config flag exists but runner never calls it | Use `reflectOnConverge` for convergence reflection; use `reflection` pattern for critic loops |
 | `interactive: false` agent calling MCP | Non-interactive subprocess has no relay | Use `interactive: true` (default) or emit output on stdout |
 | Relying on multi-level `hierarchical` | Topology is single-level hub in current impl | Use pattern for naming; model levels via `dependsOn` graph |
 | Writing `mcp__relaycast__send(...)` | Wrong tool name | Use `mcp__relaycast__message_post` or `message_dm_send` |
@@ -419,9 +435,13 @@ Built-in templates: `packages/sdk/src/workflows/builtin-templates/` (feature-dev
 |-------|------|
 | Pattern enum (24 patterns) | `packages/sdk/src/workflows/types.ts:114-139` |
 | Topology resolution per pattern | `packages/sdk/src/workflows/coordinator.ts:240-450` |
-| Pattern auto-selection heuristics | `packages/sdk/src/workflows/coordinator.ts:51-165` |
+| Interactive-only topology edges | `packages/sdk/src/workflows/coordinator.ts:218-237` |
+| Pattern auto-selection heuristics (programmatic API only) | `packages/sdk/src/workflows/coordinator.ts:51-165` |
 | `WorkflowBuilder` fluent API | `packages/sdk/src/workflows/builder.ts` |
 | `runWorkflow(yamlPath, options)` | `packages/sdk/src/workflows/run.ts` |
-| MCP tool names & conventions | `packages/sdk/src/relay-adapter.ts:29-36` |
+| YAML validation requires `version` + `name` + `swarm.pattern` | `packages/sdk/src/workflows/runner.ts:2105-2117` |
+| MCP tool names cited in convention-injection | `packages/sdk/src/relay-adapter.ts:29-36` |
+| Completion modes (verification / evidence / owner / process-exit) | `packages/sdk/src/workflows/runner.ts:5353-5395`, `4527-4538` |
 | Completion via PTY + summary fallback | `packages/sdk/src/workflows/runner.ts:6600-6615` |
-| Trajectory reflection | `packages/sdk/src/workflows/trajectory.ts:173-190` |
+| Downstream skip on upstream failure (not success) | `packages/sdk/src/workflows/runner.ts:7057-7088`, `step-executor.ts:329-334` |
+| Trajectory reflection (only `reflectOnConverge` wired) | `packages/sdk/src/workflows/runner.ts:2762-2779`, `trajectory.ts:173-190` |
