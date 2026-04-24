@@ -63,7 +63,8 @@ Do all agents need to freely collaborate?
   YES → mesh (full peer-to-peer edges)
 
 Is cost the primary concern?
-  YES → cascade (try first agent; fall through to next on failure)
+  YES → cascade (chain of increasingly capable agents; each step's prompt
+        decides whether to pass through or redo the prior output)
 ```
 
 ## Pattern Reference (Core 10)
@@ -76,7 +77,7 @@ Is cost the primary concern?
 | 4 | **consensus** | Full mesh; decision via `coordination.consensusStrategy` | Architecture decisions, approval gates |
 | 5 | **mesh** | Full mesh (every agent ↔ every other) | Brainstorming, collaborative debugging |
 | 6 | **handoff** | Chain; passes control forward | Triage, specialist routing |
-| 7 | **cascade** | Chain; falls through on failure | Cost optimization (cheap first) |
+| 7 | **cascade** | Chain of `dependsOn` steps; all run on success, downstream skipped on upstream failure (no built-in "fall through") | Cost optimization: cheap first, each step's prompt passes through or redoes |
 | 8 | **dag** | Edges from step `dependsOn` | Mixed dependencies, parallel where possible |
 | 9 | **debate** | Full mesh (same topology as mesh; roles drive behavior) | Rigorous adversarial examination |
 | 10 | **hierarchical** | Hub + subordinates (single-level in current impl) | Large teams; semantic distinction from hub-spoke |
@@ -154,15 +155,17 @@ Each stage receives the previous stage's output via `{{steps.<name>.output}}`. H
 await workflow("api-build")
   .pattern("hub-spoke")
   .channel("swarm-api")
-  .agent("lead",      { cli: "claude", role: "lead" })
-  .agent("db-worker", { cli: "codex",  role: "worker", interactive: false })
-  .agent("api-worker",{ cli: "codex",  role: "worker", interactive: false })
+  .agent("lead",       { cli: "claude", role: "lead" })
+  .agent("db-worker",  { cli: "claude", role: "worker" })   // interactive by default — hub DMs it
+  .agent("api-worker", { cli: "claude", role: "worker" })   // interactive by default — hub DMs it
   .step("models",  { agent: "db-worker",  task: "Build database models" })
   .step("routes",  { agent: "api-worker", task: "Build route handlers", dependsOn: ["models"] })
   .step("review",  { agent: "lead",       task: "Review everything",    dependsOn: ["routes"] })
   .run();
 ```
-Hub (picked via `role: lead` or first agent) stays on the channel and can direct-message workers via `mcp__relaycast__message_dm_send`.
+Hub (picked via `role: lead` or first agent) stays on the channel and direct-messages interactive workers via `mcp__relaycast__message_dm_send`.
+
+> **Don't set `interactive: false` on a hub-spoke worker** if you want it to receive coordination DMs — `resolveTopology` strips non-interactive agents from the message graph (`coordinator.ts:218-237`). Use `interactive: false` only when the worker is a one-shot subprocess whose stdout you collect via `{{steps.X.output}}` without any mid-run coordination.
 
 ### 4. consensus — Cooperative Voting
 
