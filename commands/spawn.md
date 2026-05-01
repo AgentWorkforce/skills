@@ -13,7 +13,7 @@ Bootstrap the agent-relay broker (if not already running) and spawn a worker on 
 
 ## Instructions
 
-1. **Load the orchestrator skill.** Read the `agent-relay-orchestrator` skill (installed via `prpm install @agent-relay/openclaw-orchestrator`, or read `skills/openclaw-orchestrator/SKILL.md` in this repo). All broker startup, workspace key handling, channel creation, and spawn semantics come from that skill — do not improvise.
+1. **Load the orchestrator skill.** Read the `running-headless-orchestrator` skill (installed via `npx prpm install @agent-relay/running-headless-orchestrator`, or read `skills/running-headless-orchestrator/SKILL.md` in this repo). All broker startup, workspace key handling, channel creation, and spawn semantics come from that skill — do not improvise.
 
 2. **Parse arguments from `$ARGUMENTS`:**
    - Required positional: `$1` — the harness (`claude`, `codex`, `opencode`, `droid`, `gemini`, `pi`).

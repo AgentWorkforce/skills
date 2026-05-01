@@ -12,9 +12,9 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 
 ## Instructions
 
-1. **Load the skill.** Read the `writing-agent-relay-workflows` skill (installed via `prpm install @agent-relay/writing-agent-relay-workflows`, or read directly from `skills/writing-agent-relay-workflows/SKILL.md` in this repo). Do not proceed without it — the SDK surface, DAG semantics, and verify-gate patterns it documents are required.
+1. **Load the skill.** Read the `writing-agent-relay-workflows` skill (installed via `npx prpm install @agent-relay/writing-agent-relay-workflows`, or read directly from `skills/writing-agent-relay-workflows/SKILL.md` in this repo). Do not proceed without it — the SDK surface, DAG semantics, and verify-gate patterns it documents are required.
 
-2. **Pick the orchestration pattern.** Consult the `choosing-swarm-patterns` skill (`@agent-relay/choosing-swarm-patterns`) to select among fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, or hierarchical based on the task shape. State the chosen pattern and why in one sentence before writing code.
+2. **Pick the orchestration pattern.** Consult the `choosing-swarm-patterns` skill (`npx prpm install @agent-relay/choosing-swarm-patterns`) to select among fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, or hierarchical based on the task shape. State the chosen pattern and why in one sentence before writing code.
 
 3. **Author the workflow.** Using the WorkflowBuilder API from the skill:
    - Define each step with explicit inputs and `{{steps.X.output}}` chaining.
