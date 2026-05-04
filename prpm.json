@@ -105,6 +105,42 @@
       "files": [
         "skills/relay-80-100-workflow/SKILL.md"
       ]
+    },
+    {
+      "name": "create-workflow",
+      "version": "1.0.0",
+      "description": "Slash command to scaffold a new agent-relay multi-agent workflow using the writing-agent-relay-workflows skill - harness-agnostic, model-agnostic prompts, picks the right swarm pattern, and emits a runnable WorkflowBuilder file with verify gates and integration notes",
+      "format": "claude",
+      "subtype": "slash-command",
+      "tags": [
+        "slash-command",
+        "workflow",
+        "multi-agent",
+        "agent-relay",
+        "orchestration",
+        "scaffolding"
+      ],
+      "files": [
+        "commands/create-workflow.md"
+      ]
+    },
+    {
+      "name": "spawn",
+      "version": "1.0.0",
+      "description": "Slash command for relay-orchestrator that bootstraps the agent-relay broker and spawns a worker on the chosen harness (claude, codex, opencode, droid, gemini, pi) with optional --model and --task - loads the orchestrator skill so infrastructure, channels, and lifecycle just work",
+      "format": "claude",
+      "subtype": "slash-command",
+      "tags": [
+        "slash-command",
+        "orchestrator",
+        "agent-relay",
+        "spawn",
+        "headless",
+        "multi-agent"
+      ],
+      "files": [
+        "commands/spawn.md"
+      ]
     }
   ],
   "collections": [
