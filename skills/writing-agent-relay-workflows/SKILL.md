@@ -316,7 +316,7 @@ When a workflow edits a sibling repo, use a **worktree** (don't touch the user's
   action: 'createPR',
   repo: 'org/other-repo',
   params: { head: 'feat-x', base: 'main', title: 'feat: x', body: 'Linked PR.' },
-  output: { mode: 'data', format: 'json' },
+  output: { mode: 'data', format: 'text', path: 'htmlUrl' },
 }))
 
 .step('print-pr-url', {
