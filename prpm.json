@@ -28,8 +28,8 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.5.1",
-      "description": "Use when building multi-agent workflows with the relay broker-sdk - covers WorkflowBuilder API, DAG step dependencies, agent definitions, output chaining via {{steps.X.output}}, verification gates, evidence-based completion, channels, swarm patterns, error handling, event listeners, step sizing, lead+workers team pattern, and parallel wave planning",
+      "version": "2.0.0",
+      "description": "Use when authoring multi-agent agent-relay workflows (TypeScript, Python, YAML) - covers the WorkflowBuilder API, DAG dependencies, step output chaining, verification gates, the GitHub primitive (createGitHubStep), cross-repo worktrees, shared setup helpers, sibling linking, cloud runs via --sync-code, and the canonical 80-to-100 test-fix-rerun pattern. Pair with relay-80-100-workflow.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
