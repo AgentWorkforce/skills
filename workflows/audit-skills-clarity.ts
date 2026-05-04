@@ -1,7 +1,6 @@
 import { workflow } from '@agent-relay/sdk/workflows';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
-const SKILLS_DIR = 'skills';
 const CHANNEL = 'wf-audit-skills-clarity';
 const REPORT_PATH = 'SKILLS_CLARITY_REPORT.md';
 
@@ -34,9 +33,10 @@ async function runWorkflow() {
       type: 'deterministic',
       command: [
         'set -e',
-        `if [ ! -d ${SKILLS_DIR} ]; then echo "ERROR: ${SKILLS_DIR} not found"; exit 1; fi`,
         `echo "# ALL SKILL.md CONTENTS"`,
-        `for f in ${SKILLS_DIR}/*/SKILL.md; do echo; echo "=============================="; echo "FILE: $f"; echo "=============================="; cat "$f"; done`,
+        `FILES=$(find . -type f -name SKILL.md -not -path './.git/*' -not -path './node_modules/*' -not -path './dist/*' | sort)`,
+        'if [ -z "$FILES" ]; then echo "ERROR: no SKILL.md files found"; exit 1; fi',
+        'printf "%s\\n" "$FILES" | while IFS= read -r f; do echo; echo "=============================="; echo "FILE: ${f#./}"; echo "=============================="; cat "$f"; done',
       ].join(' && '),
       captureOutput: true,
       failOnError: true,
@@ -51,7 +51,7 @@ async function runWorkflow() {
         'GOAL: Together, audit every skill below for CLARITY — how easily a new agent or engineer could read the SKILL.md and act correctly without extra context.',
         '',
         'PROCESS:',
-        `1. Post a short opening message on #${CHANNEL} listing the six skills and the clarity dimensions you will evaluate (e.g. scannability, precise triggers, unambiguous rules, concrete examples, footgun coverage, recoverable-on-skim structure).`,
+        `1. Post a short opening message on #${CHANNEL} listing the discovered SKILL.md files and the clarity dimensions you will evaluate (e.g. scannability, precise triggers, unambiguous rules, concrete examples, footgun coverage, recoverable-on-skim structure).`,
         '2. For each skill, post a concise clarity assessment: what is clear, what is ambiguous or buried, and one concrete rewrite suggestion.',
         '3. Read codex-auditor\'s posts on the channel. Disagree where warranted. Converge via discussion — do NOT just merge both lists.',
         '4. Once you and codex-auditor have converged, YOU (claude-auditor) write the final report to the repo as:',
@@ -70,7 +70,7 @@ async function runWorkflow() {
         '- The report must stand alone (a reader should understand the issues without reading the channel transcript).',
         '- Keep the top-10 list tight: each item should be actionable by one person in under an hour.',
         '',
-        'CONTEXT — all six SKILL.md files are embedded below:',
+        'CONTEXT — all discovered SKILL.md files are embedded below:',
         '',
         '{{steps.read-skills.output}}',
       ].join('\n'),
@@ -99,7 +99,7 @@ async function runWorkflow() {
         '- You may write scratch notes to /tmp if needed, but do not modify any SKILL.md.',
         '- Prefer specific, quoted critique. "Item 4 is vague — rewrite as: <proposal>" is better than "item 4 could be stronger".',
         '',
-        'CONTEXT — all six SKILL.md files are embedded below:',
+        'CONTEXT — all discovered SKILL.md files are embedded below:',
         '',
         '{{steps.read-skills.output}}',
       ].join('\n'),
@@ -116,7 +116,7 @@ async function runWorkflow() {
         // Count numbered items (1.–10.) in the Top 10 section.
         `COUNT=$(awk '/^## Top 10 Clarity Improvements/{flag=1; next} /^## /{flag=0} flag && /^[0-9]+\\. /' ${REPORT_PATH} | wc -l | tr -d ' ')`,
         'echo "numbered items found: $COUNT"',
-        'if [ "$COUNT" -lt 10 ]; then echo "ERROR: fewer than 10 improvements listed"; exit 1; fi',
+        'if [ "$COUNT" -ne 10 ]; then echo "ERROR: expected exactly 10 improvements"; exit 1; fi',
         `if ! grep -qE "^## Agreement" ${REPORT_PATH}; then echo "ERROR: missing Agreement section"; exit 1; fi`,
         'echo REPORT_OK',
       ].join(' && '),

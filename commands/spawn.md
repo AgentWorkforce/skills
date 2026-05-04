@@ -13,7 +13,7 @@ Bootstrap the agent-relay broker (if not already running) and spawn a worker on 
 
 ## Instructions
 
-1. **Load the orchestrator skill.** Read the `running-headless-orchestrator` skill (installed via `npx prpm install @agent-relay/running-headless-orchestrator`, or read `skills/running-headless-orchestrator/SKILL.md` in this repo). All broker startup, workspace key handling, channel creation, and spawn semantics come from that skill — do not improvise.
+1. **Load the orchestrator skill.** Read the `running-headless-orchestrator` skill. After installation with `npx prpm install @agent-relay/running-headless-orchestrator`, look in the harness-managed skill locations first: `.claude/skills/running-headless-orchestrator/SKILL.md` or `.agents/skills/running-headless-orchestrator/SKILL.md`. When developing inside this repo, the same source lives at `skills/running-headless-orchestrator/SKILL.md`. All broker startup, workspace key handling, channel creation, and spawn semantics come from that skill — do not improvise.
 
 2. **Parse arguments from `$ARGUMENTS`:**
    - Required positional: `$1` — the harness (`claude`, `codex`, `opencode`, `droid`, `gemini`, `pi`).
@@ -44,6 +44,6 @@ Bootstrap the agent-relay broker (if not already running) and spawn a worker on 
 
 ## Constraints
 
-- Never skip the `agent-relay-orchestrator` skill load — it documents non-obvious gotchas (droid `--cwd`, rate limits, name conflicts) that change behavior.
+- Never skip the `running-headless-orchestrator` skill load — it documents non-obvious gotchas (droid `--cwd`, rate limits, name conflicts) that change behavior.
 - Do not hardcode workspace keys in any output or file.
 - Do not spawn without a task — empty-task spawns waste the agent slot.

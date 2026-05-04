@@ -12,9 +12,9 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 
 ## Instructions
 
-1. **Load the skill.** Read the `writing-agent-relay-workflows` skill (installed via `npx prpm install @agent-relay/writing-agent-relay-workflows`, or read directly from `skills/writing-agent-relay-workflows/SKILL.md` in this repo). Do not proceed without it — the SDK surface, DAG semantics, and verify-gate patterns it documents are required.
+1. **Load the skill.** Read the `writing-agent-relay-workflows` skill. After installation with `npx prpm install @agent-relay/writing-agent-relay-workflows`, look in the harness-managed skill locations first: `.claude/skills/writing-agent-relay-workflows/SKILL.md` or `.agents/skills/writing-agent-relay-workflows/SKILL.md`. When developing inside this repo, the same source lives at `skills/writing-agent-relay-workflows/SKILL.md`. Do not proceed without it — the SDK surface, DAG semantics, and verify-gate patterns it documents are required.
 
-2. **Pick the orchestration pattern.** Consult the `choosing-swarm-patterns` skill (`npx prpm install @agent-relay/choosing-swarm-patterns`) to select among fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, or hierarchical based on the task shape. State the chosen pattern and why in one sentence before writing code.
+2. **Pick the orchestration pattern.** Consult the `choosing-swarm-patterns` skill. After installation with `npx prpm install @agent-relay/choosing-swarm-patterns`, look in `.claude/skills/choosing-swarm-patterns/SKILL.md` or `.agents/skills/choosing-swarm-patterns/SKILL.md`; in this repo, read `skills/choosing-swarm-patterns/SKILL.md`. Use it to select among fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, or hierarchical based on the task shape. State the chosen pattern and why in one sentence before writing code.
 
 3. **Author the workflow.** Using the WorkflowBuilder API from the skill:
    - Define each step with explicit inputs and `{{steps.X.output}}` chaining.
