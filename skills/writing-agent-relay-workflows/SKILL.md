@@ -220,29 +220,34 @@ For PR creation, issue updates, file reads, or any GitHub op, prefer `createGitH
 import { workflow } from '@agent-relay/sdk/workflows';
 import { createGitHubStep } from '@agent-relay/sdk/github';
 
-await workflow('ship-readme')
-  .agent('writer', { cli: 'claude' })
+async function main() {
+  await workflow('ship-readme')
+    .agent('writer', { cli: 'claude' })
 
-  .step('read-readme', createGitHubStep({
-    action: 'readFile',
-    repo: 'AgentWorkforce/relay',
-    params: { path: 'README.md' },
-    output: { mode: 'data', format: 'text' },
-  }))
+    .step('read-readme', createGitHubStep({
+      action: 'readFile',
+      repo: 'AgentWorkforce/relay',
+      params: { path: 'README.md' },
+      output: { mode: 'data', format: 'text' },
+    }))
 
-  .step('edit', {
-    agent: 'writer',
-    dependsOn: ['read-readme'],
-    task: `Current README:\n{{steps.read-readme.output}}\nClean up the intro.`,
-  })
+    .step('edit', {
+      agent: 'writer',
+      dependsOn: ['read-readme'],
+      task: `Current README:\n{{steps.read-readme.output}}\nClean up the intro.`,
+    })
 
-  .step('open-pr', createGitHubStep({
-    action: 'createPR',
-    repo: 'AgentWorkforce/relay',
-    params: { head: 'docs/readme-cleanup', base: 'main', title: 'docs: cleanup', body: '...' },
-  }))
+    .step('open-pr', createGitHubStep({
+      action: 'createPR',
+      repo: 'AgentWorkforce/relay',
+      dependsOn: ['edit'],
+      params: { head: 'docs/readme-cleanup', base: 'main', title: 'docs: cleanup', body: '...' },
+    }))
 
-  .run({ cwd: process.cwd() });
+    .run({ cwd: process.cwd() });
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
 Actions cover repos, issues, PRs, files, branches, commits, identity. The primitive auto-picks `local` (via `gh` CLI) or `cloud` (via Nango or relay-cloud) based on env. Full list + multi-tenant routing: [GitHub primitive](https://agentrelay.com/docs/markdown/github-primitive.md).
@@ -315,6 +320,7 @@ When a workflow edits a sibling repo, use a **worktree** (don't touch the user's
 .step('open-pr', createGitHubStep({
   action: 'createPR',
   repo: 'org/other-repo',
+  dependsOn: ['push-branch'],
   params: { head: 'feat-x', base: 'main', title: 'feat: x', body: 'Linked PR.' },
   output: { mode: 'data', format: 'text', path: 'htmlUrl' },
 }))
@@ -419,7 +425,7 @@ Full walkthrough (PGlite for in-process Postgres, regression patterns, mock sand
 | Rule | Why |
 |---|---|
 | No `_` in YAML numbers (`1_200_000`) | YAML doesn't support them |
-| `grep -Eq "a\|b\|c"` not `grep "a\|b\|c"` | Basic alternation misbehaves silently |
+| `grep -Eq "a|b|c"` not `grep "a\|b\|c"` | Use `-E` with unescaped `|` for alternation. Basic `grep` alternation misbehaves silently; under `-E` a backslash-escaped `\|` becomes a literal pipe |
 | Cloud sandbox: wrap bash-only syntax in `bash -c '...'` (single-quoted) | Daytona `/bin/sh` is dash |
 | Shell assignments from user input: `VAR='...'` not `VAR="..."` | Double quotes still expand `$(...)`, backticks, `\` |
 | Final verification: boring, portable shell | Fancy alternation creates fake failures |
