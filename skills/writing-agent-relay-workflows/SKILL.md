@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with the relay broker-sdk - covers the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, dynamic channel management (subscribe/unsubscribe/mute/unmute), swarm patterns, error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
+description: Use when building multi-agent workflows with the relay broker-sdk - covers conversation-shape vs pipeline-shape coordination, the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, dynamic channel management (subscribe/unsubscribe/mute/unmute), swarm patterns, chat-native coordination recipes (Q/A, broadcast-ack, peer review, escalation, standup, hand-off), error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
 ---
 
 # Writing Agent Relay Workflows
@@ -21,8 +21,25 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 - Needing verification gates, retries, or step output chaining
 - Dynamic channel management: agents joining/leaving/muting channels mid-workflow
 
-## Quick Reference
+## Choose Your Coordination Style — Conversation vs Pipeline
 
+Before writing the workflow, decide *how the agents will coordinate*. The relay primitive supports two very different shapes, and picking the wrong one wastes the most valuable thing the SDK gives you.
+
+| Shape | What it is | Use when |
+|---|---|---|
+| **Conversation** (chat-native) | Interactive agents share a channel; messages, `@-mentions`, and ambient awareness drive coordination. Lead and workers spawn in parallel and self-organize. The relay is the coordination layer, not just transport. | Multi-file work, peer review loops, cross-agent feedback, dynamic re-planning, multi-PR coordination, anything with a human-in-the-loop escape, swarms where workers pick up each other's output. |
+| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no review loop expected; the work could be expressed as a `bash | bash | bash` pipe. |
+
+**Default to Conversation for any non-trivial work.** Pipeline DAGs are simpler to reason about but they do not exercise the relay primitive — they are a Unix pipe with extra steps. If you would happily write the same task as a single shell pipeline, pipeline-shape is fine. Otherwise, you almost certainly want a Conversation shape.
+
+The two shapes can mix within one workflow: pipeline-style deterministic preflight → conversation in the middle → pipeline-style commit-and-PR at the end. See **Quick Reference (Conversation)** below and **[Common Patterns → Interactive Team](#interactive-team-lead--workers-on-shared-channel)** for the canonical recipe.
+
+> **A blunt rule of thumb:** if your workflow only uses `agent` steps with `preset: 'worker'` chained by `{{steps.X.output}}`, you are not using the relay — you are using `claude -p | codex exec`. That may still be the right answer; just make it a deliberate choice.
+
+## Quick Reference (Pipeline shape)
+
+> Use this when steps are linear, well-specified, and need no agent-to-agent feedback. For anything with iteration, review, or coordination, jump to **Quick Reference (Conversation shape)** below.
+>
 > **Note:** this Quick Reference assumes an **ESM** workflow file (the host `package.json` has `"type": "module"`). For CJS repos, see rule #1 in **Critical TypeScript rules** below — convert `import { workflow } from '@agent-relay/sdk/workflows'` to `const { workflow } = require('@agent-relay/sdk/workflows')` and wrap the workflow in `async function main() { ... } main().catch(console.error)` since CJS does not support top-level `await`. **Always check `package.json` before copy-pasting the snippet.**
 
 ```typescript
@@ -56,6 +73,100 @@ const result = await workflow('my-workflow')
 
   console.log('Result:', result.status);
 ```
+
+## Quick Reference (Conversation shape)
+
+> Use this for any non-trivial work — peer review, multi-file edits, cross-agent feedback, dynamic re-planning. Lead and workers spawn **in parallel** on a shared channel and self-organize via messages. The relay primitive does the coordinating; verification gates downstream of the lead close the workflow.
+
+```typescript
+import { workflow } from '@agent-relay/sdk/workflows';
+import { ClaudeModels, CodexModels } from '@agent-relay/config';
+
+const result = await workflow('my-workflow')
+  .description('Multi-file change with peer review')
+  .pattern('dag')
+  .channel('wf-my-feature')          // dedicated channel — agents share it
+  .maxConcurrency(4)
+  .timeout(3_600_000)
+
+  // Interactive agents — no preset, they live on the channel
+  .agent('lead', {
+    cli: 'claude',
+    model: ClaudeModels.OPUS,
+    role: 'Architect + reviewer. Plans, assigns, reviews, posts feedback.',
+    retries: 1,
+  })
+  .agent('impl-a', {
+    cli: 'codex',
+    model: CodexModels.GPT_5_4,
+    role: 'Implementer. Listens on channel for assignments and feedback.',
+    retries: 2,
+  })
+  .agent('impl-b', {
+    cli: 'codex',
+    model: CodexModels.GPT_5_4,
+    role: 'Implementer. Listens on channel for assignments and feedback.',
+    retries: 2,
+  })
+
+  // Deterministic context — pre-reads files once, posts to the channel for everyone
+  .step('context', {
+    type: 'deterministic',
+    command: 'git ls-files src/',
+    captureOutput: true,
+  })
+
+  // Lead and workers all depend on `context` — they start CONCURRENTLY.
+  // They coordinate over #wf-my-feature, not via {{steps.X.output}}.
+  .step('lead-coordinate', {
+    agent: 'lead',
+    dependsOn: ['context'],
+    task: `You are the lead on #wf-my-feature. Workers: impl-a, impl-b.
+Post the plan. Assign files. Review their PRs/diffs. Post feedback in-channel.
+Workers iterate based on your feedback. Exit when both files pass review.`,
+  })
+  .step('impl-a-work', {
+    agent: 'impl-a',
+    dependsOn: ['context'],   // SAME dep as lead → starts in parallel, no deadlock
+    task: `You are impl-a on #wf-my-feature. Wait for the lead's plan.
+Implement your assigned file. Post a completion message. Address feedback.`,
+  })
+  .step('impl-b-work', {
+    agent: 'impl-b',
+    dependsOn: ['context'],   // SAME dep as lead
+    task: `You are impl-b on #wf-my-feature. Wait for the lead's plan.
+Implement your assigned file. Post a completion message. Address feedback.`,
+  })
+
+  // Downstream gates on the lead — lead exits when satisfied.
+  .step('verify', {
+    type: 'deterministic',
+    dependsOn: ['lead-coordinate'],
+    command: 'npm run typecheck && npm test',
+    failOnError: true,
+  })
+
+  .onError('retry', { maxRetries: 2, retryDelayMs: 10_000 })
+  .run({ cwd: process.cwd() });
+```
+
+**What this exercises that pipeline-shape does not:**
+
+- **Ambient awareness** — workers see each other's completion messages and start dependent work without the lead relaying.
+- **Lead-as-reviewer** — the lead reads actual files between rounds and posts diff-aware feedback in chat. One agent does coordination + review; no separate reviewer step.
+- **Iterative correction** — when the lead pings *"impl-a, the type on line 42 is wrong"*, impl-a fixes and re-posts. No new step, no re-spawn, no `{{output}}` chaining.
+- **Human escape hatch** — if the channel is bridged to Slack, agents can `@khaliqgant` for a real blocker without exiting.
+
+**Critical workflow rules for this shape:**
+
+1. Lead and workers MUST share the same `dependsOn` (e.g., both depend on `context`). If a worker depends on the lead, you have a deadlock — the lead is waiting for worker output, the worker is waiting for the lead step to "complete."
+2. Drop `preset: 'worker'` on the implementer agents — interactive mode is what lets them receive channel messages via PTY injection.
+3. Downstream gates depend on the **lead step**, not the workers. The lead exits when it's satisfied; that's the workflow's signal of completion.
+4. Use a dedicated `.channel('wf-...')` so the team is isolated from other workflows and the global `general` channel.
+
+See [Common Patterns → Interactive Team](#interactive-team-lead--workers-on-shared-channel) for production notes from real runs and decision criteria for picking this shape over one-shot DAG.
+
+---
 
 **Critical TypeScript rules:**
 1. Check the project's `package.json` for `"type": "module"` — if ESM, use `import` and top-level `await`. If CJS, use `require()` and wrap in `async function main()`.
@@ -494,11 +605,13 @@ This is often better than jumping straight to implementation.
 
 Use `{{steps.STEP_NAME.output}}` in a downstream step's task to inject the prior step's terminal output.
 
+> **Mental model:** this is a **Unix pipe**, not agent communication. `{{steps.A.output}}` flowing into step B is `A | B` — A is dead by the time B reads its stdout. There is no chat, no feedback, no addressing. If your workflow's coordination story is *only* output chaining, you're using the relay as transport, not as a coordination layer. See **[Choose Your Coordination Style](#choose-your-coordination-style--conversation-vs-pipeline)** before defaulting to this.
+
 **Only chain output from clean sources:**
 - Deterministic steps (shell commands — always clean)
 - Non-interactive agents (`preset: 'worker'` — clean stdout)
 
-**Never chain from interactive agents** (`cli: 'claude'` without preset) — PTY output includes spinners, ANSI codes, and TUI chrome. Instead, have the agent write to a file, then read it in a deterministic step.
+**Never chain from interactive agents** (`cli: 'claude'` without preset) — PTY output includes spinners, ANSI codes, and TUI chrome. Instead, have the agent write to a file, then read it in a deterministic step. (Or: don't use chaining at all — let the agents coordinate over the channel.)
 
 ### Verification Gates
 
@@ -755,6 +868,136 @@ Edit files as assigned. Report completion. Fix issues from feedback.`,
 | Simple edits, well-specified | One-shot DAG with `preset: 'worker'` |
 | Cross-agent review feedback loop | Interactive team |
 | Independent tasks, no coordination | Fan-out with non-interactive workers |
+| Anything where the answer to "could this be `cmd1 | cmd2`?" is *no* | Interactive team |
+
+### Chat-Native Coordination Recipes
+
+Once you're in the Interactive Team shape, the channel is your coordination medium. These are recipes for using it well — they are *prompt-authoring patterns*, not new SDK surface. All of them assume interactive agents (no `preset`) sharing a `.channel('wf-...')`.
+
+#### 1. Question / Answer (blocking ask)
+
+When agent A needs information only agent B has, instruct A to **post a direct question and wait for a reply** rather than guessing or proceeding.
+
+```typescript
+.step('integrate', {
+  agent: 'integrator',
+  dependsOn: ['context'],
+  task: `You are the integrator on #wf-feature.
+Before writing code, post a direct question to @schema-owner asking which
+table owns the new field. Do NOT proceed until @schema-owner replies in
+channel. If no reply arrives in 5 minutes, escalate by @-mentioning the lead.`,
+})
+```
+
+**Why it beats `{{steps.X.output}}`:** the answer depends on something only an agent (or human) can decide at runtime; encoding it as a prior step's stdout is wrong.
+
+#### 2. Broadcast / Ack
+
+When a lead needs *N workers to confirm receipt* before proceeding (e.g., to make sure the plan was actually read), require explicit acks.
+
+```typescript
+.step('lead-coordinate', {
+  agent: 'lead',
+  dependsOn: ['context'],
+  task: `Post the plan to #wf-feature, then @impl-a @impl-b @impl-c.
+Wait for each to reply with "ACK <agent-name>" before issuing assignments.
+If any worker hasn't acked in 3 minutes, re-post and ping again.
+Only after all three have acked, post per-worker assignments.`,
+})
+```
+
+**Why it matters:** in the Codex history, the most common silent failure is a worker step that started but never read the channel. An ack gate makes "did you actually receive this?" deterministic without a separate verification step.
+
+#### 3. Peer Review Handoff
+
+The substantive form of "review my work." Worker pings reviewer in-channel with a concrete artifact reference; reviewer reads the actual files (not the chat); reviewer replies with a verdict.
+
+```typescript
+.step('impl-a-work', {
+  agent: 'impl-a',
+  dependsOn: ['context'],
+  task: `Implement src/foo.ts per the lead's assignment.
+When done, post to #wf-feature: "@reviewer ready: src/foo.ts" — include the
+commit SHA. Then wait for @reviewer's verdict in channel.
+- If "APPROVED", you're done.
+- If "CHANGES_REQUESTED <notes>", apply the notes and re-post.
+- If no verdict in 5 min, @-mention the lead.`,
+})
+```
+
+**Pattern note:** the reviewer must read the files themselves — never let the worker paste the diff into chat. Channel messages are for *coordination*, not *content*. That's also what keeps you under output-token limits.
+
+#### 4. Escalation (human-in-the-loop)
+
+When a workflow hits a blocker that no agent can resolve (ambiguous spec, missing credential, broken upstream), the agent should escalate to a human via a Slack-bridged channel rather than hallucinating a fix or exiting.
+
+```typescript
+.step('integrate', {
+  agent: 'integrator',
+  task: `... do the work ...
+
+If you encounter ANY of these blockers, do NOT guess and do NOT exit:
+  - missing/invalid API credential
+  - spec contradicts existing code in a way that requires a product decision
+  - upstream service returning errors you cannot reproduce locally
+
+Instead, post to #wf-feature: "@khaliqgant BLOCKED: <one-line reason>"
+followed by the specific question. Then wait. The channel is bridged to
+Slack — a human will respond. Resume only after the human's reply.`,
+})
+```
+
+**Why it's load-bearing:** this is the affordance file-handoffs literally cannot give you. It's how you walk away from the desk and trust the run.
+
+#### 5. Standup / Status Probe
+
+For long-running workflows, have the lead post periodic `@-mention` probes so silently-stuck workers surface fast.
+
+```typescript
+.step('lead-coordinate', {
+  agent: 'lead',
+  task: `... coordinate the team ...
+
+Every 10 minutes, post a status probe: "@impl-a @impl-b status?"
+Each worker should reply with one of:
+  - "RUNNING <step>" (still working)
+  - "BLOCKED <reason>" (escalate per recipe #4)
+  - "DONE <artifact>" (ready for review)
+
+If a worker is silent for two probes in a row, mark them stalled and
+reassign their work to a peer.`,
+})
+```
+
+#### 6. Hand-Off with Context
+
+When work flows from agent A to agent B *during* a workflow (not just between steps), have A post a structured handoff message so B doesn't re-derive context.
+
+```typescript
+.step('impl-a-work', {
+  agent: 'impl-a',
+  task: `... finish your part ...
+
+When done, post a handoff to #wf-feature targeting the next worker:
+"@impl-b HANDOFF: src/foo.ts ready. Touched: <files>. Open question: <if any>.
+Tests: <pass/fail summary>. Commit: <sha>."`,
+})
+```
+
+**Vs `{{steps.X.output}}`:** an output-chain forces B to parse A's entire stdout. A handoff message is a curated summary A writes for B — much higher signal, no PTY/ANSI noise.
+
+#### Picking a recipe
+
+| Need | Recipe |
+|---|---|
+| One agent needs an answer from another at runtime | **Q/A** |
+| Lead needs to confirm workers received the plan | **Broadcast/Ack** |
+| Agent-to-agent code review | **Peer Review Handoff** |
+| Run can't proceed without a human decision | **Escalation** |
+| Long-running team, want stalled-worker visibility | **Standup/Probe** |
+| Sequential agent work that needs context curation | **Hand-Off with Context** |
+
+> **Authoring rule:** if your workflow has interactive agents on a channel but their task strings don't *instruct them to talk to each other*, you're not using the chat primitive — you've just paid the overhead of starting it. Either add an explicit recipe above, or drop to `preset: 'worker'` and pipeline-shape.
 
 ### Pipeline (sequential handoff)
 
@@ -945,6 +1188,9 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 
 | Mistake | Fix |
 |---------|-----|
+| Treating relay as transport, not as a coordination layer (every step is `preset: 'worker'`, every handoff is `{{steps.X.output}}`) | Default to **Conversation shape** for non-trivial work — interactive agents on a shared channel. Pipeline-shape is only correct when the work could be expressed as a `bash | bash | bash` pipe. |
+| Interactive agents on a channel whose task strings don't tell them to talk to each other | Pick a [Chat-Native Coordination Recipe](#chat-native-coordination-recipes) (Q/A, Broadcast/Ack, Peer Review, Escalation, Standup, Hand-Off) and bake it into the task prompt — otherwise you're paying for a chat substrate you're not using |
+| Workflow has no human-in-loop escape hatch — agents either guess or `/exit` on a blocker | Add the [Escalation recipe](#4-escalation-human-in-the-loop): on real blockers, `@-mention` a human in a Slack-bridged channel and wait for a reply |
 | All workflows run sequentially | Group independent workflows into parallel waves (4-7x speedup) |
 | Every step depends on the previous one | Only add `dependsOn` when there's a real data dependency |
 | Self-review step with no timeout | Set `timeout: 300_000` (5 min) — Codex hangs in non-interactive review |
