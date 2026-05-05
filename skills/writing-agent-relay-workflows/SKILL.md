@@ -579,6 +579,10 @@ For bug-fix or reliability workflows, do **not** stop at unit or integration tes
    - Show that the original failure no longer occurs
 8. **Record residual risks**
    - Call out what was not covered
+9. **Ship the result as a PR**
+   - Open the pull request from the workflow itself with the GitHub primitive
+   - See [Shipping the Result — Open a PR via the GitHub Primitive](#shipping-the-result--open-a-pr-via-the-github-primitive) below
+   - A workflow that fixes a bug and stops short of the PR has only done half the loop
 
 ### Clean-environment validation guidance
 
@@ -598,6 +602,103 @@ If the right proving environment is unclear, first write a **meta-workflow** tha
 - then authors the final fix/validation workflow
 
 This is often better than jumping straight to implementation.
+
+## Shipping the Result — Open a PR via the GitHub Primitive
+
+A workflow whose final artifact is "a clean working tree on a sandbox you'll throw away" has not shipped anything. **End every code-changing workflow by opening a pull request, and do it from inside the workflow** using the `@agent-relay/github-primitive`. Don't tell the operator to follow up with `gh pr create` — make the workflow's own last step the PR.
+
+### Why the primitive (and not raw `gh` / `octokit`)
+
+The primitive picks the right transport at runtime:
+
+| Where the workflow runs | Transport the primitive uses | What you provide |
+|---|---|---|
+| Local (`agent-relay run`) | `gh` CLI | `gh auth status` works |
+| Cloud (`agent-relay cloud run`) — tenant-scoped | Nango → workspace's GitHub App installation | Nothing — cloud injects credentials |
+| Cloud — fallback | Relay-cloud GitHub proxy | Nothing — cloud injects credentials |
+
+You write **one** workflow. The same `createPR` step opens a PR via your local `gh` when you iterate on it on a laptop, and via the workspace's GitHub App when the same file runs in `agent-relay cloud run`. No branching by environment, no env-var sniffing in your task strings, no "this part only works in cloud" caveats. That's the whole point of the adapter.
+
+> **Phase C interaction (cloud only):** `agent-relay cloud run` already auto-pushes per-`paths[]` diffs as separate PRs after the workflow callback when the repos are allowlisted (see `pushedTo` in the run record). Phase C is the *catch-all* — if your workflow does nothing else, you still get one PR per declared path. Use the github primitive **on top of** that when you need PRs the catch-all can't produce: cross-cutting issues, follow-up tracking issues, opening one PR that spans multiple paths, draft PRs you want labeled/assigned in specific ways, or PRs against a repo you didn't `paths[]` in.
+
+### The minimal "open a PR" recipe
+
+```typescript
+import { workflow } from '@agent-relay/sdk/workflows';
+import { GitHubStepExecutor, createGitHubStep } from '@agent-relay/github-primitive';
+
+const REPO = 'AgentWorkforce/cloud';
+const BRANCH = `agent-relay/run-${Date.now()}`;
+
+// Auto-detect runtime: gh CLI locally, Nango/relay-cloud in cloud.
+// You don't need to wire any of the cloud config yourself when running
+// in `agent-relay cloud run` — the cloud bootstrap injects it.
+const github = new GitHubStepExecutor({ runtime: 'auto' });
+
+await workflow('feature-x')
+  // ... your real steps that produce code changes ...
+  .step('write-marker', {
+    type: 'deterministic',
+    command: `echo "fix landed at $(date -u)" >> CHANGELOG.md`,
+  })
+
+  // Branch off main on the remote.
+  .step(createGitHubStep({
+    name: 'create-branch',
+    dependsOn: ['write-marker'],
+    action: 'createBranch',
+    repo: REPO,
+    params: { branch: BRANCH, source: 'main' },
+  }), { executor: github })
+
+  // Commit the change to the branch via Contents API.
+  .step(createGitHubStep({
+    name: 'commit-change',
+    dependsOn: ['create-branch'],
+    action: 'createFile',
+    repo: REPO,
+    params: {
+      path: 'CHANGELOG.md',
+      branch: BRANCH,
+      content: '<file body here>',
+      message: 'chore: changelog entry',
+    },
+  }), { executor: github })
+
+  // Open the PR. This is the load-bearing step.
+  .step(createGitHubStep({
+    name: 'open-pr',
+    dependsOn: ['commit-change'],
+    action: 'createPR',
+    repo: REPO,
+    params: {
+      title: 'feat: ship feature X',
+      head: BRANCH,
+      base: 'main',
+      body: '## Summary\n\n- ...\n\n## Test plan\n\n- [x] ...',
+      draft: false,
+    },
+    output: { mode: 'data', format: 'json', path: 'html_url' },
+  }), { executor: github })
+
+  .run({ cwd: process.cwd() });
+```
+
+The primitive's actions are stable across runtimes: `getRepo`, `createBranch`, `createFile`, `updateFile`, `createPR`, `updatePR`, `getPR`, `listPRs`, `mergePR`, `createIssue`, etc. See `packages/github-primitive/src/types.ts` for the full enum.
+
+### Authoring rules for PR-shipping workflows
+
+1. **Open the PR from the workflow, not from the operator's shell.** "Tell the user to run `gh pr create`" is a regression to a manual step the workflow could have done. The whole point of running this in cloud is that there is no operator's shell.
+2. **One PR per workflow, by default.** A workflow that opens five PRs from one run is almost always wrong — humans review one PR at a time. If you genuinely need multiple, prefer a tracking issue + linked PRs, or split into separate workflows.
+3. **Branch name encodes the run.** `agent-relay/run-${runId}` or `agent-relay/${workflow-name}-${timestamp}` so reviewers can tell the PR apart from other automation, and so reruns don't clash.
+4. **`draft: true` while iterating.** Once the workflow is stable end-to-end, flip to `draft: false`.
+5. **Body is a real PR description.** Summary + Test plan, generated from the workflow's own evidence (verification step output, diff stats, test run output). If you find yourself writing a placeholder body, the workflow isn't done — capture the real evidence in an earlier step and template it in.
+6. **Don't use the primitive to substitute for `paths[]` push-back in cloud.** If the diff lives in a tarballed `paths[]` mount, let cloud's Phase C push-back open that PR (it handles the patch generation, branch lifecycle, and per-repo allowlist). Use the primitive when you need a PR against a repo or branch outside the `paths[]` set, or when you want to add an extra PR (e.g. a tracking issue, a follow-up against a sibling repo, a docs-only PR).
+7. **Failure is a real failure.** If `createPR` errors (auth, permissions, branch conflict), the workflow should fail the step, not warn-and-continue. A "successful" workflow that silently failed to open the PR is the worst-case outcome — the human thinks the work shipped.
+
+### Where this fits in the bug-fix phases
+
+[End-to-End Bug Fix Workflows](#end-to-end-bug-fix-workflows) lists "Ship the result as a PR" as phase 9. Concretely that means: after phase 7 (compare before/after evidence) succeeds, the workflow's next step is `createPR` with that evidence templated into the body. The PR opening **is** the ship — there is no further manual step.
 
 ## Key Concepts
 
@@ -948,6 +1049,8 @@ Slack — a human will respond. Resume only after the human's reply.`,
 ```
 
 **Why it's load-bearing:** this is the affordance file-handoffs literally cannot give you. It's how you walk away from the desk and trust the run.
+
+> **Status (2026-05):** Slack-bridged channels are the current escalation path. A first-class **Slack primitive** is being designed to replace the bridge with a direct `postMessage` / `askQuestion` step that runs identically locally and in cloud (mirroring the github-primitive adapter pattern). When that lands, the recipe above will become: `await slack.askQuestion({ channel: '#wf-feature', text: '...', blockingOn: 'reply' })`. See `relay/specs/slack-primitive.md` for the design. **Encourage agents in your task strings to ask for clarification rather than guess** — that's the cultural change the primitive is meant to support, and it's the right behavior to write into agent task instructions today even before the API ships.
 
 #### 5. Standup / Status Probe
 
