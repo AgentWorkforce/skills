@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with the relay broker-sdk - covers conversation-shape vs pipeline-shape coordination, the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, dynamic channel management (subscribe/unsubscribe/mute/unmute), swarm patterns, chat-native coordination recipes (Q/A, broadcast-ack, peer review, escalation, standup, hand-off), error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
+description: Use when building multi-agent workflows with the relay broker-sdk - covers conversation-shape vs pipeline-shape coordination, the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, dynamic channel management (subscribe/unsubscribe/mute/unmute), swarm patterns, chat-native coordination recipes (Q/A, broadcast-ack, peer review, standup, hand-off), error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
 ---
 
 # Writing Agent Relay Workflows
@@ -155,7 +155,6 @@ Implement your assigned file. Post a completion message. Address feedback.`,
 - **Ambient awareness** — workers see each other's completion messages and start dependent work without the lead relaying.
 - **Lead-as-reviewer** — the lead reads actual files between rounds and posts diff-aware feedback in chat. One agent does coordination + review; no separate reviewer step.
 - **Iterative correction** — when the lead pings *"impl-a, the type on line 42 is wrong"*, impl-a fixes and re-posts. No new step, no re-spawn, no `{{output}}` chaining.
-- **Human escape hatch** — if the channel is bridged to Slack, agents can `@khaliqgant` for a real blocker without exiting.
 
 **Critical workflow rules for this shape:**
 
@@ -986,7 +985,7 @@ When agent A needs information only agent B has, instruct A to **post a direct q
   task: `You are the integrator on #wf-feature.
 Before writing code, post a direct question to @schema-owner asking which
 table owns the new field. Do NOT proceed until @schema-owner replies in
-channel. If no reply arrives in 5 minutes, escalate by @-mentioning the lead.`,
+channel. If no reply arrives in 5 minutes, @-mention the lead.`,
 })
 ```
 
@@ -1028,31 +1027,7 @@ commit SHA. Then wait for @reviewer's verdict in channel.
 
 **Pattern note:** the reviewer must read the files themselves — never let the worker paste the diff into chat. Channel messages are for *coordination*, not *content*. That's also what keeps you under output-token limits.
 
-#### 4. Escalation (human-in-the-loop)
-
-When a workflow hits a blocker that no agent can resolve (ambiguous spec, missing credential, broken upstream), the agent should escalate to a human via a Slack-bridged channel rather than hallucinating a fix or exiting.
-
-```typescript
-.step('integrate', {
-  agent: 'integrator',
-  task: `... do the work ...
-
-If you encounter ANY of these blockers, do NOT guess and do NOT exit:
-  - missing/invalid API credential
-  - spec contradicts existing code in a way that requires a product decision
-  - upstream service returning errors you cannot reproduce locally
-
-Instead, post to #wf-feature: "@khaliqgant BLOCKED: <one-line reason>"
-followed by the specific question. Then wait. The channel is bridged to
-Slack — a human will respond. Resume only after the human's reply.`,
-})
-```
-
-**Why it's load-bearing:** this is the affordance file-handoffs literally cannot give you. It's how you walk away from the desk and trust the run.
-
-> **Status (2026-05):** Slack-bridged channels are the current escalation path. A first-class **Slack primitive** is being designed to replace the bridge with a direct `postMessage` / `askQuestion` step that runs identically locally and in cloud (mirroring the github-primitive adapter pattern). When that lands, the recipe above will become: `await slack.askQuestion({ channel: '#wf-feature', text: '...', blockingOn: 'reply' })`. See `relay/specs/slack-primitive.md` for the design. **Encourage agents in your task strings to ask for clarification rather than guess** — that's the cultural change the primitive is meant to support, and it's the right behavior to write into agent task instructions today even before the API ships.
-
-#### 5. Standup / Status Probe
+#### 4. Standup / Status Probe
 
 For long-running workflows, have the lead post periodic `@-mention` probes so silently-stuck workers surface fast.
 
@@ -1064,7 +1039,7 @@ For long-running workflows, have the lead post periodic `@-mention` probes so si
 Every 10 minutes, post a status probe: "@impl-a @impl-b status?"
 Each worker should reply with one of:
   - "RUNNING <step>" (still working)
-  - "BLOCKED <reason>" (escalate per recipe #4)
+  - "BLOCKED <reason>" (@-mention the lead with the blocker)
   - "DONE <artifact>" (ready for review)
 
 If a worker is silent for two probes in a row, mark them stalled and
@@ -1072,7 +1047,7 @@ reassign their work to a peer.`,
 })
 ```
 
-#### 6. Hand-Off with Context
+#### 5. Hand-Off with Context
 
 When work flows from agent A to agent B *during* a workflow (not just between steps), have A post a structured handoff message so B doesn't re-derive context.
 
@@ -1096,7 +1071,6 @@ Tests: <pass/fail summary>. Commit: <sha>."`,
 | One agent needs an answer from another at runtime | **Q/A** |
 | Lead needs to confirm workers received the plan | **Broadcast/Ack** |
 | Agent-to-agent code review | **Peer Review Handoff** |
-| Run can't proceed without a human decision | **Escalation** |
 | Long-running team, want stalled-worker visibility | **Standup/Probe** |
 | Sequential agent work that needs context curation | **Hand-Off with Context** |
 
@@ -1292,8 +1266,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Mistake | Fix |
 |---------|-----|
 | Treating relay as transport, not as a coordination layer (every step is `preset: 'worker'`, every handoff is `{{steps.X.output}}`) | Default to **Conversation shape** for non-trivial work — interactive agents on a shared channel. Pipeline-shape is only correct when the work could be expressed as a `bash | bash | bash` pipe. |
-| Interactive agents on a channel whose task strings don't tell them to talk to each other | Pick a [Chat-Native Coordination Recipe](#chat-native-coordination-recipes) (Q/A, Broadcast/Ack, Peer Review, Escalation, Standup, Hand-Off) and bake it into the task prompt — otherwise you're paying for a chat substrate you're not using |
-| Workflow has no human-in-loop escape hatch — agents either guess or `/exit` on a blocker | Add the [Escalation recipe](#4-escalation-human-in-the-loop): on real blockers, `@-mention` a human in a Slack-bridged channel and wait for a reply |
+| Interactive agents on a channel whose task strings don't tell them to talk to each other | Pick a [Chat-Native Coordination Recipe](#chat-native-coordination-recipes) (Q/A, Broadcast/Ack, Peer Review, Standup, Hand-Off) and bake it into the task prompt — otherwise you're paying for a chat substrate you're not using |
 | All workflows run sequentially | Group independent workflows into parallel waves (4-7x speedup) |
 | Every step depends on the previous one | Only add `dependsOn` when there's a real data dependency |
 | Self-review step with no timeout | Set `timeout: 300_000` (5 min) — Codex hangs in non-interactive review |
