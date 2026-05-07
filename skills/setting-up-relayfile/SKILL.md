@@ -1,6 +1,6 @@
 ---
 name: setting-up-relayfile
-description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup` for Notion, Linear, Slack, and GitHub, the cloud-login and Nango OAuth flow, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
+description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup` for Notion, Linear, Slack, and GitHub, the cloud-login and Nango OAuth flow, mount verification, `RELAYFILE_LOCAL_DIR` handoff, schema-discovered writeback, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
 ---
 
 # Setting Up Relayfile (Mount + Writeback for Agents)
@@ -33,7 +33,7 @@ After setup, files appear under `<local-dir>/<provider>/...`:
 └── pages/                            ← top-level pages (not in a database)
 ```
 
-Read = `cat`. Write = overwrite the file. The mount daemon picks up the change, queues a writeback, and the cloud delivers to the provider's API.
+Read = `cat`. Write = overwrite the file. For structured provider resources, read the adapter's discovery files before writing: `<provider>/.adapter.md` explains the resource paths, `<resource>/.schema.json` describes the full record shape, and `<resource>/.create.example.json` gives a minimal create payload. The mount daemon picks up file changes, queues writeback, and the cloud delivers to the provider's API.
 
 ## Prerequisites
 
@@ -141,13 +141,43 @@ Skip-able if the agent only reads. Required if the agent will write.
 
 If the marker doesn't appear in step 4, see **Recovering from breakage**.
 
+## Discovering writeback contracts
+
+Adapters that include writeback discovery expose their contract in the mounted tree:
+
+```
+<provider>/
+├── .adapter.md                         ← adapter overview, operations, ID patterns
+└── <resource>/
+    ├── .schema.json                    ← full-record JSON Schema, draft 2020-12
+    └── .create.example.json            ← minimal create payload
+```
+
+Agent flow:
+
+1. Read `<provider>/.adapter.md` to find writable resources and each resource's ID pattern.
+2. Read `<resource>/.schema.json`; fields marked `"readOnly": true` are synced from the provider and must not be written.
+3. Read `<resource>/.create.example.json` when creating a new record.
+4. Use file-native operations:
+
+| Operation | File action |
+|---|---|
+| Read | `cat <resource>/<id>.json` |
+| Edit | Write a partial JSON object to canonical `<resource>/<id>.json`; only included mutable fields PATCH. |
+| Create | Write a valid JSON object to any non-canonical filename such as `<resource>/draft-title.json`; the adapter creates `<resource>/<real-id>.json` and rewrites the draft as a pointer receipt. |
+| Delete | `rm <resource>/<id>.json` for canonical IDs. |
+
+Do not use `new.json` as a special write target in new workflows. Under the file-native convention, create is determined by the filename not matching the resource's `idPattern`; `new.json` is no longer a reserved template path.
+
+**Transition note, May 2026:** deployed cloud environments may lag the adapter packages. If `<provider>/.adapter.md` or `<resource>/.schema.json` is absent, the workspace is still on the legacy adapter contract. Prefer upgrading the adapter package instead of teaching agents provider-specific shapes by prompt.
+
 ## Path conventions per provider
 
 | Provider | Read paths | Write paths |
 |---|---|---|
 | Notion | `/notion/pages/<slug>--<id>/content.md`, `/notion/databases/<id>/pages/.../content.md`, `<slug>.json` (metadata) | same paths overwrite the body / properties |
-| Slack | `/slack/channels/<id>/messages/` | `/slack/channels/<id>/messages/new.json` (post a message) |
-| Linear | `/linear/issues/<id>/metadata.json` | `/linear/issues/<id>/comments/new.json` (post a comment) |
+| Slack | `/slack/channels/<id>/messages/` plus `/slack/.adapter.md` when discovery is present | Read `/slack/channels/<id>/messages/.schema.json`, then create by writing `/slack/channels/<id>/messages/<draft>.json` where `<draft>` is not a Slack timestamp |
+| Linear | `/linear/issues/<id>.json` plus `/linear/.adapter.md` when discovery is present | Read `/linear/issues/.schema.json`, then edit `/linear/issues/<uuid>.json` or create by writing `/linear/issues/<draft>.json` where `<draft>` is not a UUID |
 | GitHub | `/github/repos/<owner>/<repo>/pulls/<n>/metadata.json`, `files.json` | `/github/repos/<owner>/<repo>/pulls/<n>/reviews/review.json` (post a review) |
 
 `<local-dir>/.relay/` is reserved — never write there. Anything you put under it gets ignored or treated as daemon state.
