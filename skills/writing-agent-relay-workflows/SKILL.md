@@ -280,6 +280,25 @@ runWorkflow().catch((error) => {
 
 Do not end workflow files with bare top-level `await workflow(...).run(...)`.
 
+### 1b. Make commit and PR boundaries explicit
+
+Workflows do **not** get a PR for free just because they pass validation. If the intended deliverable is a branch, commit, push, or GitHub PR, the workflow itself must own that boundary explicitly and document the expected file scope.
+
+Use this pattern only when the workflow is supposed to own repository delivery:
+
+1. Preflight the git state and fail on unexpected staged changes.
+2. Create or verify the intended branch.
+3. Run implementation, review, soft validation, fix, and hard validation gates.
+4. Stage only the declared target files and review/signoff artifacts.
+5. Commit with a deterministic message.
+6. Push the branch.
+7. Use `createGitHubStep({ action: 'createPR', ... })` from `@agent-relay/sdk/github` to open the PR.
+8. Verify the PR URL/state deterministically and write it into the final signoff artifact.
+
+Do not hide commit/PR work in agent prose. Model it as deterministic steps whenever possible. For PR creation, issue updates, file reads, or any GitHub operation, prefer `createGitHubStep` over shelling out to `gh`; it is bundled with `@agent-relay/sdk`. The downstream hard gate must still verify the PR exists before signoff.
+
+If commit or PR creation is intentionally outside the workflow, say that directly in the workflow description and signoff so the operator knows to do it after completion.
+
 ### 2. Avoid raw fenced code blocks inside workflow task template literals
 
 Raw triple-backtick code fences inside large inline `task: \`...\`` template strings are fragile and can break outer TypeScript parsing, especially when they contain language tags like `swift` or `diff`.
@@ -331,7 +350,7 @@ The battle-tested template:
 - **Use `grep -vE "^(...)$"` for full-line match.** Substring matches bleed across unrelated files (e.g., `setup.ts` would also match `packages/core/src/bootstrap/setup.ts`).
 - **Append `|| true` to the grep.** Without it, an empty result triggers `set -e` and the whole preflight fails before the `if` can even run.
 - **Check the staging area separately.** A dirty index is different from a dirty working tree and both must be clean (modulo allow-list).
-- **Check `gh auth status` early** if any downstream step uses `gh pr create` or similar. Failing on auth at the end of a long DAG is painful.
+- **Check `gh auth status` early** if downstream GitHub operations will use the local transport. Failing on auth at the end of a long DAG is painful.
 
 **Never use `git diff --quiet` alone as your "clean tree" check.** It fails on any dirty file, including the ones the workflow is expected to rewrite, which causes false failures on every resume / re-run.
 
@@ -374,7 +393,7 @@ command: [
 
 Results in `set -e && cat > /tmp/f <<EOF && line 1 && line 2 && EOF && next-command` — a shell syntax error because `&&` cannot appear inside a heredoc body. Use `.join('\n')` or (better) sidestep the heredoc entirely.
 
-**The `printf` + `mktemp` alternative — use this for commit messages, PR bodies, and any other multi-line file content.** It avoids heredocs altogether and composes with `.join(' && ')`:
+**The `printf` + `mktemp` alternative — use this for commit messages, raw-CLI fallback PR bodies, and any other multi-line file content.** It avoids heredocs altogether and composes with `.join(' && ')`:
 
 ```ts
 command: [
@@ -388,7 +407,7 @@ command: [
 ].join(' && '),
 ```
 
-This pattern is specifically recommended over `git commit -m "$(cat <<'EOF' ... EOF)"` and `gh pr create --body "$(cat <<'BODY' ... BODY)"`. Nesting a heredoc inside `$(...)` forces the shell to match a closing paren across many lines of unparsed body text, and any stray parenthesis in the body text can silently break the match. `--body-file` + `mktemp` + `printf` is immune to that entire class of bug.
+This pattern is specifically recommended over `git commit -m "$(cat <<'EOF' ... EOF)"` and raw `gh pr create --body "$(cat <<'BODY' ... BODY)"`. Nesting a heredoc inside `$(...)` forces the shell to match a closing paren across many lines of unparsed body text, and any stray parenthesis in the body text can silently break the match. `--body-file` + `mktemp` + `printf` is immune to that entire class of bug. For workflow-owned PR creation, prefer `createGitHubStep` over raw `gh`; this shell pattern is for raw CLI fallback cases.
 
 ### 2d. Template-literal escape sequences are processed once before the string is rendered
 
@@ -579,8 +598,8 @@ For bug-fix or reliability workflows, do **not** stop at unit or integration tes
 8. **Record residual risks**
    - Call out what was not covered
 9. **Ship the result as a PR**
-   - Open the pull request from the workflow itself with the GitHub primitive
-   - See [Shipping the Result — Open a PR via the GitHub Primitive](#shipping-the-result--open-a-pr-via-the-github-primitive) below
+   - Open the pull request from the workflow itself with `createGitHubStep`
+   - See [Shipping the Result — Open a PR via `createGitHubStep`](#shipping-the-result--open-a-pr-via-creategithubstep) below
    - A workflow that fixes a bug and stops short of the PR has only done half the loop
 
 ### Clean-environment validation guidance
@@ -602,15 +621,15 @@ If the right proving environment is unclear, first write a **meta-workflow** tha
 
 This is often better than jumping straight to implementation.
 
-## Shipping the Result — Open a PR via the GitHub Primitive
+## Shipping the Result — Open a PR via `createGitHubStep`
 
-A workflow whose final artifact is "a clean working tree on a sandbox you'll throw away" has not shipped anything. **End every code-changing workflow by opening a pull request, and do it from inside the workflow** using the `@agent-relay/github-primitive`. Don't tell the operator to follow up with `gh pr create` — make the workflow's own last step the PR.
+A workflow whose final artifact is "a clean working tree on a sandbox you'll throw away" has not shipped anything. **End every code-changing workflow by opening a pull request, and do it from inside the workflow** using `createGitHubStep` from `@agent-relay/sdk/github`. Don't tell the operator to follow up with `gh pr create` — make the workflow's own last step the PR.
 
-### Why the primitive (and not raw `gh` / `octokit`)
+### Why `createGitHubStep` (and not raw `gh` / `octokit`)
 
 The primitive picks the right transport at runtime:
 
-| Where the workflow runs | Transport the primitive uses | What you provide |
+| Where the workflow runs | Transport `createGitHubStep` uses | What you provide |
 |---|---|---|
 | Local (`agent-relay run`) | `gh` CLI | `gh auth status` works |
 | Cloud (`agent-relay cloud run`) — tenant-scoped | Nango → workspace's GitHub App installation | Nothing — cloud injects credentials |
@@ -618,21 +637,16 @@ The primitive picks the right transport at runtime:
 
 You write **one** workflow. The same `createPR` step opens a PR via your local `gh` when you iterate on it on a laptop, and via the workspace's GitHub App when the same file runs in `agent-relay cloud run`. No branching by environment, no env-var sniffing in your task strings, no "this part only works in cloud" caveats. That's the whole point of the adapter.
 
-> **Phase C interaction (cloud only):** `agent-relay cloud run` already auto-pushes per-`paths[]` diffs as separate PRs after the workflow callback when the repos are allowlisted (see `pushedTo` in the run record). Phase C is the *catch-all* — if your workflow does nothing else, you still get one PR per declared path. Use the github primitive **on top of** that when you need PRs the catch-all can't produce: cross-cutting issues, follow-up tracking issues, opening one PR that spans multiple paths, draft PRs you want labeled/assigned in specific ways, or PRs against a repo you didn't `paths[]` in.
+> **Phase C interaction (cloud only):** `agent-relay cloud run` already auto-pushes per-`paths[]` diffs as separate PRs after the workflow callback when the repos are allowlisted (see `pushedTo` in the run record). Phase C is the *catch-all* — if your workflow does nothing else, you still get one PR per declared path. Use `createGitHubStep` **on top of** that when you need PRs the catch-all can't produce: cross-cutting issues, follow-up tracking issues, opening one PR that spans multiple paths, draft PRs you want labeled/assigned in specific ways, or PRs against a repo you didn't `paths[]` in.
 
 ### The minimal "open a PR" recipe
 
 ```typescript
 import { workflow } from '@agent-relay/sdk/workflows';
-import { GitHubStepExecutor, createGitHubStep } from '@agent-relay/github-primitive';
+import { createGitHubStep } from '@agent-relay/sdk/github';
 
 const REPO = 'AgentWorkforce/cloud';
 const BRANCH = `agent-relay/run-${Date.now()}`;
-
-// Auto-detect runtime: gh CLI locally, Nango/relay-cloud in cloud.
-// You don't need to wire any of the cloud config yourself when running
-// in `agent-relay cloud run` — the cloud bootstrap injects it.
-const github = new GitHubStepExecutor({ runtime: 'auto' });
 
 await workflow('feature-x')
   // ... your real steps that produce code changes ...
@@ -642,17 +656,15 @@ await workflow('feature-x')
   })
 
   // Branch off main on the remote.
-  .step(createGitHubStep({
-    name: 'create-branch',
+  .step('create-branch', createGitHubStep({
     dependsOn: ['write-marker'],
     action: 'createBranch',
     repo: REPO,
     params: { branch: BRANCH, source: 'main' },
-  }), { executor: github })
+  }))
 
   // Commit the change to the branch via Contents API.
-  .step(createGitHubStep({
-    name: 'commit-change',
+  .step('commit-change', createGitHubStep({
     dependsOn: ['create-branch'],
     action: 'createFile',
     repo: REPO,
@@ -662,11 +674,10 @@ await workflow('feature-x')
       content: '<file body here>',
       message: 'chore: changelog entry',
     },
-  }), { executor: github })
+  }))
 
   // Open the PR. This is the load-bearing step.
-  .step(createGitHubStep({
-    name: 'open-pr',
+  .step('open-pr', createGitHubStep({
     dependsOn: ['commit-change'],
     action: 'createPR',
     repo: REPO,
@@ -678,12 +689,12 @@ await workflow('feature-x')
       draft: false,
     },
     output: { mode: 'data', format: 'json', path: 'html_url' },
-  }), { executor: github })
+  }))
 
   .run({ cwd: process.cwd() });
 ```
 
-The primitive's actions are stable across runtimes: `getRepo`, `createBranch`, `createFile`, `updateFile`, `createPR`, `updatePR`, `getPR`, `listPRs`, `mergePR`, `createIssue`, etc. See `packages/github-primitive/src/types.ts` for the full enum.
+`createGitHubStep` is bundled with `@agent-relay/sdk`; do not add a separate install. Its actions are stable across runtimes: `getRepo`, `createBranch`, `createFile`, `updateFile`, `createPR`, `updatePR`, `getPR`, `listPRs`, `mergePR`, `createIssue`, etc. See the SDK GitHub primitive docs for the full enum.
 
 ### Authoring rules for PR-shipping workflows
 
@@ -692,7 +703,7 @@ The primitive's actions are stable across runtimes: `getRepo`, `createBranch`, `
 3. **Branch name encodes the run.** `agent-relay/run-${runId}` or `agent-relay/${workflow-name}-${timestamp}` so reviewers can tell the PR apart from other automation, and so reruns don't clash.
 4. **`draft: true` while iterating.** Once the workflow is stable end-to-end, flip to `draft: false`.
 5. **Body is a real PR description.** Summary + Test plan, generated from the workflow's own evidence (verification step output, diff stats, test run output). If you find yourself writing a placeholder body, the workflow isn't done — capture the real evidence in an earlier step and template it in.
-6. **Don't use the primitive to substitute for `paths[]` push-back in cloud.** If the diff lives in a tarballed `paths[]` mount, let cloud's Phase C push-back open that PR (it handles the patch generation, branch lifecycle, and per-repo allowlist). Use the primitive when you need a PR against a repo or branch outside the `paths[]` set, or when you want to add an extra PR (e.g. a tracking issue, a follow-up against a sibling repo, a docs-only PR).
+6. **Don't use `createGitHubStep` to substitute for `paths[]` push-back in cloud.** If the diff lives in a tarballed `paths[]` mount, let cloud's Phase C push-back open that PR (it handles the patch generation, branch lifecycle, and per-repo allowlist). Use `createGitHubStep` when you need a PR against a repo or branch outside the `paths[]` set, or when you want to add an extra PR (e.g. a tracking issue, a follow-up against a sibling repo, a docs-only PR).
 7. **Failure is a real failure.** If `createPR` errors (auth, permissions, branch conflict), the workflow should fail the step, not warn-and-continue. A "successful" workflow that silently failed to open the PR is the worst-case outcome — the human thinks the work shipped.
 
 ### Where this fits in the bug-fix phases
@@ -1305,7 +1316,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
 | Using `preset: 'worker'` for Codex in *interactive team* patterns when coordination is needed | Codex interactive mode works fine with PTY channel injection. Drop the preset for interactive team patterns (keep it for one-shot DAG workers where clean stdout matters) |
 | Separate reviewer agent from lead in interactive team | Merge lead + reviewer into one interactive Claude agent — reviews between rounds, fewer agents |
-| Not printing PR URL after `gh pr create` | Add a final deterministic step: `echo "PR: $(cat pr-url.txt)"` or capture in the `gh pr create` command |
+| Not printing PR URL after `createGitHubStep({ action: 'createPR' })` | Capture `html_url` with `output: { mode: 'data', format: 'json', path: 'html_url' }` and echo or write it in a final deterministic step |
 | Workflow ending without worktree + PR for cross-repo changes | Add `setup-worktree` at start and `push-and-pr` + `cleanup-worktree` at end |
 
 ## YAML Alternative
