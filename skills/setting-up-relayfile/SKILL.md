@@ -1,6 +1,6 @@
 ---
 name: setting-up-relayfile
-description: Use when an agent (or human delegating to one) needs to set up relayfile end-to-end so an agent can read & write provider files through a local mount. Covers `relayfile setup` for Notion / Linear / Slack / GitHub, the cloud-login + Nango OAuth flow, mount verification, agent handoff via `RELAYFILE_LOCAL_DIR`, and writeback introspection (`relayfile writeback status` / `retry`). Includes the gotchas that bit the productized cloud-mount in May 2026: cold-start 500s on workspace create, the OAuth callback timing trap, scoped tokens, the dead-letter file shape, and what each layer of the writeback path looks like when it breaks.
+description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup` for Notion, Linear, Slack, and GitHub, the cloud-login and Nango OAuth flow, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
 ---
 
 # Setting Up Relayfile (Mount + Writeback for Agents)
