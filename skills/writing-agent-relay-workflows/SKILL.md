@@ -1269,7 +1269,8 @@ steps:
 **Key rules:**
 - Read the file in a deterministic step right before the edit (not all files upfront)
 - Tell the agent "Only edit this one file" to prevent it touching other files
-- Verify with `git diff --quiet` after each edit, hand failures back to an agent to repair, then rerun the deterministic check as proof
+- Verify tracked-only edits with `git diff --quiet`, hand failures back to an agent to repair, then rerun the deterministic check as proof
+- If the edit may create new files/packages, verify with `git status --short -- <paths>` because `git diff --quiet` ignores untracked files
 - Always commit with a deterministic step, never an agent step; rerun acceptance checks in that step, let an agent repair commit blockers, and prove the commit exists
 
 ## File Materialization: Verify Before Proceeding
@@ -1319,6 +1320,54 @@ After any step that creates files, add a deterministic `file_exists` check befor
 2. Add `IMPORTANT: Write the file to disk. Do NOT output to stdout.`
 3. Use `file_exists` verification for creation steps (not just `exit_code`)
 4. Gate all downstream steps on the final deterministic proof step that follows the repair step
+
+### Edit Gates Must See Untracked Files
+
+For gates that validate new files, generated artifacts, tests, or package
+directories, do not use only `git diff --quiet -- <paths>`. `git diff` ignores
+untracked files, so a valid new package can be misclassified as `NO_CHANGES`.
+
+Use `git status --short -- <paths>` for materialization/edit gates, and keep
+the first gate repairable:
+
+```yaml
+- name: provider-edit-gate-capture
+  type: deterministic
+  dependsOn: [implement-providers]
+  command: |
+    if [ -z "$(git status --short -- packages/new-provider .workflow-artifacts/my-flow)" ]; then
+      echo "NO_PROVIDER_CHANGES"
+      exit 1
+    fi
+    echo "PROVIDER_EDIT_GATE_OK"
+  captureOutput: true
+  failOnError: false
+
+- name: repair-edit-gate
+  agent: provider-worker
+  dependsOn: [provider-edit-gate-capture]
+  task: |
+    If provider-edit-gate-capture reported NO_PROVIDER_CHANGES, inspect git
+    status including untracked files and add the missing provider artifacts.
+    If it already passed, do nothing.
+  verification:
+    type: exit_code
+
+- name: provider-edit-gate-final
+  type: deterministic
+  dependsOn: [repair-edit-gate]
+  command: |
+    if [ -z "$(git status --short -- packages/new-provider .workflow-artifacts/my-flow)" ]; then
+      echo "NO_PROVIDER_CHANGES"
+      exit 1
+    fi
+    echo "PROVIDER_EDIT_GATE_FINAL_OK"
+  captureOutput: true
+  failOnError: true
+```
+
+The first gate captures evidence and gives an agent a chance to fix. The final
+gate is the hard stop.
 
 ## DAG Deadlock Anti-Pattern
 
@@ -1437,6 +1486,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Single step editing 4+ files | Agents modify 1-2 then exit. Split to one file per step with verify gates |
 | Relying on agents to `git commit` | Agents emit markers without running git. Use deterministic commit step |
 | File-writing steps without `file_exists` verification | `exit_code` auto-passes even if no file written |
+| Edit gate uses `git diff --quiet` for new files/packages | `git diff` ignores untracked files and can fail a valid implementation with `NO_CHANGES` | Use `git status --short -- <paths>` for materialization gates |
 | Hard-stop validation gates in product workflows | A red check stops the agent team at the exact moment it should fix the problem. Capture gate output with `failOnError: false`, add a repair agent step, rerun, and reserve hard failure for exhausted repair budget or external blockers |
 | Final acceptance before repair | Broken work can stop or commit without giving the team a final chance to fix it. Run final acceptance, hand output to a repair owner, rerun, then commit/open PR only after green deterministic evidence |
 | Treating optional notification credentials as fatal | Workflow progress gets blocked by a non-core side effect. Prefer primitive/runtime fallbacks such as the Slack primitive's `cloud-relay` or `noop` shape from AgentWorkforce/relay#823 when notification is not the product contract |
