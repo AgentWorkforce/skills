@@ -29,10 +29,10 @@ The point of an agent team workflow is not to discover a red gate and stop. The 
 1. Run deterministic checks as evidence-capturing gates with `captureOutput: true`.
 2. Prefer `failOnError: false` for intermediate validation gates so the workflow can pass the output to a repair agent.
 3. Add a repair step immediately after each red-prone gate. The repair agent reads `{{steps.<gate>.output}}`, fixes source/tests/config, reruns the same command locally, and exits only after the gate is green or the blocker is external.
-4. Keep final acceptance deterministic, but still put an agent repair step before commit/PR creation. The workflow should only stop after the repair budget is exhausted or a true external blocker remains.
+4. Keep final acceptance deterministic, but still put an agent repair step before commit/PR creation. If the repair budget is exhausted or a true external blocker remains, write a blocked artifact and skip commit/PR creation; do not let the workflow end as `FAILED`.
 5. Use `.reliable()` or `.repairable()` on SDK versions that support it, especially for product-contract workflows. As of AgentWorkforce/relay#827, retry-mode workflows with agents are repair-aware by default, repair agents run before retrying malformed/failed agent steps, and the SDK covers DAG, pipeline, fan-out, worktree-backed, deterministic-only, and agent-plus-gate shapes.
 
-Hard-stop gates (`failOnError: true` with no repair step) are reserved for cheap preconditions that no agent can fix in the current run, such as missing credentials, wrong repository, or an unsafe dirty worktree. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
+Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows that are supposed to be self-healing. Even cheap preconditions such as missing credentials, wrong repository, or an unsafe dirty worktree should normally write a clear `BLOCKED_*` artifact and exit cleanly. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
 
 ## Choose Your Coordination Style — Conversation vs Pipeline
 
@@ -1363,11 +1363,24 @@ the first gate repairable:
     fi
     echo "PROVIDER_EDIT_GATE_FINAL_OK"
   captureOutput: true
-  failOnError: true
+  failOnError: false
+
+- name: repair-provider-edit-gate-final
+  agent: provider-worker
+  dependsOn: [provider-edit-gate-final]
+  task: |
+    If provider-edit-gate-final is still red, repair the missing provider
+    artifacts and rerun the check. If repair is impossible, write
+    .workflow-artifacts/my-flow/BLOCKED_NO_COMMIT.md with exact evidence and
+    do not commit.
+    Output:
+    {{steps.provider-edit-gate-final.output}}
+  verification:
+    type: exit_code
 ```
 
-The first gate captures evidence and gives an agent a chance to fix. The final
-gate is the hard stop.
+Both gates capture evidence and give an agent a chance to fix. A still-red
+final gate becomes a blocked/no-commit artifact, not a workflow crash.
 
 ## Agent Transport Must Not Be The First Hard Gate
 
@@ -1415,8 +1428,9 @@ test -f packages/core/src/runtime/router.ts || echo "MISSING_ROUTER"`,
 ```
 
 Implementation agents may still run and coordinate on a channel, but tests
-depend on the reconcile/repair path. That makes transport failures advisory
-unless the final deterministic evidence is still red.
+depend on the reconcile/repair path. That makes transport failures advisory.
+If final deterministic evidence is still red after repair, write a blocked
+artifact and skip commit/PR creation rather than failing the workflow.
 
 ## DAG Deadlock Anti-Pattern
 
