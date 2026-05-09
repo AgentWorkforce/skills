@@ -209,10 +209,62 @@ grep "my_new_table" packages/web/lib/db/schema.ts >/dev/null && echo "OK" || (ec
 - File was actually modified (`git diff --quiet` returns non-zero)
 - Key content exists (grep for table names, function names, imports)
 - For new files: `file_exists` verification type
+- For new directories, package trees, generated files, or mixed tracked/untracked
+  edits: use `git status --short -- <paths>`, because `git diff --quiet`
+  ignores untracked files
 
 **What NOT to verify:**
 - Exact content (too brittle — agents format differently)
 - Line counts or byte sizes (meaningless)
+
+### Edit Gates That Include New Files
+
+When an agent may create new files or package directories, do not use
+`git diff --quiet -- <paths>` as the only edit gate. It only sees tracked
+changes, so a valid new package can be misclassified as "no changes."
+
+Use `git status --short -- <paths>` and keep the first gate repairable:
+
+```typescript
+.step('edit-gate-capture', {
+  type: 'deterministic',
+  dependsOn: ['implement'],
+  command: `if [ -z "$(git status --short -- packages/new-adapter tests docs)" ]; then
+  echo "NO_CHANGES"
+  exit 1
+fi
+echo "EDIT_GATE_OK"`,
+  captureOutput: true,
+  failOnError: false,
+})
+.step('fix-edit-gate', {
+  agent: 'impl',
+  dependsOn: ['edit-gate-capture'],
+  task: `If the edit gate reported NO_CHANGES, inspect the acceptance contract
+and current git status, then add the missing source/test/artifacts.
+
+Gate output:
+{{steps.edit-gate-capture.output}}
+
+If it already passed, do nothing.`,
+  verification: { type: 'exit_code' },
+})
+.step('edit-gate-final', {
+  type: 'deterministic',
+  dependsOn: ['fix-edit-gate'],
+  command: `if [ -z "$(git status --short -- packages/new-adapter tests docs)" ]; then
+  echo "NO_CHANGES"
+  exit 1
+fi
+echo "EDIT_GATE_FINAL_OK"`,
+  captureOutput: true,
+  failOnError: true,
+})
+```
+
+Rule of thumb: `git diff --quiet` is fine for tracked-only edits to known
+files. Use `git status --short -- <paths>` for materialization gates that may
+include new tests, docs, generated artifacts, or package directories.
 
 ## Mock Sandbox Pattern
 
@@ -453,7 +505,7 @@ Output:
 | Final test run is repairable | Deterministic rerun captures output, then a repair owner gets one more pass |
 | Build passes | `npx tsc --noEmit` deterministic step |
 | No regressions | Existing test suite runs after changes |
-| Every edit is verified and repairable | `git diff --quiet` + grep after each agent edit, followed by a fix step |
+| Every edit is verified and repairable | `git diff --quiet` + grep for tracked-only edits; `git status --short -- <paths>` when new files/packages may appear; then a fix step |
 | Commit only happens after green evidence | Final commit step reruns acceptance checks and commits only on zero exit codes |
 
 ## Common Anti-Patterns
@@ -468,4 +520,5 @@ Output:
 | Final test output not handed to an agent | Broken tests can stop the run or get ignored | Add a final repair owner before commit |
 | Testing only happy path | Edge cases break in prod | Specify edge case tests in the task prompt |
 | No verify gate after agent edits | Agent exits 0 without writing anything | Add `git diff --quiet` check after every edit, then route failures to a repair step |
+| `git diff --quiet` for new package/test directories | Untracked files are invisible, so valid new artifacts can look like "no changes" | Use `git status --short -- <paths>` and a repairable capture → fix → final gate pattern |
 | Committing after `failOnError: false` without checking exits | Broken work can be committed because the shell step returned successfully | In `commit-if-green`, record each exit code and skip commit unless all are zero |
