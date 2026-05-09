@@ -41,7 +41,7 @@ AgentWorkforce/relay#827 added repair-aware reliability to the SDK (`.reliable()
 
 ## The Test-Fix-Rerun Pattern
 
-Every testable feature in a workflow should follow this three-step pattern:
+Every testable feature in a workflow should follow this four-step pattern:
 
 ```typescript
 // Step 1: Run tests (allow failure — we expect issues on first run)
@@ -91,10 +91,11 @@ If it failed, fix the remaining issue and rerun until green:
 })
 ```
 
-**Why three steps instead of one?**
+**Why four steps instead of one?**
 - The first run captures output for the agent to diagnose
 - The agent step can iterate (read errors, fix, re-run) multiple times
 - The final deterministic run is still evidence-based, but a repair agent sees it before the workflow stops
+- The last repair step keeps the workflow aligned with the agent-team model instead of ending on a fixable failure
 
 ## PGlite: In-Memory Postgres for Database Testing
 
@@ -420,6 +421,22 @@ Only edit this one file.`,
     ].join(' && '),
     captureOutput: true,
     failOnError: false,
+  })
+  .step('repair-commit', {
+    agent: 'impl',
+    dependsOn: ['commit'],
+    task: `If commit failed, fix the blocker, rerun the feature and regression tests, and create the commit.
+If commit passed, confirm the commit subject.
+Output:
+{{steps.commit.output}}`,
+    verification: { type: 'exit_code' },
+  })
+  .step('verify-commit-created', {
+    type: 'deterministic',
+    dependsOn: ['repair-commit'],
+    command: 'git log -1 --pretty=%s | grep -q "^feat: " && echo "COMMIT_OK" || (echo "COMMIT_MISSING"; exit 1)',
+    captureOutput: true,
+    failOnError: true,
   })
 
   .onError('retry', { maxRetries: 2, retryDelayMs: 10_000 })

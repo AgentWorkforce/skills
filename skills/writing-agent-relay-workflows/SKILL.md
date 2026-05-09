@@ -167,6 +167,14 @@ Implement your assigned file. Post a completion message. Address feedback.`,
     task: `If verification passed, summarize evidence.
 If it failed, use this output to assign and fix issues, then rerun the command until green:
 {{steps.verify.output}}`,
+    verification: { type: 'exit_code' },
+  })
+  .step('verify-final', {
+    type: 'deterministic',
+    dependsOn: ['repair-verify'],
+    command: 'npm run typecheck && npm test 2>&1',
+    captureOutput: true,
+    failOnError: true,
   })
 
   .onError('retry', { maxRetries: 2, retryDelayMs: 10_000 })
@@ -934,10 +942,18 @@ Non-interactive presets run via one-shot mode (`claude -p`, `codex exec`). Outpu
   task: `If verify-files failed, create or fix the missing file and rerun the check.
 Output:
 {{steps.verify-files.output}}`,
+  verification: { type: 'exit_code' },
+})
+.step('verify-files-final', {
+  type: 'deterministic',
+  command: 'test -f src/auth.ts && echo "FILE_EXISTS"',
+  dependsOn: ['repair-files'],
+  captureOutput: true,
+  failOnError: true,
 })
 ```
 
-Use for: file checks, reading files for injection, build/test gates, git operations. For anything an agent can fix, follow the deterministic step with a repair step.
+Use for: file checks, reading files for injection, build/test gates, git operations. For anything an agent can fix, follow the deterministic step with a repair step and a final deterministic proof step.
 
 ## Common Patterns
 
@@ -1172,10 +1188,19 @@ steps:
       If verify-types failed, fix src/types.ts and rerun the verify command.
       Output:
       {{steps.verify-types.output}}
+    verification:
+      type: exit_code
+
+  - name: verify-types-final
+    type: deterministic
+    dependsOn: [fix-types-verification]
+    command: 'if git diff --quiet src/types.ts; then echo "NOT MODIFIED"; exit 1; fi; echo "OK"'
+    captureOutput: true
+    failOnError: true
 
   - name: read-service
     type: deterministic
-    dependsOn: [fix-types-verification]
+    dependsOn: [verify-types-final]
     command: cat src/service.ts
     captureOutput: true
 
@@ -1204,20 +1229,48 @@ steps:
       If verify-service failed, fix src/service.ts and rerun the verify command.
       Output:
       {{steps.verify-service.output}}
+    verification:
+      type: exit_code
+
+  - name: verify-service-final
+    type: deterministic
+    dependsOn: [fix-service-verification]
+    command: 'if git diff --quiet src/service.ts; then echo "NOT MODIFIED"; exit 1; fi; echo "OK"'
+    captureOutput: true
+    failOnError: true
 
   # Deterministic commit — never rely on agents to commit
   - name: commit
     type: deterministic
-    dependsOn: [fix-service-verification]
-    command: git add src/types.ts src/service.ts && git commit -m "feat: add pending status"
+    dependsOn: [verify-service-final]
+    command: npm run typecheck && npm test && git add src/types.ts src/service.ts && git commit -m "feat: add pending status"
+    captureOutput: true
     failOnError: false
+
+  - name: repair-commit
+    agent: dev
+    dependsOn: [commit]
+    task: |
+      If commit failed, fix the blocker, rerun npm run typecheck && npm test, and create the commit.
+      If commit passed, confirm the commit subject.
+      Output:
+      {{steps.commit.output}}
+    verification:
+      type: exit_code
+
+  - name: verify-commit-created
+    type: deterministic
+    dependsOn: [repair-commit]
+    command: 'git log -1 --pretty=%s | grep -q "^feat: add pending status$" && echo "COMMIT_OK" || (echo "COMMIT_MISSING"; exit 1)'
+    captureOutput: true
+    failOnError: true
 ```
 
 **Key rules:**
 - Read the file in a deterministic step right before the edit (not all files upfront)
 - Tell the agent "Only edit this one file" to prevent it touching other files
-- Verify with `git diff --quiet` after each edit, then hand failures back to an agent to repair
-- Always commit with a deterministic step, never an agent step; rerun acceptance checks in that step and skip commit unless green
+- Verify with `git diff --quiet` after each edit, hand failures back to an agent to repair, then rerun the deterministic check as proof
+- Always commit with a deterministic step, never an agent step; rerun acceptance checks in that step, let an agent repair commit blockers, and prove the commit exists
 
 ## File Materialization: Verify Before Proceeding
 
@@ -1244,13 +1297,28 @@ After any step that creates files, add a deterministic `file_exists` check befor
     If verify-files found missing files, create/fix them and rerun the check.
     Output:
     {{steps.verify-files.output}}
+  verification:
+    type: exit_code
+
+- name: verify-files-final
+  type: deterministic
+  dependsOn: [fix-missing-files]
+  command: |
+    missing=0
+    for f in src/auth/credentials.ts src/storage/client.ts; do
+      if [ ! -f "$f" ]; then echo "MISSING: $f"; missing=$((missing+1)); fi
+    done
+    if [ $missing -gt 0 ]; then echo "$missing files missing"; exit 1; fi
+    echo "All files present"
+  captureOutput: true
+  failOnError: true
 ```
 
 **Rules for file-writing tasks:**
 1. Use full paths from project root — say `src/auth/credentials.ts`, not `credentials.ts`
 2. Add `IMPORTANT: Write the file to disk. Do NOT output to stdout.`
 3. Use `file_exists` verification for creation steps (not just `exit_code`)
-4. Gate all downstream steps on the repair step that follows the verify step
+4. Gate all downstream steps on the final deterministic proof step that follows the repair step
 
 ## DAG Deadlock Anti-Pattern
 
