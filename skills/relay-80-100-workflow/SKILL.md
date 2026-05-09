@@ -28,16 +28,30 @@ This means the commit at the end of the workflow represents code that is **prove
 
 ## Repair Before Failure
 
-An 80-to-100 workflow should not stop merely because a test, typecheck, lint, schema, or E2E gate turns red. That red output is work for the agent team. Capture it, hand it to a repair owner, fix it, and rerun. Reserve workflow failure for cases the team cannot repair in the current run, such as missing credentials, wrong repository, exhausted repair budget, or an unsafe dirty worktree.
+An 80-to-100 workflow should not stop merely because a test, typecheck, lint, schema, or E2E gate turns red. That red output is work for the agent team. Capture it, hand it to a repair owner, fix it, and rerun. Workflow-owned validation gates should never terminate the run with `FAILED`. If the team exhausts its repair budget or hits an external blocker such as missing credentials, wrong repository, or unsafe dirty worktree, write a `BLOCKED_NO_COMMIT` artifact and end without committing or opening a PR instead of crashing the workflow.
 
 Use this shape for every meaningful gate:
 
 1. `run-*`: deterministic command with `captureOutput: true` and `failOnError: false`.
 2. `fix-*`: agent step that reads `{{steps.run-*.output}}`, fixes source/tests/config, and reruns the command locally until green.
 3. `verify-*`: deterministic rerun, usually still `failOnError: false`, followed by a final repair step if red.
-4. `commit-if-green`: deterministic step that reruns the full acceptance command and commits only when every exit code is zero.
+4. `commit-if-green`: deterministic step that reruns the full acceptance command and commits only when every exit code is zero. If anything is still red, it writes `BLOCKED_NO_COMMIT` with the failing evidence and exits successfully so the workflow reports a handled blocked state, not a runtime failure.
 
 AgentWorkforce/relay#827 added repair-aware reliability to the SDK (`.reliable()` / `.repairable()` and repair-aware retry-mode workflows). Prefer those presets when available, but still model explicit repair owners when gate output needs domain-specific fixing.
+
+## Keep Repairable Gates On The Critical Path
+
+Repair-before-failure only works after the workflow reaches a deterministic gate. If a long-running interactive agent step is a hard dependency for the first gate, then a dropped PTY, agent spawn error, or transport failure can stop the workflow before the repair loop ever sees evidence.
+
+For large rollouts, treat implementation agents as advisory producers and put a deterministic reconciliation step on the critical path:
+
+1. Start implementation/review agents in parallel if useful, but require them to write durable artifacts such as `.workflow-artifacts/<task>/runtime.md`, self-review notes, changed-file lists, and command evidence.
+2. Add `implementation-reconcile`: a deterministic step that inspects `git status --short -- <paths>`, required files, artifact files, and diff stats. It should use `captureOutput: true` and `failOnError: false`.
+3. Add `repair-implementation-reconcile`: a focused repair owner that reads the reconcile output and finishes missing artifacts or code before validation gates run.
+4. Make discovery, typecheck, E2E, and final acceptance depend on the reconcile/repair path, not directly on every long-lived implementation agent.
+5. Keep the final commit deterministic and green-only; red final evidence becomes a repair/blocking artifact, not a failed workflow.
+
+This shape prevents "agent transport failed" from masquerading as "the product failed." The product still has to pass the same gates; the difference is that the workflow can reach the gates and repair them.
 
 ## The Test-Fix-Rerun Pattern
 

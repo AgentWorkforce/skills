@@ -29,10 +29,10 @@ The point of an agent team workflow is not to discover a red gate and stop. The 
 1. Run deterministic checks as evidence-capturing gates with `captureOutput: true`.
 2. Prefer `failOnError: false` for intermediate validation gates so the workflow can pass the output to a repair agent.
 3. Add a repair step immediately after each red-prone gate. The repair agent reads `{{steps.<gate>.output}}`, fixes source/tests/config, reruns the same command locally, and exits only after the gate is green or the blocker is external.
-4. Keep final acceptance deterministic, but still put an agent repair step before commit/PR creation. The workflow should only stop after the repair budget is exhausted or a true external blocker remains.
+4. Keep final acceptance deterministic, but still put an agent repair step before commit/PR creation. If the repair budget is exhausted or a true external blocker remains, write a blocked artifact and skip commit/PR creation; do not let the workflow end as `FAILED`.
 5. Use `.reliable()` or `.repairable()` on SDK versions that support it, especially for product-contract workflows. As of AgentWorkforce/relay#827, retry-mode workflows with agents are repair-aware by default, repair agents run before retrying malformed/failed agent steps, and the SDK covers DAG, pipeline, fan-out, worktree-backed, deterministic-only, and agent-plus-gate shapes.
 
-Hard-stop gates (`failOnError: true` with no repair step) are reserved for cheap preconditions that no agent can fix in the current run, such as missing credentials, wrong repository, or an unsafe dirty worktree. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
+Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows that are supposed to be self-healing. Even cheap preconditions such as missing credentials, wrong repository, or an unsafe dirty worktree should normally write a clear `BLOCKED_*` artifact and exit cleanly. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
 
 ## Choose Your Coordination Style — Conversation vs Pipeline
 
@@ -1363,11 +1363,74 @@ the first gate repairable:
     fi
     echo "PROVIDER_EDIT_GATE_FINAL_OK"
   captureOutput: true
-  failOnError: true
+  failOnError: false
+
+- name: repair-provider-edit-gate-final
+  agent: provider-worker
+  dependsOn: [provider-edit-gate-final]
+  task: |
+    If provider-edit-gate-final is still red, repair the missing provider
+    artifacts and rerun the check. If repair is impossible, write
+    .workflow-artifacts/my-flow/BLOCKED_NO_COMMIT.md with exact evidence and
+    do not commit.
+    Output:
+    {{steps.provider-edit-gate-final.output}}
+  verification:
+    type: exit_code
 ```
 
-The first gate captures evidence and gives an agent a chance to fix. The final
-gate is the hard stop.
+Both gates capture evidence and give an agent a chance to fix. A still-red
+final gate becomes a blocked/no-commit artifact, not a workflow crash.
+
+## Agent Transport Must Not Be The First Hard Gate
+
+Interactive lead-and-worker teams are useful, but they are still process
+sessions. A long-running PTY can go idle, emit noisy terminal output, or fail
+to respawn with a transport error before the workflow reaches tests. If every
+downstream gate depends directly on that agent step, the workflow can fail
+without giving a repair owner command output to fix.
+
+For long rollouts, keep the critical path evidence-based:
+
+```typescript
+.step('runtime-implementation', {
+  agent: 'impl-runtime',
+  dependsOn: ['context'],
+  task: 'Implement the runtime slice and write .workflow-artifacts/runtime.md',
+})
+.step('adapter-implementation', {
+  agent: 'impl-adapters',
+  dependsOn: ['context'],
+  task: 'Implement adapter wiring and write .workflow-artifacts/adapters.md',
+})
+.step('implementation-reconcile', {
+  type: 'deterministic',
+  dependsOn: ['context'],
+  command: `git status --short -- packages/core packages/*/src/writeback.ts scripts tests .workflow-artifacts
+test -f scripts/verify-e2e.mjs || echo "MISSING_E2E"
+test -f packages/core/src/runtime/router.ts || echo "MISSING_ROUTER"`,
+  captureOutput: true,
+  failOnError: false,
+})
+.step('repair-implementation-reconcile', {
+  agent: 'qa',
+  dependsOn: ['implementation-reconcile'],
+  task: `Finish anything missing before gates run:\n{{steps.implementation-reconcile.output}}`,
+  verification: { type: 'exit_code' },
+})
+.step('run-e2e', {
+  type: 'deterministic',
+  dependsOn: ['repair-implementation-reconcile'],
+  command: 'npm run verify:e2e',
+  captureOutput: true,
+  failOnError: false,
+})
+```
+
+Implementation agents may still run and coordinate on a channel, but tests
+depend on the reconcile/repair path. That makes transport failures advisory.
+If final deterministic evidence is still red after repair, write a blocked
+artifact and skip commit/PR creation rather than failing the workflow.
 
 ## DAG Deadlock Anti-Pattern
 
@@ -1467,6 +1530,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | `maxConcurrency: 16` with many parallel steps | Cap at 5-6 |
 | Non-interactive agent reading large files via tools | Pre-read in deterministic step, inject via `{{steps.X.output}}` |
 | Workers depending on lead step (deadlock) | Both depend on shared context step |
+| Validation gates depending directly on long interactive implementation agents | Add a deterministic implementation-reconcile step and make gates depend on its repair step |
 | `fan-out`/`hub-spoke` for simple parallel workers | Use `dag` instead |
 | `pipeline` but expecting auto-supervisor | Only hub patterns auto-harden. Use `.pattern('supervisor')` |
 | Workers without `preset: 'worker'` in one-shot DAG lead+worker flows | Add preset for clean stdout when chaining `{{steps.X.output}}` (not needed for interactive team patterns) |
