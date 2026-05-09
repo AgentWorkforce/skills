@@ -28,7 +28,7 @@ Before writing the workflow, decide *how the agents will coordinate*. The relay 
 | Shape | What it is | Use when |
 |---|---|---|
 | **Conversation** (chat-native) | Interactive agents share a channel; messages, `@-mentions`, and ambient awareness drive coordination. Lead and workers spawn in parallel and self-organize. The relay is the coordination layer, not just transport. | Multi-file work, peer review loops, cross-agent feedback, dynamic re-planning, multi-PR coordination, anything with a human-in-the-loop escape, swarms where workers pick up each other's output. |
-| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no review loop expected; the work could be expressed as a `bash | bash | bash` pipe. |
+| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no review loop expected; the work could be expressed as a `bash \| bash \| bash` pipe. |
 
 **Default to Conversation for any non-trivial work.** Pipeline DAGs are simpler to reason about but they do not exercise the relay primitive — they are a Unix pipe with extra steps. If you would happily write the same task as a single shell pipeline, pipeline-shape is fine. Otherwise, you almost certainly want a Conversation shape.
 
@@ -979,7 +979,7 @@ Edit files as assigned. Report completion. Fix issues from feedback.`,
 | Simple edits, well-specified | One-shot DAG with `preset: 'worker'` |
 | Cross-agent review feedback loop | Interactive team |
 | Independent tasks, no coordination | Fan-out with non-interactive workers |
-| Anything where the answer to "could this be `cmd1 | cmd2`?" is *no* | Interactive team |
+| Anything where the answer to "could this be `cmd1 \| cmd2`?" is *no* | Interactive team |
 
 ### Chat-Native Coordination Recipes
 
@@ -1276,7 +1276,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 
 | Mistake | Fix |
 |---------|-----|
-| Treating relay as transport, not as a coordination layer (every step is `preset: 'worker'`, every handoff is `{{steps.X.output}}`) | Default to **Conversation shape** for non-trivial work — interactive agents on a shared channel. Pipeline-shape is only correct when the work could be expressed as a `bash | bash | bash` pipe. |
+| Treating relay as transport, not as a coordination layer (every step is `preset: 'worker'`, every handoff is `{{steps.X.output}}`) | Default to **Conversation shape** for non-trivial work — interactive agents on a shared channel. Pipeline-shape is only correct when the work could be expressed as a `bash \| bash \| bash` pipe. |
 | Interactive agents on a channel whose task strings don't tell them to talk to each other | Pick a [Chat-Native Coordination Recipe](#chat-native-coordination-recipes) (Q/A, Broadcast/Ack, Peer Review, Standup, Hand-Off) and bake it into the task prompt — otherwise you're paying for a chat substrate you're not using |
 | All workflows run sequentially | Group independent workflows into parallel waves (4-7x speedup) |
 | Every step depends on the previous one | Only add `dependsOn` when there's a real data dependency |
