@@ -39,6 +39,20 @@ Use this shape for every meaningful gate:
 
 AgentWorkforce/relay#827 added repair-aware reliability to the SDK (`.reliable()` / `.repairable()` and repair-aware retry-mode workflows). Prefer those presets when available, but still model explicit repair owners when gate output needs domain-specific fixing.
 
+## Keep Repairable Gates On The Critical Path
+
+Repair-before-failure only works after the workflow reaches a deterministic gate. If a long-running interactive agent step is a hard dependency for the first gate, then a dropped PTY, agent spawn error, or transport failure can stop the workflow before the repair loop ever sees evidence.
+
+For large rollouts, treat implementation agents as advisory producers and put a deterministic reconciliation step on the critical path:
+
+1. Start implementation/review agents in parallel if useful, but require them to write durable artifacts such as `.workflow-artifacts/<task>/runtime.md`, self-review notes, changed-file lists, and command evidence.
+2. Add `implementation-reconcile`: a deterministic step that inspects `git status --short -- <paths>`, required files, artifact files, and diff stats. It should use `captureOutput: true` and `failOnError: false`.
+3. Add `repair-implementation-reconcile`: a focused repair owner that reads the reconcile output and finishes missing artifacts or code before validation gates run.
+4. Make discovery, typecheck, E2E, and final acceptance depend on the reconcile/repair path, not directly on every long-lived implementation agent.
+5. Keep the final commit deterministic and green-only.
+
+This shape prevents "agent transport failed" from masquerading as "the product failed." The product still has to pass the same gates; the difference is that the workflow can reach the gates and repair them.
+
 ## The Test-Fix-Rerun Pattern
 
 Every testable feature in a workflow should follow this four-step pattern:

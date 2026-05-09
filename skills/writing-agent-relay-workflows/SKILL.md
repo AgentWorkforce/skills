@@ -1369,6 +1369,55 @@ the first gate repairable:
 The first gate captures evidence and gives an agent a chance to fix. The final
 gate is the hard stop.
 
+## Agent Transport Must Not Be The First Hard Gate
+
+Interactive lead-and-worker teams are useful, but they are still process
+sessions. A long-running PTY can go idle, emit noisy terminal output, or fail
+to respawn with a transport error before the workflow reaches tests. If every
+downstream gate depends directly on that agent step, the workflow can fail
+without giving a repair owner command output to fix.
+
+For long rollouts, keep the critical path evidence-based:
+
+```typescript
+.step('runtime-implementation', {
+  agent: 'impl-runtime',
+  dependsOn: ['context'],
+  task: 'Implement the runtime slice and write .workflow-artifacts/runtime.md',
+})
+.step('adapter-implementation', {
+  agent: 'impl-adapters',
+  dependsOn: ['context'],
+  task: 'Implement adapter wiring and write .workflow-artifacts/adapters.md',
+})
+.step('implementation-reconcile', {
+  type: 'deterministic',
+  dependsOn: ['context'],
+  command: `git status --short -- packages/core packages/*/src/writeback.ts scripts tests .workflow-artifacts
+test -f scripts/verify-e2e.mjs || echo "MISSING_E2E"
+test -f packages/core/src/runtime/router.ts || echo "MISSING_ROUTER"`,
+  captureOutput: true,
+  failOnError: false,
+})
+.step('repair-implementation-reconcile', {
+  agent: 'qa',
+  dependsOn: ['implementation-reconcile'],
+  task: `Finish anything missing before gates run:\n{{steps.implementation-reconcile.output}}`,
+  verification: { type: 'exit_code' },
+})
+.step('run-e2e', {
+  type: 'deterministic',
+  dependsOn: ['repair-implementation-reconcile'],
+  command: 'npm run verify:e2e',
+  captureOutput: true,
+  failOnError: false,
+})
+```
+
+Implementation agents may still run and coordinate on a channel, but tests
+depend on the reconcile/repair path. That makes transport failures advisory
+unless the final deterministic evidence is still red.
+
 ## DAG Deadlock Anti-Pattern
 
 ```yaml
@@ -1467,6 +1516,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | `maxConcurrency: 16` with many parallel steps | Cap at 5-6 |
 | Non-interactive agent reading large files via tools | Pre-read in deterministic step, inject via `{{steps.X.output}}` |
 | Workers depending on lead step (deadlock) | Both depend on shared context step |
+| Validation gates depending directly on long interactive implementation agents | Add a deterministic implementation-reconcile step and make gates depend on its repair step |
 | `fan-out`/`hub-spoke` for simple parallel workers | Use `dag` instead |
 | `pipeline` but expecting auto-supervisor | Only hub patterns auto-harden. Use `.pattern('supervisor')` |
 | Workers without `preset: 'worker'` in one-shot DAG lead+worker flows | Add preset for clean stdout when chaining `{{steps.X.output}}` (not needed for interactive team patterns) |
