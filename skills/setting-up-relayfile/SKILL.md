@@ -7,7 +7,7 @@ description: Use when an agent or human needs to set up relayfile end-to-end so 
 
 ## Overview
 
-Relayfile mounts a provider (Notion, Linear, Slack, GitHub) as ordinary files on disk so an agent can read and write through the filesystem instead of calling APIs. This skill is the canonical setup recipe. Follow it top-to-bottom for first-time setup; jump to **Recovering from breakage** if a working mount has gone wrong.
+Relayfile mounts a provider (Notion, Linear, Slack, GitHub, and other adapter-backed integrations) as ordinary files on disk so an agent can read and write through the filesystem instead of calling APIs. This skill is the canonical setup recipe. Follow it top-to-bottom for first-time setup; jump to **Recovering from breakage** if a working mount has gone wrong.
 
 ## When to use this skill
 
@@ -33,12 +33,12 @@ After setup, files appear under `<local-dir>/<provider>/...`:
 └── pages/                            ← top-level pages (not in a database)
 ```
 
-Read = `cat`. Write = overwrite the file. The mount daemon picks up the change, queues a writeback, and the cloud delivers to the provider's API.
+Read = `cat`. Write = overwrite, create, or remove files in writable adapter resource directories. The mount daemon picks up the change, queues a writeback, and the cloud delivers to the provider's API.
 
 ## Prerequisites
 
 - Recent `relayfile` CLI on `$PATH`. Verify: `relayfile --help` should list `setup`, `integration`, `writeback` subcommands.
-- A modern macOS or Linux shell with `gh` authenticated (used for diagnostic commands).
+- A modern macOS or Linux shell with `jq` for JSON inspection. AWS CLI access is optional and only needed for internal cloud log diagnostics.
 - Network access to `agentrelay.com/cloud` (cloud control plane), `api.relayfile.dev` (relayfile API), `connect.nango.dev` (OAuth).
 
 ## Step 1 — Run setup (interactive happy path)
@@ -53,7 +53,7 @@ relayfile setup \
 
 What this does, in order:
 
-1. **Cloud login.** Opens a localhost callback server, prints a URL to `agentrelay.com/cloud/api/v1/cli/login?...`. You complete the login in the browser; the cloud redirects back to `127.0.0.1:<port>/callback` with an access token. The CLI stores it in `~/.relayfile/credentials.json`.
+1. **Cloud login.** Opens a localhost callback server, prints a URL to `agentrelay.com/cloud/api/v1/cli/login?...`. You complete the login in the browser; the cloud redirects back to `127.0.0.1:<port>/callback` with an access token. The CLI stores cloud credentials in `~/.relayfile/cloud-credentials.json` and the active Relayfile workspace token in `~/.relayfile/credentials.json`.
 2. **Workspace create.** POSTs `/api/v1/workspaces` with `{"name": "my-agent"}`. Returns `{ workspaceId: "rw_<8hex>", relaycastApiKey, relayfileUrl, ... }`. The workspace ID is the prefix-style `rw_*` format — not a UUID.
 3. **Integration connect.** Mints a Nango Connect URL like `https://connect.nango.dev/?session_token=nango_connect_session_<hash>` and opens it (or prints, with `--no-open`). You complete the provider's OAuth there. Nango fires a webhook back to the cloud, which inserts a row into `workspace_integrations` and queues an initial sync.
 4. **Initial sync.** The cloud nango-sync-worker pulls page metadata + content from the provider and writes it to relayfile. Takes ~30s for a small workspace.
@@ -117,7 +117,7 @@ const client = new RelayFileClient({ token, server: "https://api.relayfile.dev" 
 // Read
 const file = await client.getFile("rw_xxxxxxxx", "/notion/pages/xxx/content.md");
 
-// Write — triggers writeback to Notion automatically
+// Write — triggers writeback automatically
 await client.putFile("rw_xxxxxxxx", "/notion/pages/xxx/content.md", {
   content: "# New body\n\n…",
   contentType: "text/markdown",
@@ -141,14 +141,30 @@ Skip-able if the agent only reads. Required if the agent will write.
 
 If the marker doesn't appear in step 4, see **Recovering from breakage**.
 
+## Discover writeback contracts before writing
+
+Do not guess writeback shapes and do not use a magic `new.json` filename. Current relayfile adapters ship discovery documents for writable resources:
+
+- First check which writeback contract the mounted workspace exposes. Run `find "$RELAYFILE_LOCAL_DIR" \( -name '.adapter.md' -o -name '.schema.json' -o -name 'new.json' \) | head -40`. If discovery files are absent and `new.json` templates are present, the mounted workspace is still on the pre-file-native adapter bundle; do not apply the create-by-filename flow until the cloud/adapter deployment has refreshed that workspace.
+- Read the provider `.adapter.md` first. In mounted workspaces this may appear under the provider tree or under `<local-dir>/discovery/<provider>/.adapter.md`; if unsure, run `find "$RELAYFILE_LOCAL_DIR" -path '*/.adapter.md'`.
+- Read the resource `.schema.json` before writing JSON. It is JSON Schema draft 2020-12 for the full synced record. Fields with `"readOnly": true` are server-managed and must not be written. Common schema paths are resource-local, such as `/linear/issues/.schema.json`; packaged adapters also carry a discovery copy under `discovery/<provider>/...`.
+- For creates, start from the sibling `.create.example.json`. The create example intentionally omits read-only fields.
+- For edits, write only mutable fields to a canonical `<id>.json`; omitted fields are left alone.
+- For creates, write a valid JSON document to any non-canonical filename in the resource directory, such as `draft-message.json` or `create issue.json`. The adapter creates the provider record at the real `<id>.json` and rewrites the draft file as a receipt/pointer.
+- For deletes, remove the canonical `<id>.json` only when the resource's `.adapter.md` says delete is supported.
+
+The `<id>` pattern is resource-specific. A Linear issue ID is a UUID; a Slack message ID is a timestamp-like token; GitHub and many CRM IDs are integers. The `.adapter.md` ID pattern section is the source of truth for whether a filename routes to PATCH/DELETE or CREATE.
+
 ## Path conventions per provider
 
 | Provider | Read paths | Write paths |
 |---|---|---|
 | Notion | `/notion/pages/<slug>--<id>/content.md`, `/notion/databases/<id>/pages/.../content.md`, `<slug>.json` (metadata) | same paths overwrite the body / properties |
-| Slack | `/slack/channels/<id>/messages/` | `/slack/channels/<id>/messages/new.json` (post a message) |
-| Linear | `/linear/issues/<id>/metadata.json` | `/linear/issues/<id>/comments/new.json` (post a comment) |
-| GitHub | `/github/repos/<owner>/<repo>/pulls/<n>/metadata.json`, `files.json` | `/github/repos/<owner>/<repo>/pulls/<n>/reviews/review.json` (post a review) |
+| Slack | `/slack/channels/<id>/messages/` plus `.adapter.md` / `.schema.json` discovery | create by writing a valid message JSON to `/slack/channels/<id>/messages/<non-canonical>.json`; edit/delete canonical message files when supported |
+| Linear | `/linear/issues/<id>.json`, comments under issue resources, plus `.adapter.md` / `.schema.json` discovery | create by writing a valid issue/comment JSON to a non-canonical filename; edit/delete canonical issue files when supported |
+| GitHub | `/github/repos/<owner>/<repo>/pulls/<n>/metadata.json`, `files.json`, plus `.adapter.md` / `.schema.json` discovery | create a review by writing the review JSON to a non-canonical file under the reviews resource |
+
+`new.json` is not special in the file-native adapter contract. If a current `.adapter.md` and `.schema.json` are present, translate older examples using `/messages/new.json` or `/comments/new.json` to "write the create payload to any non-canonical filename in the resource directory." If the live mount only exposes `new.json`, treat that as an older deployment surface and follow the mounted template or wait for the workspace to refresh onto the new adapter version.
 
 `<local-dir>/.relay/` is reserved — never write there. Anything you put under it gets ignored or treated as daemon state.
 
@@ -226,7 +242,7 @@ cat ~/relayfile-mount/.relay/dead-letter/op_*.json | jq '{opId, path, lastStatus
 `lastStatus` tells you what the cloud rejected with. `lastBody` is truncated to 1KB. Once you've fixed the underlying issue (e.g. the file had bad JSON properties, or the page was archived in the provider), retry:
 
 ```bash
-relayfile writeback retry --opId <opId> --workspace my-agent
+relayfile writeback retry --opId <opId> my-agent
 ```
 
 The dead-letter file gets removed if the retry succeeds.
@@ -310,7 +326,7 @@ The cloud-side workspace persists indefinitely — there's no public DELETE endp
 | `relayfile tree <workspace> <path>` | Live cloud-side directory listing |
 | `relayfile read <workspace> <path>` | Live cloud-side file read |
 | `relayfile writeback status <workspace> [--json]` | Pending / failed / dead-lettered counts |
-| `relayfile writeback retry --opId <op> --workspace <name>` | Re-enqueue a dead-lettered op |
+| `relayfile writeback retry --opId <op> <workspace>` | Re-enqueue a dead-lettered op |
 | `relayfile pull --workspace <name>` | Force a refresh from provider |
 | `relayfile ops list --workspace <name> --json` | Cloud-side operation log |
 | `relayfile workspace delete <name> --yes` | Remove from local registry |
