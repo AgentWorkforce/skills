@@ -1,0 +1,62 @@
+{
+  "version": "1.0.0",
+  "id": "568586ff-6706-42ba-b884-3b9af7fbbd8a",
+  "timestamp": "2026-05-09T09:30:59.256Z",
+  "trajectory": "traj_prm0jr9odju5",
+  "files": [
+    {
+      "path": "skills/setting-up-relayfile/SKILL.md",
+      "conversations": [
+        {
+          "contributor": {
+            "type": "ai"
+          },
+          "ranges": [
+            {
+              "start_line": 1,
+              "end_line": 6,
+              "revision": "d94b5cfb2cf59e8c4fcf1d64e1bdc13fdcabbed5"
+            },
+            {
+              "start_line": 33,
+              "end_line": 39,
+              "revision": "d94b5cfb2cf59e8c4fcf1d64e1bdc13fdcabbed5"
+            },
+            {
+              "start_line": 141,
+              "end_line": 153,
+              "revision": "d94b5cfb2cf59e8c4fcf1d64e1bdc13fdcabbed5"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "skills/writing-agent-relay-workflows/SKILL.md",
+      "conversations": [
+        {
+          "contributor": {
+            "type": "ai"
+          },
+          "ranges": [
+            {
+              "start_line": 28,
+              "end_line": 34,
+              "revision": "d94b5cfb2cf59e8c4fcf1d64e1bdc13fdcabbed5"
+            },
+            {
+              "start_line": 979,
+              "end_line": 985,
+              "revision": "d94b5cfb2cf59e8c4fcf1d64e1bdc13fdcabbed5"
+            },
+            {
+              "start_line": 1276,
+              "end_line": 1282,
+              "revision": "d94b5cfb2cf59e8c4fcf1d64e1bdc13fdcabbed5"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
