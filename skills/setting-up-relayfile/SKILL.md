@@ -1,6 +1,6 @@
 ---
 name: setting-up-relayfile
-description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup`, dynamic integration discovery with `relayfile integration available/search`, Nango and Composio backend selection, cloud login, OAuth/connect flows, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
+description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup`, dynamic integration discovery with `relayfile integration available/search`, Nango and Composio backend selection, Atlassian site selection and metadata, cloud login, OAuth/connect flows, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
 ---
 
 # Setting Up Relayfile (Mount + Writeback for Agents)
@@ -37,7 +37,7 @@ Read = `cat`. Write = overwrite, create, or remove files in writable adapter res
 
 ## Prerequisites
 
-- Recent `relayfile` CLI on `$PATH`. Verify: `relayfile --help` should list `setup`, `integration`, `writeback`, and the `integration available` / `integration search` discovery subcommands.
+- Recent `relayfile` CLI on `$PATH`. Verify: `relayfile --help` should list `setup`, `integration`, `writeback`, and the `integration available` / `integration search` / `integration set-metadata` subcommands.
 - A modern macOS or Linux shell with `jq` for JSON inspection. AWS CLI access is optional and only needed for internal cloud log diagnostics.
 - Network access to `agentrelay.com/cloud` (cloud control plane), `api.relayfile.dev` (relayfile API), `connect.nango.dev` (Nango OAuth), and Composio connect endpoints when using `--backend composio`.
 
@@ -55,7 +55,7 @@ What this does, in order:
 
 1. **Cloud login.** Opens a localhost callback server, prints a URL to `agentrelay.com/cloud/api/v1/cli/login?...`. You complete the login in the browser; the cloud redirects back to `127.0.0.1:<port>/callback` with an access token. The CLI stores cloud credentials in `~/.relayfile/cloud-credentials.json` and the active Relayfile workspace token in `~/.relayfile/credentials.json`.
 2. **Workspace create.** POSTs `/api/v1/workspaces` with `{"name": "my-agent"}`. Returns `{ workspaceId: "rw_<8hex>", relaycastApiKey, relayfileUrl, ... }`. The workspace ID is the prefix-style `rw_*` format — not a UUID.
-3. **Integration connect.** By default, mints a Nango Connect URL like `https://connect.nango.dev/?session_token=nango_connect_session_<hash>` and opens it (or prints it, with `--no-open`). With `--backend composio`, the cloud resolves the provider to a Composio toolkit, finds or creates the Composio auth config when Composio supports automatic managed auth, and mints a Composio connect URL. You complete the provider auth there. The provider callback inserts a row into `workspace_integrations` and queues an initial sync.
+3. **Integration connect.** By default, mints a Nango Connect URL like `https://connect.nango.dev/?session_token=nango_connect_session_<hash>` and opens it (or prints it, with `--no-open`). With `--backend composio`, the cloud resolves the provider to a Composio toolkit, finds or creates the Composio auth config when Composio supports automatic managed auth, and mints a Composio connect URL. You complete the provider auth there. The provider callback inserts a row into `workspace_integrations` and queues an initial sync. For Jira and Confluence, the CLI then lists the Atlassian sites covered by the OAuth grant and asks which site to bind when more than one is available.
 4. **Initial sync.** The cloud nango-sync-worker pulls page metadata + content from the provider and writes it to relayfile. Takes ~30s for a small workspace.
 5. **Mount.** Starts a local daemon that polls `api.relayfile.dev/v1/workspaces/<id>/sync/status` every 30s and reflects changes into `<local-dir>/<provider>/`.
 
@@ -189,6 +189,20 @@ relayfile integration connect dockerhub --backend composio --workspace my-agent 
 relayfile integration list           --workspace my-agent
 ```
 
+For Jira and Confluence, a single Atlassian OAuth grant can cover multiple sites. After a fresh `relayfile setup --provider jira|confluence` or `relayfile integration connect jira|confluence`, the CLI calls Cloud's accessible-resources endpoint. If there is one site, it auto-selects it; if there are multiple sites, it prompts for a numbered choice before waiting for initial sync. The selected site's `cloudId` and `baseUrl` are saved as integration metadata so Cloud knows which tenant to sync.
+
+If the picker was skipped, the wrong site was chosen, or an operator needs to update provider metadata later, use `integration set-metadata`. The command replaces the provider metadata namespace, so include every key you want to keep:
+
+```bash
+relayfile integration set-metadata jira \
+  cloudId=abc-123 \
+  baseUrl=https://example.atlassian.net \
+  --workspace my-agent \
+  --yes
+```
+
+`set-metadata` accepts flat `KEY=VALUE` pairs only. Keys such as `site.cloudId` or `site[cloudId]` are rejected locally; nested metadata is not part of the v1 CLI contract. Re-running `relayfile integration connect jira` or `confluence` for an already-connected provider should not overwrite existing metadata unless it starts a fresh OAuth connect.
+
 Backend rules:
 
 - Nango is the default backend for the standard Relayfile providers such as Notion, Linear, Slack, and GitHub.
@@ -232,11 +246,23 @@ The cloud catalog normalizes provider IDs and backend names. Nango results use N
 
 If `relayfile integration connect <provider> --backend composio` fails with a message that the toolkit does not support automatic managed auth config creation, the provider was discovered correctly but Composio cannot create a default auth config without extra credentials. A human must add a custom auth config for that toolkit in Composio Authentication Management, then rerun the same command. Cloud will re-check Composio and use the new auth config dynamically.
 
-### G4 — Workspace ID format
+### G4 — Jira / Confluence sync says `cloudId` is missing
+
+Jira and Confluence sync require `metadata.cloudId` when the Atlassian OAuth grant covers multiple sites. A recent CLI handles this through the post-OAuth picker. If an older setup or manual Cloud change left metadata unset, rerun a fresh connect or set the metadata explicitly:
+
+```bash
+relayfile integration connect jira --workspace my-agent --no-open
+# or, if you know the target site:
+relayfile integration set-metadata jira cloudId=<cloud-id> baseUrl=https://<site>.atlassian.net --workspace my-agent --yes
+```
+
+Do not guess the `cloudId`. Prefer the CLI picker from a fresh OAuth connect; otherwise get the exact site id from Cloud/support tooling before using `set-metadata`.
+
+### G5 — Workspace ID format
 
 Workspaces created by the productized cloud-mount flow are `rw_<8hex>`. Older workspaces (and most internal API surfaces) use UUIDs. Most schema columns still type `workspace_id` as `uuid` — see `docs/architecture/workspace-id-unification.md` in the cloud repo for the broader migration. **For this skill: don't substitute a UUID workspace id when the CLI gave you `rw_*`.** They are not interchangeable.
 
-### G5 — Mount mirror dir conventions
+### G6 — Mount mirror dir conventions
 
 ```
 <local-dir>/
@@ -357,6 +383,7 @@ The cloud-side workspace persists indefinitely — there's no public DELETE endp
 | `relayfile integration search <q> [--backend <nango\|composio>] [--json] [--refresh]` | Search dynamic Nango providers and Composio toolkits |
 | `relayfile integration list --workspace <name> --json` | List connected providers |
 | `relayfile integration connect <provider> [--backend <nango\|composio>] --workspace <name>` | Add another provider |
+| `relayfile integration set-metadata <provider> KEY=VALUE... --workspace <name> --yes` | Replace flat provider metadata, such as Jira/Confluence `cloudId` and `baseUrl` |
 | `relayfile integration disconnect <provider> --workspace <name> --yes` | Remove a provider |
 | `relayfile tree <workspace> <path>` | Live cloud-side directory listing |
 | `relayfile read <workspace> <path>` | Live cloud-side file read |
