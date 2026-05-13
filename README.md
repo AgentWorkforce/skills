@@ -36,24 +36,12 @@ Install an individual skill or slash command with `prpm` using the scoped packag
 
 ```bash
 npx prpm install @agent-relay/choosing-swarm-patterns
-npx prpm install @agent-relay/writing-agent-relay-workflows
-npx prpm install @agent-relay/setting-up-relayfile
-npx prpm install @agent-relay/using-agent-relay
-npx prpm install @agent-relay/running-headless-orchestrator
-npx prpm install @agent-relay/relay-80-100-workflow
-npx prpm install @agent-relay/create-workflow
-npx prpm install @agent-relay/spawn
 ```
 
 Or install directly from this GitHub repo with `skills`:
 
 ```bash
 npx skills add https://github.com/agentworkforce/skills --skill choosing-swarm-patterns
-npx skills add https://github.com/agentworkforce/skills --skill writing-agent-relay-workflows
-npx skills add https://github.com/agentworkforce/skills --skill setting-up-relayfile
-npx skills add https://github.com/agentworkforce/skills --skill using-agent-relay
-npx skills add https://github.com/agentworkforce/skills --skill running-headless-orchestrator
-npx skills add https://github.com/agentworkforce/skills --skill relay-80-100-workflow
 ```
 
 Install the `agent-relay-starter` collection with `prpm` when you want the core workflow authoring stack in multiple CLI tools:
