@@ -91,7 +91,7 @@ This collection includes:
 - `@agent-workforce/trail-snippet`
 - optional `@agent-relay/relay-80-100-workflow`
 
-See the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
+See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 
 ## Repository Layout
 
