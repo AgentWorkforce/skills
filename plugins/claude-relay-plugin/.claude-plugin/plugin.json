@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "author": {
     "name": "Agent Relay",
-    "url": "https://agentrelay.dev"
+    "url": "https://agentrelay.com"
   },
-  "homepage": "https://agentrelay.dev",
+  "homepage": "https://agentrelay.com",
   "repository": "https://github.com/AgentWorkforce/skills",
   "license": "MIT"
 }
