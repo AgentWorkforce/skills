@@ -71,6 +71,6 @@ prpm.json                       # Package manifest
 
 ## Links
 
-- [Agent Relay](https://agentrelay.dev)
+- [Agent Relay](https://agentrelay.com)
 - [Agent Relay on prpm](https://prpm.dev/orgs?name=Agent+Relay)
 - [Skills on skills.sh](https://skills.sh/agentworkforce/skills)

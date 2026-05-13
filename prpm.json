@@ -6,7 +6,7 @@
   "organization": "agent-relay",
   "license": "MIT",
   "repository": "https://github.com/AgentWorkforce/skills",
-  "homepage": "https://agentrelay.dev",
+  "homepage": "https://agentrelay.com",
   "packages": [
     {
       "name": "choosing-swarm-patterns",

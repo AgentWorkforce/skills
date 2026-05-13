@@ -2,7 +2,7 @@
 name: agent-relay-orchestrator
 version: 1.0.0
 description: Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.
-homepage: https://agentrelay.dev/openclaw
+homepage: https://agentrelay.com/openclaw
 metadata: { 'category': 'orchestration', 'requires': 'agent-relay' }
 ---
 
@@ -13,7 +13,7 @@ Run headless multi-agent sessions: start infrastructure, join a workspace, creat
 ## Prerequisites
 
 - `agent-relay` CLI installed (`npm i -g agent-relay`)
-- Relaycast workspace key (`rk_live_...`) — get one at https://agentrelay.dev/openclaw or run `agent-relay up` to auto-create
+- Relaycast workspace key (`rk_live_...`) — get one at https://agentrelay.com/openclaw or run `agent-relay up` to auto-create
 - For Claude agents: `ANTHROPIC_API_KEY` or `claude auth login`
 
 ## Quick Reference
