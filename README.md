@@ -15,12 +15,6 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.4 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.4 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, and commit gates. |
 
-## Source-Only Skill
-
-| Skill | Description |
-|-------|-------------|
-| [agent-relay-orchestrator](skills/openclaw-orchestrator/SKILL.md) | Run headless orchestration sessions via Agent Relay, including channels, teams, lifecycle management, and Claude/Codex/Gemini/Pi/Droid workers. |
-
 ## Slash Commands
 
 | Command | Version | Description |
@@ -75,7 +69,6 @@ npx skills add https://github.com/agentworkforce/skills --skill setting-up-relay
 npx skills add https://github.com/agentworkforce/skills --skill using-agent-relay
 npx skills add https://github.com/agentworkforce/skills --skill running-headless-orchestrator
 npx skills add https://github.com/agentworkforce/skills --skill relay-80-100-workflow
-npx skills add https://github.com/agentworkforce/skills --skill agent-relay-orchestrator
 ```
 
 Install the `agent-relay-starter` collection with `prpm` when you want the core workflow authoring stack in multiple CLI tools:
