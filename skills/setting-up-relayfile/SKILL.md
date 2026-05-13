@@ -20,7 +20,7 @@ Relayfile mounts a provider (Notion, Linear, Slack, GitHub, and other adapter-ba
 
 After setup, files appear under `<local-dir>/<provider>/...`:
 
-```
+```text
 ~/relayfile-mount/notion/
 ├── databases/
 │   ├── <slug>--<id>/
@@ -34,6 +34,8 @@ After setup, files appear under `<local-dir>/<provider>/...`:
 ```
 
 Read = `cat`. Write = overwrite, create, or remove files in writable adapter resource directories. The mount daemon picks up the change, queues a writeback, and the cloud delivers to the provider's API.
+
+Current mounts are also self-describing. Start with `<local-dir>/LAYOUT.md`, then read provider-specific `<provider>/.layout.md` files and nearby `_index.json` files instead of hard-coding paths from memory. Entity filenames may use a `<sanitized-name>__<id>` convention, and some providers expose alias views such as `by-title/`, `by-id/`, `by-name/`, or `by-state/`.
 
 ## Prerequisites
 
@@ -68,7 +70,7 @@ relayfile status my-agent
 ```
 
 Healthy output:
-```
+```text
 workspace rw_xxxxxxxx (my-agent)   mode: poll   lag: 4s
 
 local mirror: /Users/you/relayfile-mount
@@ -103,6 +105,8 @@ export RELAYFILE_LOCAL_DIR=~/relayfile-mount
 ```
 
 Mental model for the agent: ordinary files. Use `Read`, `Write`, `Edit`, `Glob`, `Grep` — same as any project directory. Writes propagate within ~30s.
+
+Before writing, read the relevant `_PERMISSIONS.md` or discovery files for the target subtree. If a path is denied, Relayfile preserves the local copy and records the denial in `<local-dir>/.relay/permissions-denied.log`.
 
 ### Pattern B: remote agent / SDK access (no disk mirror)
 
@@ -144,6 +148,16 @@ If the marker doesn't appear in step 4, see **Recovering from breakage**.
 ## Discover writeback contracts before writing
 
 Do not guess writeback shapes and do not use a magic `new.json` filename. Current relayfile adapters ship discovery documents for writable resources:
+
+A typical discovery surface looks like:
+
+```text
+<provider>/
+├── .adapter.md                         ← adapter overview, operations, ID patterns
+└── <resource>/
+    ├── .schema.json                    ← full-record JSON Schema, draft 2020-12
+    └── .create.example.json            ← minimal create payload
+```
 
 - First check which writeback contract the mounted workspace exposes. Run `find "$RELAYFILE_LOCAL_DIR" \( -name '.adapter.md' -o -name '.schema.json' -o -name 'new.json' \) | head -40`. If discovery files are absent and `new.json` templates are present, the mounted workspace is still on the pre-file-native adapter bundle; do not apply the create-by-filename flow until the cloud/adapter deployment has refreshed that workspace.
 - Read the provider `.adapter.md` first. In mounted workspaces this may appear under the provider tree or under `<local-dir>/discovery/<provider>/.adapter.md`; if unsure, run `find "$RELAYFILE_LOCAL_DIR" -path '*/.adapter.md'`.
@@ -264,13 +278,14 @@ Workspaces created by the productized cloud-mount flow are `rw_<8hex>`. Older wo
 
 ### G6 — Mount mirror dir conventions
 
-```
+```text
 <local-dir>/
 ├── <provider>/...                     ← actual files
 ├── .relay/
 │   ├── state.json                     ← daemon's live state (workspaceId, lag, counters, remoteRoot)
 │   ├── integrations/<provider>.json   ← per-integration metadata
 │   ├── dead-letter/<opId>.json        ← failed writebacks (Phase 1 dead-letter)
+│   ├── permissions-denied.log         ← read/write denials preserved for diagnosis
 │   ├── disconnected/<provider>.json   ← marker after `integration disconnect`
 │   └── conflicts/<resolved-conflicts>
 └── .relayfile-mount-state.json        ← sync revisions per file
