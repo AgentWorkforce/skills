@@ -1,13 +1,13 @@
 ---
 name: setting-up-relayfile
-description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup` for Notion, Linear, Slack, and GitHub, the cloud-login and Nango OAuth flow, mount verification, `RELAYFILE_LOCAL_DIR` handoff, schema-discovered writeback, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
+description: Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup`, dynamic integration discovery with `relayfile integration available/search`, Nango and Composio backend selection, Atlassian site selection and metadata, cloud login, OAuth/connect flows, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.
 ---
 
 # Setting Up Relayfile (Mount + Writeback for Agents)
 
 ## Overview
 
-Relayfile mounts a provider (Notion, Linear, Slack, GitHub) as ordinary files on disk so an agent can read and write through the filesystem instead of calling APIs. This skill is the canonical setup recipe. Follow it top-to-bottom for first-time setup; jump to **Recovering from breakage** if a working mount has gone wrong.
+Relayfile mounts a provider (Notion, Linear, Slack, GitHub, and other adapter-backed integrations) as ordinary files on disk so an agent can read and write through the filesystem instead of calling APIs. This skill is the canonical setup recipe. Follow it top-to-bottom for first-time setup; jump to **Recovering from breakage** if a working mount has gone wrong.
 
 ## When to use this skill
 
@@ -20,7 +20,7 @@ Relayfile mounts a provider (Notion, Linear, Slack, GitHub) as ordinary files on
 
 After setup, files appear under `<local-dir>/<provider>/...`:
 
-```
+```text
 ~/relayfile-mount/notion/
 ├── databases/
 │   ├── <slug>--<id>/
@@ -33,13 +33,15 @@ After setup, files appear under `<local-dir>/<provider>/...`:
 └── pages/                            ← top-level pages (not in a database)
 ```
 
-Read = `cat`. Write = overwrite the file. For structured provider resources, read the adapter's discovery files before writing: `<provider>/.adapter.md` explains the resource paths, `<resource>/.schema.json` describes the full record shape, and `<resource>/.create.example.json` gives a minimal create payload. The mount daemon picks up file changes, queues writeback, and the cloud delivers to the provider's API.
+Read = `cat`. Write = overwrite, create, or remove files in writable adapter resource directories. The mount daemon picks up the change, queues a writeback, and the cloud delivers to the provider's API.
+
+Current mounts are also self-describing. Start with `<local-dir>/LAYOUT.md`, then read provider-specific `<provider>/.layout.md` files and nearby `_index.json` files instead of hard-coding paths from memory. Entity filenames may use a `<sanitized-name>__<id>` convention, and some providers expose alias views such as `by-title/`, `by-id/`, `by-name/`, or `by-state/`.
 
 ## Prerequisites
 
-- Recent `relayfile` CLI on `$PATH`. Verify: `relayfile --help` should list `setup`, `integration`, `writeback` subcommands.
-- A modern macOS or Linux shell with `gh` authenticated (used for diagnostic commands).
-- Network access to `agentrelay.com/cloud` (cloud control plane), `api.relayfile.dev` (relayfile API), `connect.nango.dev` (OAuth).
+- Recent `relayfile` CLI on `$PATH`. Verify: `relayfile --help` should list `setup`, `integration`, `writeback`, and the `integration available` / `integration search` / `integration set-metadata` subcommands.
+- A modern macOS or Linux shell with `jq` for JSON inspection. AWS CLI access is optional and only needed for internal cloud log diagnostics.
+- Network access to `agentrelay.com/cloud` (cloud control plane), `api.relayfile.dev` (relayfile API), `connect.nango.dev` (Nango OAuth), and Composio connect endpoints when using `--backend composio`.
 
 ## Step 1 — Run setup (interactive happy path)
 
@@ -53,9 +55,9 @@ relayfile setup \
 
 What this does, in order:
 
-1. **Cloud login.** Opens a localhost callback server, prints a URL to `agentrelay.com/cloud/api/v1/cli/login?...`. You complete the login in the browser; the cloud redirects back to `127.0.0.1:<port>/callback` with an access token. The CLI stores it in `~/.relayfile/credentials.json`.
+1. **Cloud login.** Opens a localhost callback server, prints a URL to `agentrelay.com/cloud/api/v1/cli/login?...`. You complete the login in the browser; the cloud redirects back to `127.0.0.1:<port>/callback` with an access token. The CLI stores cloud credentials in `~/.relayfile/cloud-credentials.json` and the active Relayfile workspace token in `~/.relayfile/credentials.json`.
 2. **Workspace create.** POSTs `/api/v1/workspaces` with `{"name": "my-agent"}`. Returns `{ workspaceId: "rw_<8hex>", relaycastApiKey, relayfileUrl, ... }`. The workspace ID is the prefix-style `rw_*` format — not a UUID.
-3. **Integration connect.** Mints a Nango Connect URL like `https://connect.nango.dev/?session_token=nango_connect_session_<hash>` and opens it (or prints, with `--no-open`). You complete the provider's OAuth there. Nango fires a webhook back to the cloud, which inserts a row into `workspace_integrations` and queues an initial sync.
+3. **Integration connect.** By default, mints a Nango Connect URL like `https://connect.nango.dev/?session_token=nango_connect_session_<hash>` and opens it (or prints it, with `--no-open`). With `--backend composio`, the cloud resolves the provider to a Composio toolkit, finds or creates the Composio auth config when Composio supports automatic managed auth, and mints a Composio connect URL. You complete the provider auth there. The provider callback inserts a row into `workspace_integrations` and queues an initial sync. For Jira and Confluence, the CLI then lists the Atlassian sites covered by the OAuth grant and asks which site to bind when more than one is available.
 4. **Initial sync.** The cloud nango-sync-worker pulls page metadata + content from the provider and writes it to relayfile. Takes ~30s for a small workspace.
 5. **Mount.** Starts a local daemon that polls `api.relayfile.dev/v1/workspaces/<id>/sync/status` every 30s and reflects changes into `<local-dir>/<provider>/`.
 
@@ -68,7 +70,7 @@ relayfile status my-agent
 ```
 
 Healthy output:
-```
+```text
 workspace rw_xxxxxxxx (my-agent)   mode: poll   lag: 4s
 
 local mirror: /Users/you/relayfile-mount
@@ -104,6 +106,8 @@ export RELAYFILE_LOCAL_DIR=~/relayfile-mount
 
 Mental model for the agent: ordinary files. Use `Read`, `Write`, `Edit`, `Glob`, `Grep` — same as any project directory. Writes propagate within ~30s.
 
+Before writing, read the relevant `_PERMISSIONS.md` or discovery files for the target subtree. If a path is denied, Relayfile preserves the local copy and records the denial in `<local-dir>/.relay/permissions-denied.log`.
+
 ### Pattern B: remote agent / SDK access (no disk mirror)
 
 Use `@relayfile/sdk` against the workspace token:
@@ -117,7 +121,7 @@ const client = new RelayFileClient({ token, server: "https://api.relayfile.dev" 
 // Read
 const file = await client.getFile("rw_xxxxxxxx", "/notion/pages/xxx/content.md");
 
-// Write — triggers writeback to Notion automatically
+// Write — triggers writeback automatically
 await client.putFile("rw_xxxxxxxx", "/notion/pages/xxx/content.md", {
   content: "# New body\n\n…",
   contentType: "text/markdown",
@@ -141,11 +145,13 @@ Skip-able if the agent only reads. Required if the agent will write.
 
 If the marker doesn't appear in step 4, see **Recovering from breakage**.
 
-## Discovering writeback contracts
+## Discover writeback contracts before writing
 
-Adapters that include writeback discovery expose their contract in the mounted tree:
+Do not guess writeback shapes and do not use a magic `new.json` filename. Current relayfile adapters ship discovery documents for writable resources:
 
-```
+A typical discovery surface looks like:
+
+```text
 <provider>/
 ├── .adapter.md                         ← adapter overview, operations, ID patterns
 └── <resource>/
@@ -153,42 +159,70 @@ Adapters that include writeback discovery expose their contract in the mounted t
     └── .create.example.json            ← minimal create payload
 ```
 
-Agent flow:
+- First check which writeback contract the mounted workspace exposes. Run `find "$RELAYFILE_LOCAL_DIR" \( -name '.adapter.md' -o -name '.schema.json' -o -name 'new.json' \) | head -40`. If discovery files are absent and `new.json` templates are present, the mounted workspace is still on the pre-file-native adapter bundle; do not apply the create-by-filename flow until the cloud/adapter deployment has refreshed that workspace.
+- Read the provider `.adapter.md` first. In mounted workspaces this may appear under the provider tree or under `<local-dir>/discovery/<provider>/.adapter.md`; if unsure, run `find "$RELAYFILE_LOCAL_DIR" -path '*/.adapter.md'`.
+- Read the resource `.schema.json` before writing JSON. It is JSON Schema draft 2020-12 for the full synced record. Fields with `"readOnly": true` are server-managed and must not be written. Common schema paths are resource-local, such as `/linear/issues/.schema.json`; packaged adapters also carry a discovery copy under `discovery/<provider>/...`.
+- For creates, start from the sibling `.create.example.json`. The create example intentionally omits read-only fields.
+- For edits, write only mutable fields to a canonical `<id>.json`; omitted fields are left alone.
+- For creates, write a valid JSON document to any non-canonical filename in the resource directory, such as `draft-message.json` or `create issue.json`. The adapter creates the provider record at the real `<id>.json` and rewrites the draft file as a receipt/pointer.
+- For deletes, remove the canonical `<id>.json` only when the resource's `.adapter.md` says delete is supported.
 
-1. Read `<provider>/.adapter.md` to find writable resources and each resource's ID pattern.
-2. Read `<resource>/.schema.json`; fields marked `"readOnly": true` are synced from the provider and must not be written.
-3. Read `<resource>/.create.example.json` when creating a new record.
-4. Use file-native operations:
-
-| Operation | File action |
-|---|---|
-| Read | `cat <resource>/<id>.json` |
-| Edit | Write a partial JSON object to canonical `<resource>/<id>.json`; only included mutable fields PATCH. |
-| Create | Write a valid JSON object to any non-canonical filename such as `<resource>/draft-title.json`; the adapter creates `<resource>/<real-id>.json` and rewrites the draft as a pointer receipt. |
-| Delete | `rm <resource>/<id>.json` for canonical IDs. |
-
-Do not use `new.json` as a special write target in new workflows. Under the file-native convention, create is determined by the filename not matching the resource's `idPattern`; `new.json` is no longer a reserved template path.
-
-**Transition note, May 2026:** deployed cloud environments may lag the adapter packages. If `<provider>/.adapter.md` or `<resource>/.schema.json` is absent, the workspace is still on the legacy adapter contract. Prefer upgrading the adapter package instead of teaching agents provider-specific shapes by prompt.
+The `<id>` pattern is resource-specific. A Linear issue ID is a UUID; a Slack message ID is a timestamp-like token; GitHub and many CRM IDs are integers. The `.adapter.md` ID pattern section is the source of truth for whether a filename routes to PATCH/DELETE or CREATE.
 
 ## Path conventions per provider
 
 | Provider | Read paths | Write paths |
 |---|---|---|
 | Notion | `/notion/pages/<slug>--<id>/content.md`, `/notion/databases/<id>/pages/.../content.md`, `<slug>.json` (metadata) | same paths overwrite the body / properties |
-| Slack | `/slack/channels/<id>/messages/` plus `/slack/.adapter.md` when discovery is present | Read `/slack/channels/<id>/messages/.schema.json`, then create by writing `/slack/channels/<id>/messages/<draft>.json` where `<draft>` is not a Slack timestamp |
-| Linear | `/linear/issues/<id>.json` plus `/linear/.adapter.md` when discovery is present | Read `/linear/issues/.schema.json`, then edit `/linear/issues/<uuid>.json` or create by writing `/linear/issues/<draft>.json` where `<draft>` is not a UUID |
-| GitHub | `/github/repos/<owner>/<repo>/pulls/<n>/metadata.json`, `files.json` | `/github/repos/<owner>/<repo>/pulls/<n>/reviews/review.json` (post a review) |
+| Slack | `/slack/channels/<id>/messages/` plus `.adapter.md` / `.schema.json` discovery | create by writing a valid message JSON to `/slack/channels/<id>/messages/<non-canonical>.json`; edit/delete canonical message files when supported |
+| Linear | `/linear/issues/<id>.json`, comments under issue resources, plus `.adapter.md` / `.schema.json` discovery | create by writing a valid issue/comment JSON to a non-canonical filename; edit/delete canonical issue files when supported |
+| GitHub | `/github/repos/<owner>/<repo>/pulls/<n>/metadata.json`, `files.json`, plus `.adapter.md` / `.schema.json` discovery | create a review by writing the review JSON to a non-canonical file under the reviews resource |
+
+`new.json` is not special in the file-native adapter contract. If a current `.adapter.md` and `.schema.json` are present, translate older examples using `/messages/new.json` or `/comments/new.json` to "write the create payload to any non-canonical filename in the resource directory." If the live mount only exposes `new.json`, treat that as an older deployment surface and follow the mounted template or wait for the workspace to refresh onto the new adapter version.
 
 `<local-dir>/.relay/` is reserved — never write there. Anything you put under it gets ignored or treated as daemon state.
 
 ## Adding more integrations after setup
 
+Do not guess provider names. Ask the CLI for the live catalog first; it pulls static Relayfile integrations plus dynamic Nango providers and Composio toolkits from the cloud, then caches the result locally.
+
+```bash
+relayfile integration available --refresh
+relayfile integration search docker --backend composio --refresh
+relayfile integration available --backend nango --search notion
+```
+
+Use `available` when you want to browse or filter the catalog. Use `search` when you already have a term. `--refresh` bypasses the local catalog cache and is worth using when a provider was just added in Nango or Composio. Add `--json` when an agent needs machine-readable output.
+
+Then connect the provider, optionally selecting the backend:
+
 ```bash
 relayfile integration connect linear --workspace my-agent
 relayfile integration connect slack  --workspace my-agent
+relayfile integration connect dockerhub --backend composio --workspace my-agent --no-open
 relayfile integration list           --workspace my-agent
 ```
+
+For Jira and Confluence, a single Atlassian OAuth grant can cover multiple sites. After a fresh `relayfile setup --provider jira|confluence` or `relayfile integration connect jira|confluence`, the CLI calls Cloud's accessible-resources endpoint. If there is one site, it auto-selects it; if there are multiple sites, it prompts for a numbered choice before waiting for initial sync. The selected site's `cloudId` and `baseUrl` are saved as integration metadata so Cloud knows which tenant to sync.
+
+If the picker was skipped, the wrong site was chosen, or an operator needs to update provider metadata later, use `integration set-metadata`. The command replaces the provider metadata namespace, so include every key you want to keep:
+
+```bash
+relayfile integration set-metadata jira \
+  cloudId=abc-123 \
+  baseUrl=https://example.atlassian.net \
+  --workspace my-agent \
+  --yes
+```
+
+`set-metadata` accepts flat `KEY=VALUE` pairs only. Keys such as `site.cloudId` or `site[cloudId]` are rejected locally; nested metadata is not part of the v1 CLI contract. Re-running `relayfile integration connect jira` or `confluence` for an already-connected provider should not overwrite existing metadata unless it starts a fresh OAuth connect.
+
+Backend rules:
+
+- Nango is the default backend for the standard Relayfile providers such as Notion, Linear, Slack, and GitHub.
+- Composio can be requested explicitly with `--backend composio` for supported providers and dynamic Composio toolkits.
+- User-facing aliases are allowed where the cloud knows them. For example, `dockerhub` resolves to the Composio toolkit slug `docker_hub`; if discovery shows `docker_hub`, either spelling is acceptable for connect.
+- For Composio, the cloud first lists existing auth configs for the toolkit. If none exists, it attempts to create a managed/default auth config automatically. If Composio cannot create managed auth for that toolkit, the command returns an actionable error; at that point the human must add a custom auth config in Composio Authentication Management and retry the same `relayfile integration connect ...` command.
 
 Each provider gets its own subtree under `<local-dir>/`. Disconnect with `relayfile integration disconnect <provider>` — leaves a marker at `.relay/disconnected/<provider>.json` and removes the provider's tree from the mirror.
 
@@ -213,19 +247,45 @@ curl -sS -X POST "https://agentrelay.com/cloud/api/v1/workspaces/<id>/integratio
   -d '{"allowedIntegrations":["notion"]}'
 ```
 
-### G3 — Workspace ID format
+### G3 — Dynamic provider discovery and Composio names
+
+When adding a non-standard provider, use discovery before connecting:
+
+```bash
+relayfile integration search <term> --backend composio --refresh
+relayfile integration search <term> --backend nango --refresh
+```
+
+The cloud catalog normalizes provider IDs and backend names. Nango results use Nango provider/config names; Composio results use toolkit slugs. Some human names differ from backend slugs: Docker Hub is exposed by Composio as `docker_hub`, while the CLI also accepts the common alias `dockerhub` for connect. Prefer the exact ID printed by `integration available/search` when scripting.
+
+If `relayfile integration connect <provider> --backend composio` fails with a message that the toolkit does not support automatic managed auth config creation, the provider was discovered correctly but Composio cannot create a default auth config without extra credentials. A human must add a custom auth config for that toolkit in Composio Authentication Management, then rerun the same command. Cloud will re-check Composio and use the new auth config dynamically.
+
+### G4 — Jira / Confluence sync says `cloudId` is missing
+
+Jira and Confluence sync require `metadata.cloudId` when the Atlassian OAuth grant covers multiple sites. A recent CLI handles this through the post-OAuth picker. If an older setup or manual Cloud change left metadata unset, rerun a fresh connect or set the metadata explicitly:
+
+```bash
+relayfile integration connect jira --workspace my-agent --no-open
+# or, if you know the target site:
+relayfile integration set-metadata jira cloudId=<cloud-id> baseUrl=https://<site>.atlassian.net --workspace my-agent --yes
+```
+
+Do not guess the `cloudId`. Prefer the CLI picker from a fresh OAuth connect; otherwise get the exact site id from Cloud/support tooling before using `set-metadata`.
+
+### G5 — Workspace ID format
 
 Workspaces created by the productized cloud-mount flow are `rw_<8hex>`. Older workspaces (and most internal API surfaces) use UUIDs. Most schema columns still type `workspace_id` as `uuid` — see `docs/architecture/workspace-id-unification.md` in the cloud repo for the broader migration. **For this skill: don't substitute a UUID workspace id when the CLI gave you `rw_*`.** They are not interchangeable.
 
-### G4 — Mount mirror dir conventions
+### G6 — Mount mirror dir conventions
 
-```
+```text
 <local-dir>/
 ├── <provider>/...                     ← actual files
 ├── .relay/
 │   ├── state.json                     ← daemon's live state (workspaceId, lag, counters, remoteRoot)
 │   ├── integrations/<provider>.json   ← per-integration metadata
 │   ├── dead-letter/<opId>.json        ← failed writebacks (Phase 1 dead-letter)
+│   ├── permissions-denied.log         ← read/write denials preserved for diagnosis
 │   ├── disconnected/<provider>.json   ← marker after `integration disconnect`
 │   └── conflicts/<resolved-conflicts>
 └── .relayfile-mount-state.json        ← sync revisions per file
@@ -256,7 +316,7 @@ cat ~/relayfile-mount/.relay/dead-letter/op_*.json | jq '{opId, path, lastStatus
 `lastStatus` tells you what the cloud rejected with. `lastBody` is truncated to 1KB. Once you've fixed the underlying issue (e.g. the file had bad JSON properties, or the page was archived in the provider), retry:
 
 ```bash
-relayfile writeback retry --opId <opId> --workspace my-agent
+relayfile writeback retry --opId <opId> my-agent
 ```
 
 The dead-letter file gets removed if the retry succeeds.
@@ -334,13 +394,16 @@ The cloud-side workspace persists indefinitely — there's no public DELETE endp
 | `relayfile status <workspace>` | Health overview |
 | `relayfile mount <workspace> <local-dir>` | Restart the daemon |
 | `relayfile stop <workspace>` | Stop the daemon |
+| `relayfile integration available [--search <q>] [--backend <nango\|composio>] [--json] [--refresh]` | Browse the live provider catalog |
+| `relayfile integration search <q> [--backend <nango\|composio>] [--json] [--refresh]` | Search dynamic Nango providers and Composio toolkits |
 | `relayfile integration list --workspace <name> --json` | List connected providers |
-| `relayfile integration connect <provider> --workspace <name>` | Add another provider |
+| `relayfile integration connect <provider> [--backend <nango\|composio>] --workspace <name>` | Add another provider |
+| `relayfile integration set-metadata <provider> KEY=VALUE... --workspace <name> --yes` | Replace flat provider metadata, such as Jira/Confluence `cloudId` and `baseUrl` |
 | `relayfile integration disconnect <provider> --workspace <name> --yes` | Remove a provider |
 | `relayfile tree <workspace> <path>` | Live cloud-side directory listing |
 | `relayfile read <workspace> <path>` | Live cloud-side file read |
 | `relayfile writeback status <workspace> [--json]` | Pending / failed / dead-lettered counts |
-| `relayfile writeback retry --opId <op> --workspace <name>` | Re-enqueue a dead-lettered op |
+| `relayfile writeback retry --opId <op> <workspace>` | Re-enqueue a dead-lettered op |
 | `relayfile pull --workspace <name>` | Force a refresh from provider |
 | `relayfile ops list --workspace <name> --json` | Cloud-side operation log |
 | `relayfile workspace delete <name> --yes` | Remove from local registry |

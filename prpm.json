@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.0.1",
+  "version": "1.0.5",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and headless orchestration",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -28,7 +28,7 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.2",
+      "version": "1.6.6",
       "description": "Use when building multi-agent workflows with the relay broker-sdk - covers conversation-shape vs pipeline-shape coordination, WorkflowBuilder API, DAG step dependencies, agent definitions, output chaining via {{steps.X.output}}, verification gates, evidence-based completion, channels, swarm patterns, chat-native coordination recipes (Q/A, broadcast-ack, peer review, standup, hand-off), error handling, event listeners, step sizing, lead+workers team pattern, and parallel wave planning",
       "format": "claude",
       "subtype": "skill",
@@ -53,8 +53,8 @@
     },
     {
       "name": "setting-up-relayfile",
-      "version": "1.0.0",
-      "description": "Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup` for Notion, Linear, Slack, and GitHub, the cloud-login and Nango OAuth flow, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.",
+      "version": "1.0.3",
+      "description": "Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup`, dynamic integration discovery with `relayfile integration available/search`, Nango and Composio backend selection, Atlassian site selection and metadata, cloud login, OAuth/connect flows, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -107,7 +107,7 @@
     },
     {
       "name": "relay-80-100-workflow",
-      "version": "1.0.0",
+      "version": "1.0.4",
       "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
       "format": "claude",
       "subtype": "skill",
@@ -166,7 +166,7 @@
       "id": "agent-relay-starter",
       "name": "Agent Relay Starter",
       "description": "Essential skills for building multi-agent systems with Agent Relay - swarm pattern selection, workflow authoring, and trail debugging",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "category": "development",
       "tags": [
         "multi-agent",
