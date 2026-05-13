@@ -14,6 +14,10 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.2.0 | Coordinate agents in real time with Relaycast messaging, channels, threads, reactions, search, and webhooks. |
 | [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.4 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.4 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, and commit gates. |
+| [activity-summary](skills/activity-summary/SKILL.md) | 1.0.0 | Answer "what did I work on yesterday" questions by reading `digests/yesterday.md` first instead of crawling provider directories. |
+| [daily-digest](skills/daily-digest/SKILL.md) | 1.0.0 | Authoring contract for `<mount>/digests/` files — windows, per-provider sections, adapter `digest()` exports, regeneration rules. |
+| [writeback-as-files](skills/writeback-as-files/SKILL.md) | 1.0.0 | File-creation writeback contract — drop a JSON file at the canonical path and relayfile delivers the mutation, with dead-letter recovery. |
+| [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.0 | Navigate a relayfile mount via `LAYOUT.md`, per-provider `.layout.md`, and `by-*` alias indexes instead of `find`/`grep -r`. |
 
 ## Slash Commands
 
