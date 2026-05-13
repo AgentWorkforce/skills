@@ -78,12 +78,20 @@ npx skills add https://github.com/agentworkforce/skills --skill relay-80-100-wor
 npx skills add https://github.com/agentworkforce/skills --skill agent-relay-orchestrator
 ```
 
-The `agent-relay-starter` collection installs the core workflow authoring stack:
+Install the `agent-relay-starter` collection with `prpm` when you want the core workflow authoring stack in multiple CLI tools:
+
+```bash
+npx prpm install collections/agent-relay-starter --as codex,claude
+```
+
+This collection includes:
 
 - `@agent-relay/choosing-swarm-patterns`
 - `@agent-relay/writing-agent-relay-workflows`
 - `@agent-workforce/trail-snippet`
 - optional `@agent-relay/relay-80-100-workflow`
+
+See the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 
 ## Repository Layout
 
