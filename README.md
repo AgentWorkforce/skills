@@ -24,25 +24,10 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 
 ## Claude Relay Plugin
 
-[plugins/claude-relay-plugin](plugins/claude-relay-plugin) contains the `agent-relay` Claude Code plugin, currently version `0.1.0`.
-
-It provides:
-
-- Relaycast MCP tools for messaging, channels, inboxes, reactions, and related coordination primitives.
-- Lifecycle hooks for session setup, inbox polling, stop guards, subagent bootstrap, permission allowlisting, and context compaction.
-- A `relay-worker` agent definition for Claude Code subagents.
-- Plugin skills for coordinated teams, fan-out work, and sequential pipelines.
-
-Install from the Claude Code plugin marketplace:
+Install the [`agent-relay`](plugins/claude-relay-plugin) Claude Code plugin from the marketplace:
 
 ```bash
 /plugin marketplace add Agentworkforce/relay
-```
-
-Then allow relay MCP tools for background workers from your project root:
-
-```bash
-bash .claude-plugin/setup.sh
 ```
 
 ## Install Packages
