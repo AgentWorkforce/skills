@@ -53,6 +53,21 @@ For large rollouts, treat implementation agents as advisory producers and put a 
 
 This shape prevents "agent transport failed" from masquerading as "the product failed." The product still has to pass the same gates; the difference is that the workflow can reach the gates and repair them.
 
+## Squad Review Before Final Acceptance
+
+For high-stakes implementation workflows, validation should include human-like review structure, not only command gates. Use small implementation squads and make review state durable:
+
+1. Split independent scopes into 2-3 agent squads. Each squad has an implementer, a shadow reviewer, and optionally a validation/test owner.
+2. The shadow reviewer follows the implementer while work is happening and flags spec drift early.
+3. Before external review, the implementer writes a self-reflection artifact under `.workflow-artifacts/<task>/` covering spec coverage, changed files, tests/proofs, repo-rule alignment, and known risks.
+4. A fresh self-review agent reads the actual files, AGENTS.md / CLAUDE.md, recent related work, and local conventions. It writes findings to disk.
+5. The implementer repairs valid findings, then deterministic gates rerun from captured output.
+6. After all squads converge, run two independent final reviewers, typically Claude and Codex. They compare notes and write one merged final review artifact.
+7. Spawn fresh fix agents for final-review findings. Those agents self-reflect, then the final reviewers re-check the post-fix state.
+8. Commit or PR creation is allowed only after final deterministic acceptance and post-fix review are green. Otherwise write a `BLOCKED_NO_COMMIT` artifact with exact evidence.
+
+This keeps "100%" tied to both executable evidence and independent review over the final state.
+
 ## The Test-Fix-Rerun Pattern
 
 Every testable feature in a workflow should follow this four-step pattern:

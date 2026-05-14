@@ -198,6 +198,30 @@ See [Common Patterns → Interactive Team](#interactive-team-lead--workers-on-sh
 
 ---
 
+## Default For Serious Implementation: Shadowed Squad Review Loop
+
+When a workflow is expected to produce production-quality code, generated workflows, runtime behavior, or shared execution contracts, use a structured squad-review-loop unless the task is clearly small enough for the lighter shape.
+
+The default unit is a **2-3 agent squad**:
+- implementer: owns a tight file/subsystem scope and writes the change
+- shadow reviewer: follows the implementer in real time, checks drift against the spec, and leaves feedback early
+- optional validation owner: owns tests, dry-run proof, or fixture coverage when that is a separate deliverable
+
+Encode the loop explicitly:
+
+1. Deterministically read the spec, AGENTS.md / CLAUDE.md, workflow standards, recent local docs, and declared file targets.
+2. Lead splits work into bounded squads with non-overlapping ownership.
+3. Squads run in parallel. The shadow reads actual files and channel updates, then posts feedback while the implementer is still active.
+4. Each implementer writes a self-reflection artifact before external review. It must answer: what changed, what spec items are satisfied, what tests/proofs ran, what risks remain, and how the work follows repo rules.
+5. A fresh self-review agent reads the post-implementation files, recent local conventions, AGENTS.md / CLAUDE.md, and related rules. It should not rely on the implementer's summary.
+6. The implementer gets that feedback and performs a repair pass.
+7. Deterministic gates run with captured output. Red output goes to a repair owner, then the same gate reruns.
+8. A final review team of two agents, normally Claude and Codex, reviews independently. They then compare notes and write one merged final review artifact.
+9. Fresh fix agents address final-review findings, self-reflect, and hand back to the final reviewers.
+10. Final signoff only happens after post-fix review and final deterministic gates prove the spec is complete, or a blocker artifact explains why it cannot be completed.
+
+For small doc/spec workflows, a lead + author + distinct reviewer is enough. For serious implementation workflows, do not collapse implementer self-reflection, shadow review, independent review, final dual review, and repair into one vague "review" step.
+
 **Critical TypeScript rules:**
 1. Check the project's `package.json` for `"type": "module"` — if ESM, use `import` and top-level `await`. If CJS, use `require()` and wrap in `async function main()`.
 2. `agent-relay run <file.ts>` executes the file as a standalone subprocess — it does NOT inspect exports. The file MUST call `.run()`.
@@ -1559,7 +1583,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Agents receiving noisy cross-channel messages during focused work | Use `relay.mute({ agent, channel })` to silence non-primary channels without leaving them |
 | Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
 | Using `preset: 'worker'` for Codex in *interactive team* patterns when coordination is needed | Codex interactive mode works fine with PTY channel injection. Drop the preset for interactive team patterns (keep it for one-shot DAG workers where clean stdout matters) |
-| Separate reviewer agent from lead in interactive team | Merge lead + reviewer into one interactive Claude agent — reviews between rounds, fewer agents |
+| Unnecessary separate reviewer agent in a small interactive team | For low-risk work, merge lead + reviewer into one interactive Claude agent; for serious implementation or Ricky-style workflows, keep reviewer/shadow/final review roles distinct |
 | Not printing PR URL after `createGitHubStep({ action: 'createPR' })` | Capture `html_url` with `output: { mode: 'data', format: 'json', path: 'html_url' }` and echo or write it in a final deterministic step |
 | Workflow ending without worktree + PR for cross-repo changes | Add `setup-worktree` at start and `push-and-pr` + `cleanup-worktree` at end |
 
