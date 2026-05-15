@@ -19,6 +19,7 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 3. **Author the workflow.** Using the WorkflowBuilder API from the skill:
    - Define each step with explicit inputs and `{{steps.X.output}}` chaining.
    - Add a `verify` gate that fails closed on missing evidence.
+   - Add the mandatory sequential fresh-eyes review/fix loops: Claude reviews the real diff/artifacts, a fixer repairs findings and adds or updates appropriate tests/proofs, Claude reviews the post-fix state again, then Codex repeats the same cycle from scratch over the post-Claude-fix state until the bounded loops have `NO_ISSUES_FOUND` or write `BLOCKED_NO_COMMIT`.
    - Keep prompts model-agnostic — never hardcode a specific model name into a step's instructions.
    - Size steps so a single agent can complete them in one focused pass.
 
@@ -31,11 +32,13 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 ## Output Contract
 
 - The workflow source file (TypeScript or YAML — match the surrounding repo convention).
-- A one-paragraph summary: pattern chosen, agent roster, verify gate.
+- A one-paragraph summary: pattern chosen, agent roster, verify gate, and Claude-then-Codex review/fix loops.
 - Integration checklist (5 bullets max).
 
 ## Constraints
 
 - Model-agnostic prompts only. No "use claude-opus" or "use gpt-5" inside step instructions.
 - Verify gates must check evidence (artifacts, test results, file contents), not self-reports.
+- Review fix steps must harden fixes with appropriate tests, fixtures, assertions, or deterministic proof commands whenever the finding is testable.
+- Final acceptance, commit, PR creation, or handoff must depend on the post-Codex-fix review path, not directly on implementation or the Claude-only review path.
 - Do not invent SDK APIs — if the skill doesn't document it, ask before adding.
