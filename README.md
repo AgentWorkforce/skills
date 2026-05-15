@@ -12,7 +12,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.10 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, mandatory Claude-then-Codex review/fix loops with test hardening, channels, and chat-native coordination recipes. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.0 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.2.0 | Coordinate agents in real time with Relaycast messaging, channels, threads, reactions, search, and webhooks. |
-| [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.4 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
+| [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.5 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.7 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, mandatory Claude-then-Codex review/fix with test hardening, and commit gates. |
 
 ## Slash Commands
