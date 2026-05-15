@@ -385,12 +385,19 @@ If no fix is possible, write .workflow-artifacts/my-feature/BLOCKED_NO_COMMIT.md
 If the final review says NO_ISSUES_FOUND, record signoff in .workflow-artifacts/my-feature/claude-signoff.md.`,
     verification: { type: 'exit_code' },
   })
+  .step('verify-after-claude-review', {
+    type: 'deterministic',
+    dependsOn: ['claude-fix-final'],
+    command: 'test ! -f .workflow-artifacts/my-feature/BLOCKED_NO_COMMIT.md && npm run typecheck && npm test 2>&1',
+    captureOutput: true,
+    failOnError: false,
+  })
   .step('codex-review', {
     agent: 'codex-reviewer',
-    dependsOn: ['claude-fix-final'],
+    dependsOn: ['verify-after-claude-review'],
     task: `Second-pass fresh-eyes review of the post-Claude-fix state.
 Read the actual changed files, git diff, repo instructions, task spec, and verification output:
-{{steps.verify-final.output}}
+{{steps.verify-after-claude-review.output}}
 
 Write .workflow-artifacts/my-feature/codex-review.md with:
 - actionable findings, each with file paths and required fix
@@ -426,7 +433,7 @@ If the final review says NO_ISSUES_FOUND, record signoff in .workflow-artifacts/
   .step('verify-after-review', {
     type: 'deterministic',
     dependsOn: ['codex-fix-final'],
-    command: 'npm run typecheck && npm test 2>&1',
+    command: 'test ! -f .workflow-artifacts/my-feature/BLOCKED_NO_COMMIT.md && npm run typecheck && npm test 2>&1',
     captureOutput: true,
     failOnError: true,
   })
@@ -1317,12 +1324,19 @@ If a finding cannot be fixed, write .workflow-artifacts/<workflow>/BLOCKED_NO_CO
 If the final review says NO_ISSUES_FOUND, write .workflow-artifacts/<workflow>/claude-signoff.md.`,
   verification: { type: 'exit_code' },
 })
+.step('verify-after-claude-review', {
+  type: 'deterministic',
+  dependsOn: ['claude-fix-final'],
+  command: 'test ! -f .workflow-artifacts/<workflow>/BLOCKED_NO_COMMIT.md && npm run typecheck && npm test 2>&1',
+  captureOutput: true,
+  failOnError: false,
+})
 .step('codex-review', {
   agent: 'codex-reviewer',
-  dependsOn: ['claude-fix-final'],
+  dependsOn: ['verify-after-claude-review'],
   task: `Second-pass fresh-eyes review of the post-Claude-fix state.
 Read the task spec, AGENTS.md / CLAUDE.md, changed files, final diff, artifacts, and verification evidence:
-{{steps.verify-final.output}}
+{{steps.verify-after-claude-review.output}}
 
 Write .workflow-artifacts/<workflow>/codex-review.md.
 Use actionable findings with file paths, severity, and required fixes.
@@ -1358,7 +1372,7 @@ If the final review says NO_ISSUES_FOUND, write .workflow-artifacts/<workflow>/c
 .step('acceptance-after-codex-review', {
   type: 'deterministic',
   dependsOn: ['codex-fix-final'],
-  command: 'npm run typecheck && npm test 2>&1',
+  command: 'test ! -f .workflow-artifacts/<workflow>/BLOCKED_NO_COMMIT.md && npm run typecheck && npm test 2>&1',
   captureOutput: true,
   failOnError: true,
 })
