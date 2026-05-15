@@ -1062,9 +1062,12 @@ Use `{{steps.STEP_NAME.output}}` in a downstream step's task to inject the prior
 verification: { type: 'exit_code' }                        // preferred for code-editing steps
 verification: { type: 'output_contains', value: 'DONE' }   // optional accelerator
 verification: { type: 'file_exists', value: 'src/out.ts' } // deterministic file check
+verification: { type: 'pr_url', value: 'owner/repo' }      // step must leave behind a PR
 ```
 
-Only these four types are valid: `exit_code`, `output_contains`, `file_exists`, `custom`. Invalid types are silently ignored and fall through to process-exit auto-pass.
+Only these five types are valid: `exit_code`, `output_contains`, `file_exists`, `custom`, `pr_url`. Invalid types are silently ignored and fall through to process-exit auto-pass.
+
+**Use `pr_url` for any step whose deliverable is a published change** — opening a PR, merging a branch, publishing a package. It blocks the common failure mode where a worker produces green tests and posts `OWNER_DECISION: COMPLETE` but never actually opened a PR. Pair it with `createGitHubStep({ action: 'createPR' })` (see [Shipping the Result — Open a PR via `createGitHubStep`](#shipping-the-result--open-a-pr-via-creategithubstep) above) — that primitive's output naturally contains the PR URL, so the verification gate trips cleanly when the create step is missing or fails. Pass `<owner>/<repo>` to require the URL belongs to a specific repository, or leave `value: ''` to accept any GitHub PR URL in the step output. **Workers should never shell out to `gh pr create` directly** when `createGitHubStep` is available; raw `gh` bypasses the local/cloud runtime detection and the workflow loses its `local-iteration → cloud-run` portability.
 
 **Verification token gotcha:** If the token appears in the task text, the runner requires it **twice** in output (once from task echo, once from agent). Prefer `exit_code` for code-editing steps to avoid this.
 
