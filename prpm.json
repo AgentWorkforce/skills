@@ -105,6 +105,25 @@
       "files": [
         "skills/relay-80-100-workflow/SKILL.md"
       ]
+    },
+    {
+      "name": "review-fix-signoff-loop",
+      "version": "1.0.0",
+      "description": "Use when writing Agent Relay or Ricky workflows that must loop review, fix, and validation with fresh agent context until independent signoff agents both agree the work is comprehensively complete",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "workflow",
+        "review-loop",
+        "signoff",
+        "fresh-context",
+        "quality-assurance",
+        "multi-agent",
+        "pr-comments"
+      ],
+      "files": [
+        "skills/review-fix-signoff-loop/SKILL.md"
+      ]
     }
   ],
   "collections": [
@@ -145,6 +164,12 @@
           "version": "latest",
           "required": false,
           "reason": "E2E validation patterns for workflows that must be production-ready before merging"
+        },
+        {
+          "packageId": "@agent-relay/review-fix-signoff-loop",
+          "version": "latest",
+          "required": false,
+          "reason": "Fresh-context review/fix loop pattern for workflows that require independent dual-agent signoff"
         }
       ]
     }

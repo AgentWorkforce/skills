@@ -11,6 +11,7 @@ Skills for multi-agent coordination — swarm patterns, workflow building, relay
 | [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | Build multi-agent workflows with the relay SDK |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | Coordinate agents in real-time via Relaycast MCP tools |
 | [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | Self-bootstrap relay infrastructure and manage workers autonomously |
+| [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | Loop review, repair, validation, and fresh-context dual-agent signoff |
 
 ## Install
 
