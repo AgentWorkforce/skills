@@ -14,6 +14,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.2.0 | Coordinate agents in real time with Relaycast messaging, channels, threads, reactions, search, and webhooks. |
 | [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.5 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.7 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, mandatory Claude-then-Codex review/fix with test hardening, and commit gates. |
+| [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.0 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
 
 ## Slash Commands
 
@@ -56,6 +57,7 @@ This collection includes:
 - `@agent-relay/writing-agent-relay-workflows`
 - `@agent-workforce/trail-snippet`
 - optional `@agent-relay/relay-80-100-workflow`
+- optional `@agent-relay/review-fix-signoff-loop`
 
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 
