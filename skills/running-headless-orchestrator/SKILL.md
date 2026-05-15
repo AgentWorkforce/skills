@@ -73,6 +73,11 @@ Verify broker readiness before spawning any workers:
 agent-relay status --wait-for=10
 ```
 
+When verifying from a source checkout or throwaway git worktree, run these
+commands from the project/worktree root. The CLI writes runtime state to
+`.agent-relay/` and may create `.mcp.json`; clean those files after validation
+if the worktree should remain clean.
+
 The broker:
 - Auto-creates a Relaycast workspace if `RELAY_API_KEY` not set
 - Removes `CLAUDECODE` env var when spawning (fixes nested session error)
@@ -291,6 +296,7 @@ The broker emits these events (available via SDK subscriptions):
 | Broker not starting | Try `agent-relay down` first, then `agent-relay up --no-dashboard --verbose` and `agent-relay status --wait-for=10` |
 | Broker shows STARTING after `status --wait-for` | The process is alive but the broker API is not ready; inspect logs, retry readiness, or restart with `agent-relay down --force` if it remains stuck |
 | Broker shows STOPPED immediately after start | Check `ps aux \| grep agent-relay-broker` and `.agent-relay/connection.json`; if the process is alive but status is STOPPED, rerun status from the project root or pass `--state-dir` |
+| Worktree verification leaves git status dirty | Run `agent-relay down --force`, then remove generated `.agent-relay/` and `.mcp.json` from throwaway validation worktrees before committing |
 | Spawn fails with `internal reply dropped` | Broker likely is not fully ready yet; wait for readiness, then spawn one worker first |
 | Workers not connecting | Ensure broker started; check `agent-relay who` and worker logs |
 | Not monitoring workers | Use `agent-relay agents:logs <name>` frequently to track progress |
