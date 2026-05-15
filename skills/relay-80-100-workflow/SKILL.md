@@ -1,6 +1,6 @@
 ---
 name: relay-80-100-workflow
-description: Use when writing agent-relay workflows that must fully validate features end-to-end before merging. Covers the 80-to-100 pattern - going beyond "code compiles" to "feature works, tested E2E locally." Includes repair-before-failure validation gates, PGlite for in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates after every edit, and the full lifecycle from implementation through passing tests to commit.
+description: Use when writing agent-relay workflows that must fully validate features end-to-end before merging. Covers the 80-to-100 pattern - going beyond "code compiles" to "feature works, tested E2E locally." Includes repair-before-failure validation gates, mandatory sequential Claude-then-Codex fresh-eyes review/fix loops with test hardening, PGlite for in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates after every edit, and the full lifecycle from implementation through passing tests to commit.
 ---
 
 # Writing 80-to-100 Validated Workflows
@@ -62,9 +62,9 @@ For high-stakes implementation workflows, validation should include human-like r
 3. Before external review, the implementer writes a self-reflection artifact under `.workflow-artifacts/<task>/` covering spec coverage, changed files, tests/proofs, repo-rule alignment, and known risks.
 4. A fresh self-review agent reads the actual files, AGENTS.md / CLAUDE.md, recent related work, and local conventions. It writes findings to disk.
 5. The implementer repairs valid findings, then deterministic gates rerun from captured output.
-6. After all squads converge, run two independent final reviewers, typically Claude and Codex. They compare notes and write one merged final review artifact.
-7. Spawn fresh fix agents for final-review findings. Those agents self-reflect, then the final reviewers re-check the post-fix state.
-8. Commit or PR creation is allowed only after final deterministic acceptance and post-fix review are green. Otherwise write a `BLOCKED_NO_COMMIT` artifact with exact evidence.
+6. After all squads converge, run the mandatory sequential fresh-eyes review/fix loops: Claude reviews the final diff and artifacts, a fixer repairs valid findings and adds or updates appropriate tests/proofs, Claude reviews the post-fix state again, then Codex repeats the same cycle from scratch over the post-Claude-fix state.
+7. If either final review still finds issues, run another explicit fix pass or write `BLOCKED_NO_COMMIT` with exact evidence.
+8. Commit or PR creation is allowed only after final deterministic acceptance and post-Codex-fix review are green. Otherwise write a `BLOCKED_NO_COMMIT` artifact with exact evidence.
 
 This keeps "100%" tied to both executable evidence and independent review over the final state.
 
