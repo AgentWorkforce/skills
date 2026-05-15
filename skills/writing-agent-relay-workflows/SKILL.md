@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with the relay broker-sdk - covers conversation-shape vs pipeline-shape coordination, mandatory sequential Claude-then-Codex fresh-eyes review/fix loops with test hardening, repairable/reliable workflow gates, the WorkflowBuilder API, DAG step dependencies, agent definitions, step output chaining via {{steps.X.output}}, verification gates, evidence-based completion, owner decisions, dedicated channels, dynamic channel management (subscribe/unsubscribe/mute/unmute), swarm patterns, chat-native coordination recipes (Q/A, broadcast-ack, peer review, standup, hand-off), error handling, event listeners, step sizing rules, authoring best practices, and the lead+workers team pattern for complex steps
+description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, mandatory Claude-then-Codex fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
 ---
 
 # Writing Agent Relay Workflows
