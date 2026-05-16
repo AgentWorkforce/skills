@@ -1,17 +1,17 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.0.0",
+  "version": "1.0.9",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and headless orchestration",
   "author": "khaliqgant",
   "organization": "agent-relay",
   "license": "MIT",
   "repository": "https://github.com/AgentWorkforce/skills",
-  "homepage": "https://agentrelay.dev",
+  "homepage": "https://agentrelay.com",
   "packages": [
     {
       "name": "choosing-swarm-patterns",
-      "version": "1.0.0",
-      "description": "Use when coordinating multiple AI agents and need to pick the right orchestration pattern - covers 10 patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) with decision framework and reflection protocol",
+      "version": "1.1.3",
+      "description": "Use when coordinating multiple AI agents with Agent Relay's workflow engine and need to pick the right orchestration pattern - covers the 10 core patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) plus 14 specialized ones, with decision framework and accurate SDK/YAML examples.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -28,8 +28,8 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.5.2",
-      "description": "Use when building multi-agent workflows with the relay broker-sdk - covers WorkflowBuilder API, DAG step dependencies, agent definitions, output chaining via {{steps.X.output}}, verification gates, evidence-based completion, channels, swarm patterns, error handling, event listeners, step sizing, lead+workers team pattern, and parallel wave planning",
+      "version": "1.6.12",
+      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, mandatory Claude-then-Codex fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -52,6 +52,24 @@
       ]
     },
     {
+      "name": "setting-up-relayfile",
+      "version": "1.1.0",
+      "description": "Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup`, dynamic integration discovery with `relayfile integration available/search`, Nango and Composio backend selection, Atlassian site selection and metadata, cloud login, OAuth/connect flows, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "mount",
+        "integrations",
+        "notion",
+        "agent-setup",
+        "writeback"
+      ],
+      "files": [
+        "skills/setting-up-relayfile/SKILL.md"
+      ]
+    },
+    {
       "name": "using-agent-relay",
       "version": "1.2.0",
       "description": "Use when coordinating multiple AI agents in real-time - provides inter-agent messaging via Relaycast MCP tools with channels, threads, reactions, search, and webhooks",
@@ -71,7 +89,7 @@
     },
     {
       "name": "running-headless-orchestrator",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "description": "Use when an agent needs to self-bootstrap agent-relay and autonomously manage a team of workers - covers infrastructure startup, agent spawning, lifecycle monitoring, and team coordination without human intervention",
       "format": "claude",
       "subtype": "skill",
@@ -89,8 +107,8 @@
     },
     {
       "name": "relay-80-100-workflow",
-      "version": "1.0.0",
-      "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
+      "version": "1.0.7",
+      "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with mandatory sequential Claude-then-Codex fresh-eyes review/fix loops with test hardening, PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -124,6 +142,42 @@
       "files": [
         "skills/review-fix-signoff-loop/SKILL.md"
       ]
+    },
+    {
+      "name": "create-workflow",
+      "version": "1.0.2",
+      "description": "Slash command to scaffold a new agent-relay multi-agent workflow using the writing-agent-relay-workflows skill - harness-agnostic, model-agnostic prompts, picks the right swarm pattern, and emits a runnable WorkflowBuilder file with verify gates, mandatory Claude-then-Codex review/fix loops with test hardening, and integration notes",
+      "format": "claude",
+      "subtype": "slash-command",
+      "tags": [
+        "slash-command",
+        "workflow",
+        "multi-agent",
+        "agent-relay",
+        "orchestration",
+        "scaffolding"
+      ],
+      "files": [
+        "commands/create-workflow.md"
+      ]
+    },
+    {
+      "name": "spawn",
+      "version": "1.0.0",
+      "description": "Slash command for relay-orchestrator that bootstraps the agent-relay broker and spawns a worker on the chosen harness (claude, codex, opencode, droid, gemini, pi) with optional --model and --task - loads the orchestrator skill so infrastructure, channels, and lifecycle just work",
+      "format": "claude",
+      "subtype": "slash-command",
+      "tags": [
+        "slash-command",
+        "orchestrator",
+        "agent-relay",
+        "spawn",
+        "headless",
+        "multi-agent"
+      ],
+      "files": [
+        "commands/spawn.md"
+      ]
     }
   ],
   "collections": [
@@ -131,7 +185,7 @@
       "id": "agent-relay-starter",
       "name": "Agent Relay Starter",
       "description": "Essential skills for building multi-agent systems with Agent Relay - swarm pattern selection, workflow authoring, and trail debugging",
-      "version": "1.0.3",
+      "version": "1.0.7",
       "category": "development",
       "tags": [
         "multi-agent",
@@ -151,7 +205,7 @@
           "packageId": "@agent-relay/writing-agent-relay-workflows",
           "version": "latest",
           "required": true,
-          "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows"
+          "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows with mandatory Claude-then-Codex review/fix loops and test hardening"
         },
         {
           "packageId": "@agent-workforce/trail-snippet",
@@ -163,7 +217,7 @@
           "packageId": "@agent-relay/relay-80-100-workflow",
           "version": "latest",
           "required": false,
-          "reason": "E2E validation patterns for workflows that must be production-ready before merging"
+          "reason": "E2E validation patterns for workflows that must be production-ready before merging, including dual review/fix loops with test hardening"
         },
         {
           "packageId": "@agent-relay/review-fix-signoff-loop",

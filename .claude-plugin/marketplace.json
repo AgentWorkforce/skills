@@ -23,7 +23,7 @@
         "name": "Agent Relay",
         "email": "hello@agent-relay.com"
       },
-      "homepage": "https://agentrelay.dev",
+      "homepage": "https://agentrelay.com",
       "repository": "https://github.com/AgentWorkforce/relay",
       "license": "MIT",
       "keywords": ["sub-agents", "agent-communication", "inter-agent-messaging", "mcp", "relaycast", "coordination"],

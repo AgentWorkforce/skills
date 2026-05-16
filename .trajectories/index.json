@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-05-09T19:16:58.438Z",
+  "trajectories": {
+    "traj_prm0jr9odju5": {
+      "title": "Document repairable agent workflow gates in skills",
+      "status": "completed",
+      "startedAt": "2026-05-09T09:25:46.195Z",
+      "completedAt": "2026-05-09T09:30:59.200Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/skills/.trajectories/completed/2026-05/traj_prm0jr9odju5.json",
+      "compactedInto": "compact_uv35ijp8srqw"
+    },
+    "traj_lzt5vwkxp5x0": {
+      "title": "Bump prpm versions for repairable workflow skills",
+      "status": "completed",
+      "startedAt": "2026-05-09T09:33:13.786Z",
+      "completedAt": "2026-05-09T09:34:11.897Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/skills/.trajectories/completed/2026-05/traj_lzt5vwkxp5x0.json",
+      "compactedInto": "compact_uv35ijp8srqw"
+    },
+    "traj_57v7f9frwwtz": {
+      "title": "Review and address PR 32 comments",
+      "status": "completed",
+      "startedAt": "2026-05-09T09:37:04.343Z",
+      "completedAt": "2026-05-09T09:41:01.339Z",
+      "path": "/Users/khaliqgant/Projects/AgentWorkforce/skills/.trajectories/completed/2026-05/traj_57v7f9frwwtz.json",
+      "compactedInto": "compact_uv35ijp8srqw"
+    }
+  }
+}
