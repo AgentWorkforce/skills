@@ -9,12 +9,12 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | Skill | Version | Description |
 |-------|---------|-------------|
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.3 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
-| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.10 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, mandatory Claude-then-Codex review/fix loops with test hardening, channels, and chat-native coordination recipes. |
+| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.12 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, mandatory Claude-then-Codex review/fix loops with test hardening, channels, and chat-native coordination recipes. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.0 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.2.0 | Coordinate agents in real time with Relaycast messaging, channels, threads, reactions, search, and webhooks. |
 | [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.5 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.7 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, mandatory Claude-then-Codex review/fix with test hardening, and commit gates. |
-| [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.0 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
+| [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.1 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
 
 ## Slash Commands
 
