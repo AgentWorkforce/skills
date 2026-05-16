@@ -526,6 +526,8 @@ Steps with `dependsOn` wait for all listed steps. Steps with no dependencies sta
 
 Do NOT add exit instructions to task strings. The runner handles this automatically.
 
+For bounded Codex steps that must produce one artifact or a structured answer, use a non-interactive preset (`preset: 'worker'`, `reviewer`, or `analyst`) instead of interactive PTY. This runs through one-shot subprocess mode (`codex exec`), so completion is the process lifecycle plus verification. Interactive Codex is for live channel coordination; it is weaker for "write one file then exit" loops because idle detection can see an auth or prompt-delivery failure as silence.
+
 ### Step Completion Model
 
 Steps complete through a multi-signal pipeline (highest priority first):
@@ -950,6 +952,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Self-review step with no timeout | Set `timeout: 300_000` (5 min) — Codex hangs in non-interactive review |
 | One giant workflow per feature | Split into smaller workflows that can run in parallel waves |
 | Adding exit instructions to tasks | Runner handles self-termination automatically |
+| Interactive PTY Codex for one-shot artifact steps | Use `preset: 'worker'` plus `file_exists` or `custom` verification |
 | Setting `timeoutMs` on agents/steps | Use global `.timeout()` only |
 | Using `general` channel | Set `.channel('wf-name')` for isolation |
 | `{{steps.X.output}}` without `dependsOn: ['X']` | Output won't be available yet |
@@ -977,6 +980,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Single step editing 4+ files | Agents modify 1-2 then exit. Split to one file per step with verify gates |
 | Relying on agents to `git commit` | Agents emit markers without running git. Use deterministic commit step |
 | File-writing steps without `file_exists` verification | `exit_code` auto-passes even if no file written |
+| Codex login checked only with `codex login status` | Add a tiny `codex exec --ephemeral --json --sandbox read-only` preflight probe so stale refresh tokens fail before agent steps |
 | Manual peer fanout in `handleChannelMessage()` | Use broker-managed channel subscriptions — broker fans out to all subscribers automatically |
 | Client-side `personaNames.has(from)` filtering | Use `relay.subscribe()`/`relay.unsubscribe()` — only subscribed agents receive messages |
 | Agents receiving noisy cross-channel messages during focused work | Use `relay.mute({ agent, channel })` to silence non-primary channels without leaving them |

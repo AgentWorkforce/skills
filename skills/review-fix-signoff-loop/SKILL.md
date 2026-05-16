@@ -15,6 +15,7 @@ Pair this with `writing-agent-relay-workflows` for SDK syntax and `relay-80-100-
 
 1. Run deterministic preflight before agents start.
    - Confirm repository root, required specs, declared write scope, credentials needed for PR comments, and whether commit/push/PR creation is in scope.
+   - Probe the CLIs used by later agent steps. For Codex, `codex login status` is not enough; run a tiny `codex exec --ephemeral --json --sandbox read-only -m <supported-model>` prompt and fail early with a clear re-login instruction if it cannot return the expected token.
    - Write preflight evidence to `.workflow-artifacts/<workflow>/iteration-N/preflight.md`.
 
 2. Implement with scoped owners.
@@ -39,6 +40,7 @@ Pair this with `writing-agent-relay-workflows` for SDK syntax and `relay-80-100-
 6. Break only on dual signoff.
    - The loop may exit only when both reviewers write the exact satisfied verdict and final deterministic acceptance is green.
    - If either reviewer finds issues or is blocked, run a Codex fix pass and start a new fresh-context review iteration.
+   - Make the Codex fix pass a non-interactive one-shot worker (`preset: 'worker'`) with a `file_exists` verification for its durable report. Do not rely on interactive PTY idle detection or `/exit` for loop progress.
 
 7. Report final signoff.
    - Write a final `SIGNOFF.md` that includes iteration count, validation evidence, Claude rationale, Codex rationale, remaining risks, and artifact paths.
@@ -77,6 +79,7 @@ Prefer an outer loop that starts a new Agent Relay workflow run per iteration:
 ```typescript
 for (let iteration = 1; ; iteration += 1) {
   await runIteration(iteration, runStamp); // new workflow name, channel, and agent names
+  clearStartFromAfterResumedIteration();
   if (hasDualSignoff(iteration)) {
     writeAndPostSignoffReport(iteration);
     break;
@@ -95,6 +98,30 @@ workflow(`my-feature-completion-${suffix}`)
 ```
 
 This prevents reviewer memory from a previous loop from becoming the reason the loop exits.
+
+If the outer loop supports `--start-from`, consume it for only the resumed iteration. `START_FROM=fix-review-findings` must not leak into the next fresh-context iteration, or the next iteration will skip review/validation and fail on missing artifacts. After a completed resumed iteration, delete `process.env.START_FROM` and `process.env.PREVIOUS_RUN_ID` before continuing the loop.
+
+## Codex Fixer Reliability
+
+For review-fix loop steps, prefer this shape:
+
+```typescript
+.agent(`codex-review-fixer-${suffix}`, {
+  cli: 'codex',
+  model: CodexModels.GPT_5_4,
+  preset: 'worker',
+  role: 'Review-finding fixer. Repairs valid findings and hardens tests/proofs.',
+  retries: 2,
+})
+.step('fix-review-findings', {
+  agent: `codex-review-fixer-${suffix}`,
+  dependsOn: ['dual-signoff-gate'],
+  task: `Read iteration artifacts. Fix every valid finding, rerun relevant checks, and write ${dir}/review-fix-report.md.`,
+  verification: { type: 'file_exists', value: `${ROOT}/${dir}/review-fix-report.md` },
+})
+```
+
+Use interactive PTY Codex only when the step genuinely needs live channel coordination. For bounded artifact-producing fix/review steps, `preset: 'worker'` exits through the subprocess lifecycle, and `file_exists` proves the required artifact exists.
 
 ## PR Signoff Comment
 
