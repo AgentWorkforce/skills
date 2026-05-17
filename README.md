@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.0.9`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.0.10`.
 
 ## Published Skills
 
@@ -14,7 +14,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.2.0 | Coordinate agents in real time with Relaycast messaging, channels, threads, reactions, search, and webhooks. |
 | [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.5 | Self-bootstrap Agent Relay infrastructure and manage worker agents without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.7 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, mandatory Claude-then-Codex review/fix with test hardening, and commit gates. |
-| [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.1 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
+| [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.2 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
 
 ## Slash Commands
 

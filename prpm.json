@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and headless orchestration",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -126,7 +126,7 @@
     },
     {
       "name": "review-fix-signoff-loop",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when writing Agent Relay or Ricky workflows that must loop review, fix, and validation with fresh agent context until independent signoff agents both agree the work is comprehensively complete",
       "format": "claude",
       "subtype": "skill",
