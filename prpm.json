@@ -178,6 +178,25 @@
       "files": [
         "commands/spawn.md"
       ]
+    },
+    {
+      "name": "review-loop",
+      "version": "1.0.0",
+      "description": "Slash command that runs a robust dual-reviewer code-review loop - Claude and Codex each review the working-tree diff independently while fanning out into their own subagents, a Codex fixer repairs every valid finding from both reviews and hardens it with tests, and the loop repeats with fresh agent context until both reviewers independently sign off on the same post-fix state",
+      "format": "claude",
+      "subtype": "slash-command",
+      "tags": [
+        "slash-command",
+        "code-review",
+        "review-loop",
+        "agent-relay",
+        "multi-agent",
+        "claude-codex",
+        "subagents"
+      ],
+      "files": [
+        "commands/review-loop.md"
+      ]
     }
   ],
   "collections": [
