@@ -34,19 +34,29 @@ harness that supports markdown slash commands.
    - Optional `--pr N` → exported as `REVIEW_PR_NUMBER` for the printed
      signoff-comment command.
 
-3. **Locate the workflow.** It ships in the `workflows` repo at
-   `repeatable/review-loop/workflow.ts`. If the current repo does not contain
-   it, fetch it from `https://github.com/AgentWorkforce/workflows`
-   (`repeatable/review-loop/`) or install the published package, then run it
-   from there. Never paraphrase the workflow into ad-hoc agent calls — run the
-   actual file so the deterministic gates and fresh-context loop execute.
+3. **Locate the workflow — pin to an immutable ref.** It ships in the
+   `workflows` repo at `repeatable/review-loop/workflow.ts`. If the current
+   repo does not contain it, do **not** fetch from a moving branch: pull it
+   from an immutable ref so the run is deterministic and not subject to
+   unreviewed behavior changes. In order of preference:
+   1. an installed published package at a pinned version (e.g.
+      `npx prpm install @agent-relay/review-loop@<version>`);
+   2. a Git **tag** or **release**:
+      `https://raw.githubusercontent.com/AgentWorkforce/workflows/<tag>/repeatable/review-loop/workflow.ts`;
+   3. a specific **commit SHA** (never `main`/`HEAD`):
+      `…/AgentWorkforce/workflows/<commit-sha>/repeatable/review-loop/workflow.ts`.
+   If no pinned ref/version is available, ask the user which tag or commit to
+   use and stop — do not silently fall back to the default branch. Record the
+   exact ref used in the run summary. Never paraphrase the workflow into
+   ad-hoc agent calls — run the actual file so the deterministic gates and
+   fresh-context loop execute.
 
 4. **Dry-run first.** `agent-relay run --dry-run
    repeatable/review-loop/workflow.ts` and confirm `Validation: PASS` before
    the real run. Surface any validation error verbatim and stop.
 
 5. **Run the loop:**
-   ```
+   ```bash
    REVIEW_BASE=<ref> MAX_REVIEW_ITERATIONS=<n> REVIEW_PR_NUMBER=<pr> \
      agent-relay run repeatable/review-loop/workflow.ts
    ```
