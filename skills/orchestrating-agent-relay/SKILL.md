@@ -16,6 +16,12 @@ A headless orchestrator is an agent that:
 3. Monitors agent lifecycle events
 4. Coordinates work without human intervention
 
+The orchestrator drives the team **from outside** and is **not** a
+registered relay agent, so it reads/sends/lists via the `agent-relay` CLI
+(MCP `mcp__relaycast__message_*` tools require a registered identity). The
+workers it spawns _are_ registered participants — their peer-messaging
+reference is the **`using-agent-relay`** skill.
+
 ## When to Use
 
 - Agent needs full control over its worker team
@@ -120,12 +126,13 @@ agent-relay send '#general' "All workers: wrap up current task"
 agent-relay who --json
 ```
 
-> **The spawning orchestrator is not a registered relaycast agent.** The
-> `mcp__relaycast__message_*` / `agent_list` MCP tools require a registered
-> identity and will fail for you with `Not registered. Call agent.register
-first.` Use the `agent-relay` CLI for all reading, sending, and listing.
-> Add `--json` to any read command (`replies`, `history`, `inbox`, `who`)
-> when you need full, untruncated, parseable output.
+> **The spawning orchestrator is not a registered relaycast agent.**
+> The `mcp__relaycast__message_*` / `agent_list` MCP tools require a
+> registered identity and fail for you with the error
+> `Not registered. Call agent.register first.`
+> Use the `agent-relay` CLI for all reading, sending, and listing, and add
+> `--json` to any read command (`replies`, `history`, `inbox`, `who`) when
+> you need full, untruncated, parseable output.
 
 ### Step 4: Release Workers
 

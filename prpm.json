@@ -71,8 +71,8 @@
     },
     {
       "name": "using-agent-relay",
-      "version": "1.2.0",
-      "description": "Use when coordinating multiple AI agents in real-time - provides inter-agent messaging via Relaycast MCP tools with channels, threads, reactions, search, and webhooks",
+      "version": "1.3.0",
+      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called agent_register) coordinating with peers in real time over Relaycast MCP tools - messaging, channels, threads, reactions, search, webhooks. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
