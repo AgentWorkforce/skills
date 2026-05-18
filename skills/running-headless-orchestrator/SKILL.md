@@ -35,7 +35,7 @@ A headless orchestrator is an agent that:
 | View worker logs | `agent-relay agents:logs Worker1` |
 | Send DM to worker | `agent-relay send Worker1 "message"` |
 | Post to channel | `agent-relay send '#general' "message"` |
-| Read worker's unread DM replies | `agent-relay inbox --agent Worker1` |
+| Read worker DM replies (full text) | `agent-relay replies Worker1` (add `--json` to parse) |
 | Read full DM conversation history | `agent-relay history --to Worker1` |
 | Release worker | `agent-relay release Worker1` |
 | Stop infrastructure | `agent-relay down` |
@@ -101,22 +101,29 @@ agent-relay spawn Worker1 claude "Implement the authentication module following 
 
 ### Step 3: Monitor and Coordinate
 
-```
-# Check if workers have replied (returns unread counts — not the content)
-mcp__relaycast__message_inbox_check()
+```bash
+# Read Worker1's DM replies (chronological, full text, untruncated)
+agent-relay replies Worker1
 
-# List Worker1's DM conversations (use `as` to specify the agent)
-mcp__relaycast__message_dm_list(as: "Worker1")
+# Machine-readable: full text + direction, safe to parse in a loop
+agent-relay replies Worker1 --json
 
 # Send a targeted DM to a specific worker
-mcp__relaycast__message_dm_send(to: "Worker1", text: "Also add unit tests")
+agent-relay send Worker1 "Also add unit tests"
 
 # Broadcast to all agents on a channel
-mcp__relaycast__message_post(channel: "general", text: "All workers: wrap up current task")
+agent-relay send '#general' "All workers: wrap up current task"
 
-# List active workers
-mcp__relaycast__agent_list()
+# List active workers (structured status for polling)
+agent-relay who --json
 ```
+
+> **The spawning orchestrator is not a registered relaycast agent.** The
+> `mcp__relaycast__message_*` / `agent_list` MCP tools require a registered
+> identity and will fail for you with `Not registered. Call agent.register
+> first.` Use the `agent-relay` CLI for all reading, sending, and listing.
+> Add `--json` to any read command (`replies`, `history`, `inbox`, `who`)
+> when you need full, untruncated, parseable output.
 
 ### Step 4: Release Workers
 
@@ -146,33 +153,42 @@ agent-relay down
 - `mcp__relaycast__message_post(channel: "general", text: "...")` — same via MCP
 - Use for coordination messages, status updates, announcements
 
-**Critical: `history` only shows channel messages, not DMs.**
-After sending a DM to a worker, their reply will NOT appear in `agent-relay history`.
-Use `inbox --agent` or `message_dm_list` to read DM replies.
+**`agent-relay replies <agent>` is the canonical command for reading worker
+DM replies** — it returns full text, sender-attributed, in chronological
+order, with no truncation. Add `--json` for machine-readable output (full
+text plus a `direction` field).
 
-`inbox --agent <name>` shows only **unread** notifications — once read, they disappear.
-For the **full conversation thread** (including already-read messages) use `history --to <agent>`.
+`inbox --agent <name>` is legacy unread-only behavior; once read, entries
+disappear. Prefer `replies` for a persistent, complete view.
 
 ```bash
 # WRONG — history (no flags) will not show DM replies from workers
 agent-relay history
 
-# Read a worker's UNREAD DM replies (clears after reading)
-agent-relay inbox --agent Worker1
+# RIGHT — read a worker's DM replies (full text, chronological)
+agent-relay replies Worker1
 
-# Read the full DM conversation history with a worker (read + unread)
+# Machine-readable: full text + direction, safe to parse in a loop
+agent-relay replies Worker1 --json
+
+# Full DM conversation history with a worker (read + unread)
 agent-relay history --to Worker1
 
-# Read only the thread between two specific agents
-agent-relay history --to Worker1 --from Orchestrator
+# Channel evidence (diffs, grep counts, GO/NO-GO) — full text,
+# untruncated, chronological; add --json to parse it programmatically
+agent-relay history --to '#general' --json
 ```
 
-```
-# WRONG — inbox_check only tells you there are unread messages, not what they say
+```bash
+# WRONG — MCP message tools require a registered agent identity; as the
+# spawning orchestrator you are not registered and these return
+# "Not registered. Call agent.register first."
 mcp__relaycast__message_inbox_check()
-
-# RIGHT — list Worker1's DM conversations and content (as = the agent to read as)
 mcp__relaycast__message_dm_list(as: "Worker1")
+
+# RIGHT — read via the CLI; --json is the reliable substrate for
+# substantive payloads
+agent-relay replies Worker1 --json
 ```
 
 ### Spawning and Messaging
@@ -181,14 +197,14 @@ mcp__relaycast__message_dm_list(as: "Worker1")
 # Spawn a worker
 agent-relay spawn Worker1 claude "Implement auth module"
 
-# Send a DM to a specific worker (replies readable via inbox --agent)
+# Send a DM to a specific worker (replies readable via `replies`)
 agent-relay send Worker1 "Add unit tests too"
 
 # Broadcast to all workers via channel
 agent-relay send '#general' "Team: wrap up and report status"
 
 # Read Worker1's DM reply
-agent-relay inbox --agent Worker1
+agent-relay replies Worker1
 
 # Release when done
 agent-relay release Worker1
@@ -197,17 +213,18 @@ agent-relay release Worker1
 ### Monitoring Workers (Essential)
 
 ```bash
-# Show currently active agents
-agent-relay who
+# Show currently active agents (structured: pid, uptimeSecs, memoryBytes,
+# status) — poll this instead of scraping the worker TTY for health
+agent-relay who --json
 
 # View real-time output from a worker (critical for debugging)
 agent-relay agents:logs Worker1
 
-# Read DM replies from a specific worker
-agent-relay inbox --agent Worker1
+# Read DM replies from a specific worker (use --json to parse safely)
+agent-relay replies Worker1 --json
 
 # View channel message history (channel posts only — not DMs)
-agent-relay history --to '#general'
+agent-relay history --to '#general' --json
 
 # Check overall system status
 agent-relay status
