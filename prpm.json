@@ -1,7 +1,7 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.0.10",
-  "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and headless orchestration",
+  "version": "1.1.0",
+  "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
   "license": "MIT",
@@ -88,9 +88,9 @@
       ]
     },
     {
-      "name": "running-headless-orchestrator",
-      "version": "1.0.5",
-      "description": "Use when an agent needs to self-bootstrap agent-relay and autonomously manage a team of workers - covers infrastructure startup, agent spawning, lifecycle monitoring, and team coordination without human intervention",
+      "name": "orchestrating-agent-relay",
+      "version": "2.0.0",
+      "description": "The canonical way to run agent-relay - self-bootstrap the broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, CLI-first reading, and team coordination.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -102,7 +102,7 @@
         "agent-management"
       ],
       "files": [
-        "skills/running-headless-orchestrator/SKILL.md"
+        "skills/orchestrating-agent-relay/SKILL.md"
       ]
     },
     {
