@@ -353,6 +353,12 @@ Release when done:
 ## Protocol
 - Workers will ACK when they receive tasks
 - Workers will send DONE when complete
+- **ACK/DONE target: `orchestrator` (the auto-registered spawning identity) or
+  the `#general` channel — NEVER `broker`.** `broker` is the broker's internal
+  routing self-name, not a spawnable/DM-able agent: a worker DM to `broker` (and
+  `agent-relay send broker`) fails with `Agent "broker" not found`. Write the
+  worker task prompt to DM `orchestrator` (or post `#general`) — never "DM the
+  broker"
 - Tell every worker explicitly: do NOT self-remove/release after DONE — stay
   alive and idle so you can DM them review findings to fix
 - After DONE, run a reviewer; on NO-GO, DM the findings back to the SAME
@@ -450,6 +456,7 @@ The broker emits these events (available via SDK subscriptions):
 | Broker not starting                                      | Try `agent-relay down` first, then `agent-relay up --no-dashboard --verbose` and `agent-relay status --wait-for=10`                                                                            |
 | Broker shows STARTING after `status --wait-for`          | The process is alive but the broker API is not ready; inspect logs, retry readiness, or restart with `agent-relay down --force` if it remains stuck                                            |
 | Broker shows STOPPED immediately after start             | Check `ps aux \| grep agent-relay-broker` and `.agent-relay/connection.json`; if the process is alive but status is STOPPED, rerun status from the project root or pass `--state-dir`          |
+| Half-started broker: process alive but `status` says STOPPED and `Failed to read broker connection metadata` | `up` spawned a broker that never finished writing connection metadata (readiness timed out) and was not cleaned up. Do NOT just retry `up` — it won't reap the orphan. `pkill -f agent-relay-broker` (or `agent-relay down --force`), delete `.agent-relay/`, then `agent-relay up` clean and `agent-relay status --wait-for=30`. `agent-relay doctor` flags this orphaned/half-started state |
 | Worktree verification leaves git status dirty            | Run `agent-relay down --force`, then remove generated `.agent-relay/` and `.mcp.json` from throwaway validation worktrees before committing                                                    |
 | Spawn fails with `internal reply dropped`                | Broker likely is not fully ready yet; wait for readiness, then spawn one worker first                                                                                                          |
 | Workers not connecting                                   | Ensure broker started; check `agent-relay who` and worker logs                                                                                                                                 |
@@ -460,6 +467,9 @@ The broker emits these events (available via SDK subscriptions):
 | Need to see unread DM content                            | `inbox_check` / `inbox --agent` only return counts or clear on read, and the MCP `message_dm_list` tool requires a registered identity you don't have. Use `agent-relay replies <name> --json` |
 | Re-reading already-read replies                          | `agent-relay replies <name>` is a persistent view (not unread-only); use `--since <time>` to narrow, or `agent-relay history --to <name>` for the full thread                                  |
 | Sent to wrong destination                                | `agent-relay send Worker1 "..."` = DM; `agent-relay send '#general' "..."` = channel broadcast. The `#` prefix is required for channels                                                        |
+| Worker DM to `broker` fails with `Agent "broker" not found` | Expected — `broker` is the broker's internal routing self-name, not a DM-able agent. Workers must ACK/DONE to `orchestrator` or `#general`. Fix the worker task prompt; never instruct "DM the broker" |
+| `status` says `RUNNING`/`Agents: N` but `who --json`/`send`/`replies`/`history` return `[]` or `Failed to query broker session` / `typo in the url or port?` | `status` reads the persisted state file; the others do a live RPC. The CLI is dialing a **stale/wrong broker** — leftover `.agent-relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agent-relay/connection.json` to the actual listening port, then `agent-relay down --force`, delete `.agent-relay/`, `agent-relay up` clean. `agent-relay doctor` diagnoses this |
+| `Invalid agent token` from the orchestrator CLI while broker + workers keep working | The orchestrator shell has an **unresolved `${RELAY_API_KEY}`-style template** being used as a literal key (broker/workers hold real tokens). Ensure `RELAY_API_KEY` is actually resolved in the orchestrator env; `agent-relay doctor` reports broker auth state |
 | Monitor never sees ACK/DONE                              | In `replies --json`, `direction` is always the literal `"inbound"` (never `"incoming"`/`"from"`/`"outbound"`); timestamp field is `createdAt`, not `ts`. See the `replies --json` schema section |
 | `jq` errors on empty `replies --json`                    | Empty state is the plain string `No DM conversation with <Name>.`, not `[]`. Guard before piping to `jq`                                                                                      |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
