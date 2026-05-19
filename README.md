@@ -63,6 +63,19 @@ This collection includes:
 - optional `@agent-relay/relay-80-100-workflow`
 - optional `@agent-relay/review-fix-signoff-loop`
 
+Install the `relayfile-workspace` collection when you want the full Relayfile workspace primitive stack:
+
+```bash
+npx prpm install collections/relayfile-workspace --as codex,claude
+```
+
+This collection includes:
+
+- `@agent-relay/activity-summary`
+- `@agent-relay/daily-digest`
+- `@agent-relay/workspace-layout`
+- `@agent-relay/writeback-as-files`
+
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 
 ## Repository Layout

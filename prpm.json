@@ -313,6 +313,46 @@
           "reason": "Fresh-context review/fix loop pattern for workflows that require independent dual-agent signoff"
         }
       ]
+    },
+    {
+      "id": "relayfile-workspace",
+      "name": "Relayfile Workspace",
+      "description": "Relayfile workspace primitives for agents - activity digests, workspace layout, and file-native provider writeback",
+      "version": "1.0.0",
+      "category": "development",
+      "tags": [
+        "relayfile",
+        "workspace",
+        "digest",
+        "writeback",
+        "agent-context"
+      ],
+      "packages": [
+        {
+          "packageId": "@agent-relay/activity-summary",
+          "version": "latest",
+          "required": true,
+          "reason": "Read precomputed activity digests before crawling provider trees for time-windowed questions"
+        },
+        {
+          "packageId": "@agent-relay/daily-digest",
+          "version": "latest",
+          "required": true,
+          "reason": "Understand the digest file contract, supported windows, and provider section shape"
+        },
+        {
+          "packageId": "@agent-relay/workspace-layout",
+          "version": "latest",
+          "required": true,
+          "reason": "Navigate relayfile mounts through LAYOUT.md and by-* alias indexes"
+        },
+        {
+          "packageId": "@agent-relay/writeback-as-files",
+          "version": "latest",
+          "required": true,
+          "reason": "Create provider mutations through file-native writeback with schemas and dead-letter recovery"
+        }
+      ]
     }
   ]
 }
