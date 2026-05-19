@@ -35,7 +35,7 @@ After setup, files appear under `<local-dir>/<provider>/...`:
 
 Read = `cat`. Write = overwrite, create, or remove files in writable adapter resource directories. The mount daemon picks up the change, queues a writeback, and the cloud delivers to the provider's API.
 
-Current mounts are also self-describing. Start with `<local-dir>/LAYOUT.md`, then read provider-specific `<provider>/.layout.md` files and nearby `_index.json` files instead of hard-coding paths from memory. Entity filenames may use a `<sanitized-name>__<id>` convention, and some providers expose alias views such as `by-title/`, `by-id/`, `by-name/`, or `by-state/`.
+Current mounts are also self-describing. Start with `<local-dir>/LAYOUT.md`, then read provider-specific `<provider>/LAYOUT.md` files and nearby `_index.json` files instead of hard-coding paths from memory. Entity filenames may use a `<sanitized-name>__<id>` convention, and some providers expose alias views such as `by-title/`, `by-id/`, `by-name/`, or `by-state/`.
 
 ## Prerequisites
 

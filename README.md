@@ -15,6 +15,10 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.0.0 | The canonical way to run agent-relay: self-bootstrap the broker and autonomously spawn, monitor, and coordinate a worker team without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.7 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, mandatory Claude-then-Codex review/fix with test hardening, and commit gates. |
 | [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.2 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
+| [activity-summary](skills/activity-summary/SKILL.md) | 1.0.0 | Answer "what did I work on yesterday" questions by reading `digests/yesterday.md` first instead of crawling provider directories. |
+| [daily-digest](skills/daily-digest/SKILL.md) | 1.0.0 | Authoring contract for `<mount>/digests/` files — windows, per-provider sections, adapter `digest()` exports, regeneration rules. |
+| [writeback-as-files](skills/writeback-as-files/SKILL.md) | 1.0.0 | File-creation writeback contract — drop a JSON file at the canonical path and relayfile delivers the mutation, with dead-letter recovery. |
+| [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.0 | Navigate a relayfile mount via root and per-provider `LAYOUT.md` files plus `by-*` alias indexes instead of `find`/`grep -r`. |
 
 ## Slash Commands
 
@@ -58,6 +62,19 @@ This collection includes:
 - `@agent-workforce/trail-snippet`
 - optional `@agent-relay/relay-80-100-workflow`
 - optional `@agent-relay/review-fix-signoff-loop`
+
+Install the `relayfile-workspace` collection when you want the full Relayfile workspace primitive stack:
+
+```bash
+npx prpm install collections/relayfile-workspace --as codex,claude
+```
+
+This collection includes:
+
+- `@agent-relay/activity-summary`
+- `@agent-relay/daily-digest`
+- `@agent-relay/workspace-layout`
+- `@agent-relay/writeback-as-files`
 
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 

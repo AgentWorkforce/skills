@@ -144,6 +144,74 @@
       ]
     },
     {
+      "name": "activity-summary",
+      "version": "1.0.0",
+      "description": "Use when an agent is asked \"what did I (or my team) work on yesterday / this week / today\" across provider data in a relayfile mount (Linear, GitHub, Notion, Slack, Confluence, Jira, etc.). Tells the agent to consult the pre-computed `digests/yesterday.md` (and sibling digest files) at the workspace root BEFORE doing manual exploration with `ls`/`grep`/`find`. The digest is deterministic, exhaustive over the window, and costs one file read instead of dozens of provider queries.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "activity-summary",
+        "digest",
+        "agent-context",
+        "cost-optimization"
+      ],
+      "files": [
+        "skills/activity-summary/SKILL.md"
+      ]
+    },
+    {
+      "name": "daily-digest",
+      "version": "1.0.0",
+      "description": "Use when authoring or extending the digest set in a relayfile workspace - covers the contract for files under `<mount>/digests/` (`yesterday.md`, `today.md`, `this-week.md`, date-stamped daily files), per-provider section format, link conventions back into the canonical mount tree, when digests are regenerated, and how adapter authors expose new provider data to the digest pipeline.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "digest",
+        "adapter",
+        "authoring",
+        "provider-integration"
+      ],
+      "files": [
+        "skills/daily-digest/SKILL.md"
+      ]
+    },
+    {
+      "name": "writeback-as-files",
+      "version": "1.0.0",
+      "description": "Use when an agent needs to write back to a provider (create a Linear comment, open a GitHub issue, post a Slack message, edit a Notion page, etc.) through a relayfile mount. Covers the file-creation writeback contract (drop a JSON file at the canonical path -> provider mutation), discovering the right path and schema via `.schema.json` siblings, idempotency keys, watching writeback status with `relayfile writeback list` and `relayfile status`, and recovering from dead-lettered writes under `.relay/dead-letter/`.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "writeback",
+        "provider-mutation",
+        "agent-action",
+        "dead-letter"
+      ],
+      "files": [
+        "skills/writeback-as-files/SKILL.md"
+      ]
+    },
+    {
+      "name": "workspace-layout",
+      "version": "1.0.0",
+      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/LAYOUT.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "workspace",
+        "navigation",
+        "indexes",
+        "agent-context"
+      ],
+      "files": [
+        "skills/workspace-layout/SKILL.md"
+      ]
+    },
+    {
       "name": "create-workflow",
       "version": "1.0.3",
       "description": "Slash command to scaffold a new agent-relay multi-agent workflow using the writing-agent-relay-workflows skill - harness-agnostic, model-agnostic prompts, picks the right swarm pattern, and emits a runnable WorkflowBuilder file with verify gates, mandatory Claude-then-Codex review/fix loops with test hardening, and integration notes",
@@ -243,6 +311,46 @@
           "version": "latest",
           "required": false,
           "reason": "Fresh-context review/fix loop pattern for workflows that require independent dual-agent signoff"
+        }
+      ]
+    },
+    {
+      "id": "relayfile-workspace",
+      "name": "Relayfile Workspace",
+      "description": "Relayfile workspace primitives for agents - activity digests, workspace layout, and file-native provider writeback",
+      "version": "1.0.0",
+      "category": "development",
+      "tags": [
+        "relayfile",
+        "workspace",
+        "digest",
+        "writeback",
+        "agent-context"
+      ],
+      "packages": [
+        {
+          "packageId": "@agent-relay/activity-summary",
+          "version": "latest",
+          "required": true,
+          "reason": "Read precomputed activity digests before crawling provider trees for time-windowed questions"
+        },
+        {
+          "packageId": "@agent-relay/daily-digest",
+          "version": "latest",
+          "required": true,
+          "reason": "Understand the digest file contract, supported windows, and provider section shape"
+        },
+        {
+          "packageId": "@agent-relay/workspace-layout",
+          "version": "latest",
+          "required": true,
+          "reason": "Navigate relayfile mounts through LAYOUT.md and by-* alias indexes"
+        },
+        {
+          "packageId": "@agent-relay/writeback-as-files",
+          "version": "latest",
+          "required": true,
+          "reason": "Create provider mutations through file-native writeback with schemas and dead-letter recovery"
         }
       ]
     }
