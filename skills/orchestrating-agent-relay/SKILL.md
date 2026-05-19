@@ -107,6 +107,14 @@ CLI equivalent:
 agent-relay spawn Worker1 claude "Implement the authentication module following the existing patterns"
 ```
 
+> **Expect a 30–60s gap between spawn and the first ACK.** A worker shows
+> `online` in `who --json` within ~5s (the process is up), but the underlying
+> CLI (claude/codex) is still cold-starting and won't send its ACK DM until it
+> finishes booting — typically 30–45s, occasionally longer, after `online`.
+> `online` means "process alive," **not** "agent responsive." Don't treat
+> ACK silence in the first minute as a stuck worker; size ACK-wait loops for
+> at least 60s (e.g. a 30-iteration poll) before escalating to troubleshooting.
+
 ### Step 3: Monitor and Coordinate
 
 ```bash
@@ -246,56 +254,26 @@ agent-relay history --to Worker1
 agent-relay history --to '#general' --json
 ```
 
-```bash
-# WRONG — MCP message tools require a registered agent identity; as the
-# spawning orchestrator you are not registered and these return
-# "Not registered. Call agent.register first."
-mcp__relaycast__message_inbox_check()
-mcp__relaycast__message_dm_list(as: "Worker1")
-
-# RIGHT — read via the CLI; --json is the reliable substrate for
-# substantive payloads
-agent-relay replies Worker1 --json
-```
-
-### Spawning and Messaging
-
-```bash
-# Spawn a worker
-agent-relay spawn Worker1 claude "Implement auth module"
-
-# Send a DM to a specific worker (replies readable via `replies`)
-agent-relay send Worker1 "Add unit tests too"
-
-# Broadcast to all workers via channel
-agent-relay send '#general' "Team: wrap up and report status"
-
-# Read Worker1's DM reply
-agent-relay replies Worker1
-
-# Release when done
-agent-relay release Worker1
-```
+(Reading via MCP `message_*` tools fails for you — see the "not a registered
+relaycast agent" callout under Bootstrap Step 3.)
 
 ### Monitoring Workers (Essential)
 
-```bash
-# Show currently active agents (structured: pid, uptimeSecs, memoryBytes,
-# status) — poll this instead of scraping the worker TTY for health
-agent-relay who --json
+Spawn/send/release commands are in the Quick Reference and Bootstrap Step 3 —
+not repeated here. For monitoring specifically: poll `agent-relay who --json`
+for structured liveness (pid, uptimeSecs, status) instead of scraping the
+worker TTY, and use `agent-relay agents:logs <name>` to watch real-time output
+when debugging.
 
-# View real-time output from a worker (critical for debugging)
-agent-relay agents:logs Worker1
-
-# Read DM replies from a specific worker (use --json to parse safely)
-agent-relay replies Worker1 --json
-
-# View channel message history (channel posts only — not DMs)
-agent-relay history --to '#general' --json
-
-# Check overall system status
-agent-relay status
-```
+> **Harness note: don't poll with a bare foreground `sleep`.** Many harnesses
+> (Claude Code included) block a foreground `sleep` used to wait for ACK/DONE
+> — e.g. `sleep 25; agent-relay replies ...` is rejected with a directive to
+> use a backgrounded loop or a Monitor/until-loop instead. The inline
+> `sleep`-based snippets shown elsewhere in this skill are illustrative of the
+> *logic*; in a harnessed environment, run the wait loop with
+> `run_in_background` (or the harness's Monitor + until-loop), polling
+> `agent-relay replies <name> --json` and `agent-relay who --json` from inside
+> the backgrounded loop rather than blocking the foreground on `sleep`.
 
 ### Troubleshooting
 
@@ -314,45 +292,24 @@ agent-relay agents:logs Worker1
 
 ## Orchestrator Instructions Template
 
-Give your lead agent these instructions:
+Give your lead agent these instructions. The bootstrap/spawn/monitor commands
+are in the Bootstrap Flow and Quick Reference above — the paste-worthy part is
+the **Protocol**, the ruleset a lead agent can't infer from the command list:
 
 ```text
-You are an autonomous orchestrator. Bootstrap the relay infrastructure and manage a team of workers.
-
-## Step 1: Verify Installation
-Run: command -v agent-relay || npx agent-relay --version
-If you hit a mise/asdf shim error: verify Node first with `node --version`, then fix the runtime manager
-If not found: npm install -g agent-relay
-
-## Step 2: Start Infrastructure
-Run: agent-relay up --no-dashboard --verbose
-Verify: agent-relay status --wait-for=10 (should show "RUNNING")
-
-## Step 3: Manage Your Team
-
-Spawn workers:
-  agent-relay spawn Worker1 claude "Task description"
-
-Monitor workers (do this frequently):
-  agent-relay who              # List active workers
-  agent-relay agents:logs Worker1  # View worker output/progress
-
-Send targeted DM instructions:
-  agent-relay send Worker1 "Additional instructions"
-
-Broadcast to all workers:
-  agent-relay send '#general' "All workers: prioritize the auth module"
-
-Read worker replies (DMs are not visible in plain `history`):
-  agent-relay replies Worker1            # full text, chronological
-  agent-relay replies Worker1 --json     # parseable: text + direction
-
-Release when done:
-  agent-relay release Worker1
+You are an autonomous orchestrator. Bootstrap the relay infrastructure
+(Bootstrap Flow Steps 0–2), then spawn and manage workers per the
+Quick Reference. Then enforce this protocol:
 
 ## Protocol
-- Workers will ACK when they receive tasks
+- Workers will ACK when they receive tasks — but expect a 30–60s cold-start
+  gap after spawn: `who --json` shows `online` (~5s) well before the CLI is
+  booted enough to send its first ACK. Don't troubleshoot a "stuck" fresh
+  worker until at least 60s has passed
 - Workers will send DONE when complete
+- In a harnessed environment, never wait with a bare foreground `sleep`
+  (it is blocked) — run ACK/DONE poll loops with run_in_background or a
+  Monitor/until-loop, polling `replies --json` and `who --json` from inside it
 - **ACK/DONE target: `orchestrator` (the auto-registered spawning identity) or
   the `#general` channel — NEVER `broker`.** `broker` is the broker's internal
   routing self-name, not a spawnable/DM-able agent: a worker DM to `broker` (and
@@ -369,11 +326,9 @@ Release when done:
   plain string, not `[]`
 - Poll `agent-relay who --json` for worker liveness; set a wall-clock fallback
   so a silently-dead worker can't hang the loop
-- Use `agent-relay agents:logs <name>` to monitor progress
-- Use `agent-relay replies <name>` to read a worker's DM replies (full text, chronological, persistent); add `--json` to parse
-- Use `agent-relay history --to <name>` for the full DM conversation thread (read + unread)
-- Use `agent-relay history --to '#general' --json` to see channel message flow
-- Do NOT use `agent-relay history` alone to check worker replies — it only shows channel posts, DM replies are invisible there
+- Read worker DM replies with `agent-relay replies <name>` (`--json` to parse);
+  plain `agent-relay history` shows channel posts only, never DM replies. See
+  the "Channel vs DM" section for the full reading model
 ```
 
 ## Multi-Round Review Loops (DONE → NO-GO → fix → re-review)
@@ -474,6 +429,8 @@ The broker emits these events (available via SDK subscriptions):
 | `jq` errors on empty `replies --json`                    | Empty state is the plain string `No DM conversation with <Name>.`, not `[]`. Guard before piping to `jq`                                                                                      |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
 | Worker died silently; loop hangs                         | DM monitors fire on DMs only. Poll `agent-relay who --json` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                                |
+| New worker `online` but no ACK yet; assumed stuck        | Expected — `online` means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                    |
+| Harness blocks `sleep 25; agent-relay replies ...`       | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only  |
 
 ## Prerequisites
 
