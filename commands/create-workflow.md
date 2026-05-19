@@ -27,7 +27,13 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 
 5. **Provide a runnable example.** Output one minimal end-to-end example that demonstrates feeding `$ARGUMENTS` into the workflow and shows the expected `{{steps.*.output}}` shape at each stage.
 
-6. **Integration notes.** End with a short checklist for wiring into the existing workload-router (where the workflow file lives, how it's registered, how to dry-run, how to launch via `agent-relay`).
+6. **Verify the `agent-relay` CLI is available.** Before recommending any dry-run or launch command, confirm the runtime that will execute the workflow is installed:
+   ```bash
+   command -v agent-relay || npx agent-relay --version
+   ```
+   If neither resolves, note that it must be installed (`npm install -g agent-relay`, or invoke via `npx agent-relay …`) and surface that in the integration notes rather than assuming it is present.
+
+7. **Integration notes.** End with a short checklist for wiring into the existing workload-router (where the workflow file lives, how it's registered, how to dry-run, how to launch via `agent-relay`).
 
 ## Output Contract
 

@@ -44,25 +44,34 @@ harness that supports markdown slash commands.
    2. a Git **tag** or **release**:
       `https://raw.githubusercontent.com/AgentWorkforce/workflows/<tag>/repeatable/review-loop/workflow.ts`;
    3. a specific **commit SHA** (never `main`/`HEAD`):
-      `…/AgentWorkforce/workflows/<commit-sha>/repeatable/review-loop/workflow.ts`.
+      `https://raw.githubusercontent.com/AgentWorkforce/workflows/<commit-sha>/repeatable/review-loop/workflow.ts`.
    If no pinned ref/version is available, ask the user which tag or commit to
    use and stop — do not silently fall back to the default branch. Record the
    exact ref used in the run summary. Never paraphrase the workflow into
    ad-hoc agent calls — run the actual file so the deterministic gates and
    fresh-context loop execute.
 
-4. **Dry-run first.** `agent-relay run --dry-run
+4. **Verify the `agent-relay` CLI is available.** This loop is executed by the
+   `agent-relay` runtime, so confirm it before any run:
+   ```bash
+   command -v agent-relay || npx agent-relay --version
+   ```
+   If neither resolves, install it (`npm install -g agent-relay`, or use
+   `npx agent-relay …` for the commands below) and re-verify before
+   proceeding. Do not attempt the dry-run or the loop without a working CLI.
+
+5. **Dry-run first.** `agent-relay run --dry-run
    repeatable/review-loop/workflow.ts` and confirm `Validation: PASS` before
    the real run. Surface any validation error verbatim and stop.
 
-5. **Run the loop:**
+6. **Run the loop:**
    ```bash
    REVIEW_BASE=<ref> MAX_REVIEW_ITERATIONS=<n> REVIEW_PR_NUMBER=<pr> \
      agent-relay run repeatable/review-loop/workflow.ts
    ```
    Only set the env vars the user actually supplied.
 
-6. **Report back.** Read `.workflow-artifacts/review-loop/SIGNOFF.md` and
+7. **Report back.** Read `.workflow-artifacts/review-loop/SIGNOFF.md` and
    report: final status (`SIGNED_OFF` / `BLOCKED` / not-signed-off), iteration
    count, and the path to per-iteration `claude-review.md` / `codex-review.md`
    / `review-fix-report.md`. If `BLOCKED_NO_COMMIT.md` exists, surface its
