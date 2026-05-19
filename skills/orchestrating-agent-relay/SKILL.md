@@ -254,56 +254,16 @@ agent-relay history --to Worker1
 agent-relay history --to '#general' --json
 ```
 
-```bash
-# WRONG — MCP message tools require a registered agent identity; as the
-# spawning orchestrator you are not registered and these return
-# "Not registered. Call agent.register first."
-mcp__relaycast__message_inbox_check()
-mcp__relaycast__message_dm_list(as: "Worker1")
-
-# RIGHT — read via the CLI; --json is the reliable substrate for
-# substantive payloads
-agent-relay replies Worker1 --json
-```
-
-### Spawning and Messaging
-
-```bash
-# Spawn a worker
-agent-relay spawn Worker1 claude "Implement auth module"
-
-# Send a DM to a specific worker (replies readable via `replies`)
-agent-relay send Worker1 "Add unit tests too"
-
-# Broadcast to all workers via channel
-agent-relay send '#general' "Team: wrap up and report status"
-
-# Read Worker1's DM reply
-agent-relay replies Worker1
-
-# Release when done
-agent-relay release Worker1
-```
+(Reading via MCP `message_*` tools fails for you — see the "not a registered
+relaycast agent" callout under Bootstrap Step 3.)
 
 ### Monitoring Workers (Essential)
 
-```bash
-# Show currently active agents (structured: pid, uptimeSecs, memoryBytes,
-# status) — poll this instead of scraping the worker TTY for health
-agent-relay who --json
-
-# View real-time output from a worker (critical for debugging)
-agent-relay agents:logs Worker1
-
-# Read DM replies from a specific worker (use --json to parse safely)
-agent-relay replies Worker1 --json
-
-# View channel message history (channel posts only — not DMs)
-agent-relay history --to '#general' --json
-
-# Check overall system status
-agent-relay status
-```
+Spawn/send/release commands are in the Quick Reference and Bootstrap Step 3 —
+not repeated here. For monitoring specifically: poll `agent-relay who --json`
+for structured liveness (pid, uptimeSecs, status) instead of scraping the
+worker TTY, and use `agent-relay agents:logs <name>` to watch real-time output
+when debugging.
 
 > **Harness note: don't poll with a bare foreground `sleep`.** Many harnesses
 > (Claude Code included) block a foreground `sleep` used to wait for ACK/DONE
@@ -332,41 +292,14 @@ agent-relay agents:logs Worker1
 
 ## Orchestrator Instructions Template
 
-Give your lead agent these instructions:
+Give your lead agent these instructions. The bootstrap/spawn/monitor commands
+are in the Bootstrap Flow and Quick Reference above — the paste-worthy part is
+the **Protocol**, the ruleset a lead agent can't infer from the command list:
 
 ```text
-You are an autonomous orchestrator. Bootstrap the relay infrastructure and manage a team of workers.
-
-## Step 1: Verify Installation
-Run: command -v agent-relay || npx agent-relay --version
-If you hit a mise/asdf shim error: verify Node first with `node --version`, then fix the runtime manager
-If not found: npm install -g agent-relay
-
-## Step 2: Start Infrastructure
-Run: agent-relay up --no-dashboard --verbose
-Verify: agent-relay status --wait-for=10 (should show "RUNNING")
-
-## Step 3: Manage Your Team
-
-Spawn workers:
-  agent-relay spawn Worker1 claude "Task description"
-
-Monitor workers (do this frequently):
-  agent-relay who              # List active workers
-  agent-relay agents:logs Worker1  # View worker output/progress
-
-Send targeted DM instructions:
-  agent-relay send Worker1 "Additional instructions"
-
-Broadcast to all workers:
-  agent-relay send '#general' "All workers: prioritize the auth module"
-
-Read worker replies (DMs are not visible in plain `history`):
-  agent-relay replies Worker1            # full text, chronological
-  agent-relay replies Worker1 --json     # parseable: text + direction
-
-Release when done:
-  agent-relay release Worker1
+You are an autonomous orchestrator. Bootstrap the relay infrastructure
+(Bootstrap Flow Steps 0–2), then spawn and manage workers per the
+Quick Reference. Then enforce this protocol:
 
 ## Protocol
 - Workers will ACK when they receive tasks — but expect a 30–60s cold-start
@@ -393,11 +326,9 @@ Release when done:
   plain string, not `[]`
 - Poll `agent-relay who --json` for worker liveness; set a wall-clock fallback
   so a silently-dead worker can't hang the loop
-- Use `agent-relay agents:logs <name>` to monitor progress
-- Use `agent-relay replies <name>` to read a worker's DM replies (full text, chronological, persistent); add `--json` to parse
-- Use `agent-relay history --to <name>` for the full DM conversation thread (read + unread)
-- Use `agent-relay history --to '#general' --json` to see channel message flow
-- Do NOT use `agent-relay history` alone to check worker replies — it only shows channel posts, DM replies are invisible there
+- Read worker DM replies with `agent-relay replies <name>` (`--json` to parse);
+  plain `agent-relay history` shows channel posts only, never DM replies. See
+  the "Channel vs DM" section for the full reading model
 ```
 
 ## Multi-Round Review Loops (DONE → NO-GO → fix → re-review)
