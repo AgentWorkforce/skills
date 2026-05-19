@@ -107,6 +107,14 @@ CLI equivalent:
 agent-relay spawn Worker1 claude "Implement the authentication module following the existing patterns"
 ```
 
+> **Expect a 30–60s gap between spawn and the first ACK.** A worker shows
+> `online` in `who --json` within ~5s (the process is up), but the underlying
+> CLI (claude/codex) is still cold-starting and won't send its ACK DM until it
+> finishes booting — typically 30–45s, occasionally longer, after `online`.
+> `online` means "process alive," **not** "agent responsive." Don't treat
+> ACK silence in the first minute as a stuck worker; size ACK-wait loops for
+> at least 60s (e.g. a 30-iteration poll) before escalating to troubleshooting.
+
 ### Step 3: Monitor and Coordinate
 
 ```bash
@@ -297,6 +305,16 @@ agent-relay history --to '#general' --json
 agent-relay status
 ```
 
+> **Harness note: don't poll with a bare foreground `sleep`.** Many harnesses
+> (Claude Code included) block a foreground `sleep` used to wait for ACK/DONE
+> — e.g. `sleep 25; agent-relay replies ...` is rejected with a directive to
+> use a backgrounded loop or a Monitor/until-loop instead. The inline
+> `sleep`-based snippets shown elsewhere in this skill are illustrative of the
+> *logic*; in a harnessed environment, run the wait loop with
+> `run_in_background` (or the harness's Monitor + until-loop), polling
+> `agent-relay replies <name> --json` and `agent-relay who --json` from inside
+> the backgrounded loop rather than blocking the foreground on `sleep`.
+
 ### Troubleshooting
 
 ```bash
@@ -351,8 +369,14 @@ Release when done:
   agent-relay release Worker1
 
 ## Protocol
-- Workers will ACK when they receive tasks
+- Workers will ACK when they receive tasks — but expect a 30–60s cold-start
+  gap after spawn: `who --json` shows `online` (~5s) well before the CLI is
+  booted enough to send its first ACK. Don't troubleshoot a "stuck" fresh
+  worker until at least 60s has passed
 - Workers will send DONE when complete
+- In a harnessed environment, never wait with a bare foreground `sleep`
+  (it is blocked) — run ACK/DONE poll loops with run_in_background or a
+  Monitor/until-loop, polling `replies --json` and `who --json` from inside it
 - **ACK/DONE target: `orchestrator` (the auto-registered spawning identity) or
   the `#general` channel — NEVER `broker`.** `broker` is the broker's internal
   routing self-name, not a spawnable/DM-able agent: a worker DM to `broker` (and
@@ -474,6 +498,8 @@ The broker emits these events (available via SDK subscriptions):
 | `jq` errors on empty `replies --json`                    | Empty state is the plain string `No DM conversation with <Name>.`, not `[]`. Guard before piping to `jq`                                                                                      |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
 | Worker died silently; loop hangs                         | DM monitors fire on DMs only. Poll `agent-relay who --json` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                                |
+| New worker `online` but no ACK yet; assumed stuck        | Expected — `online` means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                    |
+| Harness blocks `sleep 25; agent-relay replies ...`       | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only  |
 
 ## Prerequisites
 
