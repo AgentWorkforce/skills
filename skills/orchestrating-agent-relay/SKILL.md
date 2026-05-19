@@ -166,11 +166,67 @@ agent-relay down
 
 **`agent-relay replies <agent>` is the canonical command for reading worker
 DM replies** — it returns full text, sender-attributed, in chronological
-order, with no truncation. Add `--json` for machine-readable output (full
-text plus a `direction` field).
+order, with no truncation. Add `--json` for machine-readable output.
 
 `inbox --agent <name>` is legacy unread-only behavior; once read, entries
 disappear. Prefer `replies` for a persistent, complete view.
+
+#### `replies --json` schema (read this before writing a monitor)
+
+Verified against the agent-relay CLI source (`replies` command). When there
+**is** a conversation, `--json` prints a JSON array of message objects:
+
+```json
+[
+  {
+    "id": "01J...",
+    "from": "Implementer",
+    "to": "orchestrator",
+    "text": "ACK — starting on the auth module",
+    "createdAt": "2026-05-19T14:02:11.000Z",
+    "direction": "inbound"
+  }
+]
+```
+
+`unread` (boolean) and/or `unread_state: "unknown"` may also be present
+depending on read-state availability. Footguns that will silently break a
+naive monitor:
+
+- **The timestamp field is `createdAt`, not `ts`/`timestamp`.** It is an
+  ISO-8601 string.
+- **In `replies --json`, `direction` is always the literal `"inbound"`** — it
+  is hard-coded, because `replies` only ever returns messages _from_ the
+  named agent. It is never `"incoming"`, `"from"`, `"in"`, nor `"outbound"`.
+  Filtering on `direction == "inbound"` is harmless but redundant; filtering
+  on any other literal yields a monitor that runs forever and never sees the
+  ACK or DONE. (`"outbound"` only appears in `history --to <agent> --json`,
+  which includes messages you sent — see below.)
+- **The empty state is a plain string, not `[]`.** When there is _no
+  conversation at all_, the command prints the literal line
+  `No DM conversation with <Name>.` (exit 0) — not JSON. (If a conversation
+  exists but no messages match the filters, `--json` does emit a valid `[]`.)
+  Piping the no-conversation case straight into `jq` errors out. Guard for it:
+
+  ```bash
+  out=$(agent-relay replies Implementer --json)
+  case "$out" in
+    "No DM conversation with"*|"") echo "no replies yet" ;;
+    *) echo "$out" | jq -r '.[] | "\(.createdAt) \(.direction) \(.text)"' ;;
+  esac
+  ```
+
+- **Build monitors defensively: emit-all, then eyeball.** Print every entry
+  with its `direction` and `createdAt` rather than hard-filtering inside
+  `jq`. A monitor that shows everything beats one that silently drops the
+  message you were waiting for because an assumption about the schema was
+  wrong.
+
+`history --to <agent> --json` uses the same object shape (`id`, `from`, `to`,
+`text`, `createdAt`, `direction`) but `direction` is computed:
+`"outbound"` for messages you (the reader identity) sent, `"inbound"` for the
+agent's. Use it when you need both sides of the thread, not just the agent's
+replies.
 
 ```bash
 # WRONG — history (no flags) will not show DM replies from workers
@@ -297,12 +353,81 @@ Release when done:
 ## Protocol
 - Workers will ACK when they receive tasks
 - Workers will send DONE when complete
+- Tell every worker explicitly: do NOT self-remove/release after DONE — stay
+  alive and idle so you can DM them review findings to fix
+- After DONE, run a reviewer; on NO-GO, DM the findings back to the SAME
+  worker. If the worker is gone, spawn a fresh one and re-inject branch +
+  commit SHA + the full verdict
+- Parse `replies --json` defensively: `direction` is always `"inbound"`,
+  timestamp is `createdAt` (not `ts`), and the no-conversation state is a
+  plain string, not `[]`
+- Poll `agent-relay who --json` for worker liveness; set a wall-clock fallback
+  so a silently-dead worker can't hang the loop
 - Use `agent-relay agents:logs <name>` to monitor progress
 - Use `agent-relay replies <name>` to read a worker's DM replies (full text, chronological, persistent); add `--json` to parse
 - Use `agent-relay history --to <name>` for the full DM conversation thread (read + unread)
 - Use `agent-relay history --to '#general' --json` to see channel message flow
 - Do NOT use `agent-relay history` alone to check worker replies — it only shows channel posts, DM replies are invisible there
 ```
+
+## Multi-Round Review Loops (DONE → NO-GO → fix → re-review)
+
+Spawning, monitoring, and releasing a worker is the easy path. The hard part
+the basic flow does **not** cover: a worker reports DONE, a reviewer comes
+back NO-GO, and now the work has to go back. Plan for this topology before you
+spawn anything.
+
+### Workers must not self-remove until you tell them
+
+A worker's natural hygiene instinct is to call `agent.remove` on itself right
+after reporting DONE. That **kills the review→fix→re-review loop**: when the
+reviewer returns NO-GO there is no agent left to send the findings to, so you
+are forced to spawn a fresh worker and re-inject the entire context (branch,
+commit, full verdict) instead of just DMing the existing one.
+
+**Put this in every implementer/worker task prompt explicitly:**
+
+```text
+Do NOT call agent.remove / agent-relay release on yourself. Report DONE and
+stay alive and idle. The orchestrator will send you review findings to fix,
+or release you when the work is fully accepted. Self-removing before then
+breaks the fix loop.
+```
+
+The "release when done" guidance elsewhere in this skill applies to the
+**orchestrator** releasing workers — never to a worker releasing itself
+mid-loop.
+
+### The respawn-with-full-context fallback
+
+If a worker did self-remove (or died), you cannot just DM it. Spawn a fresh
+worker and re-inject everything it needs to act with no prior memory:
+
+```bash
+agent-relay spawn Implementer2 codex "Continuation of prior work. \
+Branch: feature/auth. Last commit: <sha>. \
+The reviewer returned NO-GO with these findings: <full verdict text>. \
+Check out the branch, address every finding, re-run tests, report DONE. \
+Do NOT self-remove — stay alive for re-review."
+```
+
+Always pass branch + commit SHA + the **complete** reviewer verdict. A fresh
+worker has none of the loop's history; a summarized verdict loses the
+specifics it needs to fix.
+
+### Detecting a silently-dead worker
+
+Monitors fire on **DMs only**. A worker that exits or self-removes produces no
+DM, so the monitor just goes quiet — indistinguishable from a worker still
+thinking. Defenses:
+
+- Poll `agent-relay who --json` for liveness instead of inferring it from DM
+  silence. A worker that vanishes from `who` is gone.
+- `agent-relay agents:logs <name>` will show a self-issued `agent.remove` /
+  release call — but it is noisy TTY scraping, a last resort, not a signal.
+- Always set a wall-clock fallback (e.g. a ScheduleWakeup ~30 min out) so a
+  silently-dead worker can't hang the loop forever waiting on a DM that will
+  never arrive.
 
 ## Lifecycle Events
 
@@ -335,6 +460,10 @@ The broker emits these events (available via SDK subscriptions):
 | Need to see unread DM content                            | `inbox_check` / `inbox --agent` only return counts or clear on read, and the MCP `message_dm_list` tool requires a registered identity you don't have. Use `agent-relay replies <name> --json` |
 | Re-reading already-read replies                          | `agent-relay replies <name>` is a persistent view (not unread-only); use `--since <time>` to narrow, or `agent-relay history --to <name>` for the full thread                                  |
 | Sent to wrong destination                                | `agent-relay send Worker1 "..."` = DM; `agent-relay send '#general' "..."` = channel broadcast. The `#` prefix is required for channels                                                        |
+| Monitor never sees ACK/DONE                              | In `replies --json`, `direction` is always the literal `"inbound"` (never `"incoming"`/`"from"`/`"outbound"`); timestamp field is `createdAt`, not `ts`. See the `replies --json` schema section |
+| `jq` errors on empty `replies --json`                    | Empty state is the plain string `No DM conversation with <Name>.`, not `[]`. Guard before piping to `jq`                                                                                      |
+| Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
+| Worker died silently; loop hangs                         | DM monitors fire on DMs only. Poll `agent-relay who --json` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                                |
 
 ## Prerequisites
 
