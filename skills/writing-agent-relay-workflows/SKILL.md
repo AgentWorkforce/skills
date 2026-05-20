@@ -47,6 +47,8 @@ The point of an agent team workflow is not to discover a red gate and stop. The 
 
 Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows that are supposed to be self-healing. Even cheap preconditions such as missing credentials, wrong repository, or an unsafe dirty worktree should normally write a clear `BLOCKED_*` artifact and exit cleanly. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
 
+**Counterweight — don't reflexively add a repair step.** This rule applies when the gate has a real, agent-fixable failure surface. A deterministic gate that sits downstream of deterministic work (e.g. a transcript line-count check after a series of deterministic grader steps) is correct by construction — there is no failure mode for a repair agent to address. Wiring a repair step there just spawns a fresh agent for a guaranteed no-op, paying the spawn cost (and often a follow-on idle-timeout wait) for nothing. Keep the hard gate, skip the repair. Reserve repair branches for gates where a real agent action could plausibly turn red into green.
+
 ## Mandatory Fresh-Eyes Review Loops
 
 Every workflow must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. This applies even to small workflows and even when deterministic tests pass. Tests prove commands passed; the fresh-eyes loops make independent agents read the actual resulting files and artifacts as if they did not author them.
@@ -90,6 +92,7 @@ Before writing the workflow, decide *how the agents will coordinate*. The relay 
 | Shape | What it is | Use when |
 |---|---|---|
 | **Conversation** (chat-native) | Interactive agents share a channel; messages, `@-mentions`, and ambient awareness drive coordination. Lead and workers spawn in parallel and self-organize. The relay is the coordination layer, not just transport. | Multi-file work, peer review loops, cross-agent feedback, dynamic re-planning, multi-PR coordination, anything with a human-in-the-loop escape, swarms where workers pick up each other's output. |
+| **Per-turn interactive spawn** (bounded interactive) | Interactive PTY agents (no `preset`), but each step is bounded to *one* turn that exits as soon as its file/message is produced. Agents still join the channel — they just don't live across turns. | Turn-taking flows where each turn is short, well-defined, and reads its inputs from a deterministic source (file on disk, prior grade step). Exercises the PTY + channel-injection path without the idle-detection-vs-wait-for-event race that bites long-running interactive agents. |
 | **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no live agent-to-agent coordination during implementation. The mandatory final Claude-then-Codex review/fix loops still apply. |
 
 **Default to Conversation for any non-trivial work.** Pipeline DAGs are simpler to reason about but they do not exercise the relay primitive — they are a Unix pipe with extra steps. If you would happily write the same task as a single shell pipeline, pipeline-shape is fine. Otherwise, you almost certainly want a Conversation shape.
@@ -1459,6 +1462,12 @@ Edit files as assigned. Report completion. Fix issues from feedback.`,
 
 Once you're in the Interactive Team shape, the channel is your coordination medium. These are recipes for using it well — they are *prompt-authoring patterns*, not new SDK surface. All of them assume interactive agents (no `preset`) sharing a `.channel('wf-...')`.
 
+> ⚠️ **Idle detection beats "wait for X" prompts.** The runtime treats a silent interactive PTY as "complete" after a short idle window (~30 seconds). A task prompt that tells an agent to *wait for message Y* / *exit only on `GAME_OVER`* / *stay until @reviewer posts a verdict* will lose that race if the awaited event is more than ~30s away — the runtime will mark the agent complete and tear it down before the message arrives. This affects every recipe below: **Q/A, Broadcast/Ack, Peer Review, and Hand-Off all encode a wait.**
+>
+> Use the chat-native recipes only when the next expected event reliably arrives well inside the idle window. For multi-turn flows where some turns are slow (LLM reasoning, manual review, paused work), prefer the **Per-turn interactive spawn** shape from the [coordination table](#choose-your-coordination-style--conversation-vs-pipeline): one bounded step per turn, with a deterministic step in between carrying state on disk. You still get interactive PTY + channel, you don't get killed by idle.
+>
+> Symptom to watch for in logs: a player exits with `Completion inferred from clean process exit (code 0) — no coordination signal was required` *before* the event it was supposed to wait for arrived; or a lead step that drives waits via shell `sleep` calls.
+
 #### 1. Question / Answer (blocking ask)
 
 When agent A needs information only agent B has, instruct A to **post a direct question and wait for a reply** rather than guessing or proceeding.
@@ -1994,6 +2003,8 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Codex login checked only with `codex login status` | Add a tiny `codex exec --ephemeral --json --sandbox read-only` preflight probe so stale refresh tokens fail before agent steps |
 | Edit gate uses `git diff --quiet` for new files/packages | `git diff` ignores untracked files and can fail a valid implementation with `NO_CHANGES`; use `git status --short -- <paths>` for materialization gates |
 | Hard-stop validation gates in product workflows | A red check stops the agent team at the exact moment it should fix the problem. Capture gate output with `failOnError: false`, add a repair agent step, rerun, and reserve hard failure for exhausted repair budget or external blockers |
+| Making an LLM agent the *judge* for fixed-rule comparisons in multi-turn flows (e.g. "claude is the oracle, evaluates each guess, posts feedback") | LLM agents have no real wait/sleep API — when an expected reply is late they improvise with shell `sleep 30` calls, which is opaque, slow, and out-of-band of the channel primitive. If the comparison is computable (guess vs secret, test pass/fail, regex match, schema validity), grade it in a **deterministic step**. LLMs should *produce*, not adjudicate fixed rules |
+| Adding a repair step downstream of a gate that has no failure mode an agent can fix | "Workflows repair before they fail" applies when the gate has a real, agent-fixable failure surface. A deterministic gate downstream of deterministic work is correct by construction — a repair step there just burns a spawn cycle on a guaranteed no-op. Skip the repair, keep the hard gate |
 | Final acceptance before repair and dual review | Broken work can stop or commit without giving the team a final chance to fix it. Run repairable gates first, then the Claude-then-Codex review/fix loops, then final deterministic acceptance before commit/PR |
 | Skipping the mandatory dual review loops | Add sequential Claude-then-Codex fresh-eyes review/fix loops after repairable verification and before final acceptance, commit, PR creation, or handoff |
 | Treating optional notification credentials as fatal | Workflow progress gets blocked by a non-core side effect. Prefer primitive/runtime fallbacks such as the Slack primitive's `cloud-relay` or `noop` shape from AgentWorkforce/relay#823 when notification is not the product contract |
