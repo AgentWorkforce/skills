@@ -1464,7 +1464,17 @@ Once you're in the Interactive Team shape, the channel is your coordination medi
 
 > ⚠️ **Idle detection beats "wait for X" prompts.** The runtime treats a silent interactive PTY as "complete" after a short idle window (~30 seconds). A task prompt that tells an agent to *wait for message Y* / *exit only on `GAME_OVER`* / *stay until @reviewer posts a verdict* will lose that race if the awaited event is more than ~30s away — the runtime will mark the agent complete and tear it down before the message arrives. This affects every recipe below: **Q/A, Broadcast/Ack, Peer Review, and Hand-Off all encode a wait.**
 >
-> Use the chat-native recipes only when the next expected event reliably arrives well inside the idle window. For multi-turn flows where some turns are slow (LLM reasoning, manual review, paused work), prefer the **Per-turn interactive spawn** shape from the [coordination table](#choose-your-coordination-style--conversation-vs-pipeline): one bounded step per turn, with a deterministic step in between carrying state on disk. You still get interactive PTY + channel, you don't get killed by idle.
+> **Two ways to handle it:**
+>
+> 1. **Per-agent escape hatch — set `idleThresholdSecs` on the agent.** The builder option `idleThresholdSecs` overrides the per-agent idle window (default 30s; `0` disables idle detection entirely). Use this when a specific agent reliably has long quiet stretches by design:
+>    ```typescript
+>    .agent('long-running-reviewer', { cli: 'claude', idleThresholdSecs: 0 })
+>    ```
+>    Pick the lowest value that comfortably exceeds your worst-case wait — `0` is safest but means a genuinely-hung agent will sit forever.
+>
+> 2. **Restructure to Per-turn interactive spawn.** For multi-turn flows where some turns are slow (LLM reasoning, manual review, paused work), use the **Per-turn interactive spawn** shape from the [coordination table](#choose-your-coordination-style--conversation-vs-pipeline): one bounded step per turn, with a deterministic step in between carrying state on disk. You still get interactive PTY + channel; the session is just short enough to never hit the idle window.
+>
+> The chat-native recipes below work as written when the next expected event reliably arrives well inside the idle window, or when you've extended the window per (1).
 >
 > Symptom to watch for in logs: a player exits with `Completion inferred from clean process exit (code 0) — no coordination signal was required` *before* the event it was supposed to wait for arrived; or a lead step that drives waits via shell `sleep` calls.
 
