@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.0.10`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.1`.
 
 ## Published Skills
 
@@ -19,6 +19,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [daily-digest](skills/daily-digest/SKILL.md) | 1.0.0 | Authoring contract for `<mount>/digests/` files — windows, per-provider sections, adapter `digest()` exports, regeneration rules. |
 | [writeback-as-files](skills/writeback-as-files/SKILL.md) | 1.0.0 | File-creation writeback contract — drop a JSON file at the canonical path and relayfile delivers the mutation, with dead-letter recovery. |
 | [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.0 | Navigate a relayfile mount via root and per-provider `LAYOUT.md` files plus `by-*` alias indexes instead of `find`/`grep -r`. |
+| [spawn-cloud-swarm](skills/spawn-cloud-swarm/SKILL.md) | 1.0.0 | Spawn and monitor cloud worker swarms against the user's local checkout through relayfile local-mount MCP tools. |
 
 ## Slash Commands
 
