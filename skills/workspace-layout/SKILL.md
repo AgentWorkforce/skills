@@ -86,9 +86,9 @@ We borrowed the `<identifier>__<uuid>` shape from [Mirage](https://github.com/st
 ### "Where does X live?"
 
 ```bash
-cat $MOUNT/LAYOUT.md           # provider list and cross-cutting layout
+cat $MOUNT/LAYOUT.md              # provider list and cross-cutting layout
 cat $MOUNT/<provider>/.layout.md  # provider-specific shape
-ls   $MOUNT/<provider>/         # top-level resource directories
+ls   $MOUNT/<provider>/           # top-level resource directories
 ls   $MOUNT/<provider>/<resource>/by-*/   # available indexes
 ```
 
@@ -113,4 +113,5 @@ Use `by-title/` or `by-name/` rather than `find`. The index is sorted and bounde
 
 - **Don't `grep -r` over the mount** for a title or name. There's an index. Use it.
 - **Don't hardcode paths from a different workspace's LAYOUT.md.** Workspaces can customize which adapters and indexes are mounted.
+<<<<<<< HEAD
 - **Don't ignore `.layout.md`.** If you wrote a Notion-specific path from memory and it doesn't exist, the provider's `.layout.md` will tell you the actual shape in one read.
