@@ -1028,6 +1028,35 @@ runWorkflow().catch((error) => {
 
 `createGitHubStep` is bundled with `@agent-relay/sdk`; do not add a separate install. Its actions are stable across runtimes: `getRepo`, `createBranch`, `createFile`, `updateFile`, `createPR`, `updatePR`, `getPR`, `listPRs`, `mergePR`, `createIssue`, etc. See the SDK GitHub primitive docs for the full enum.
 
+#### Common authoring mistakes that cause startup parse errors
+
+These produce hard errors at workflow boot (before any step runs), not at runtime:
+
+| Mistake | Correct form |
+|---|---|
+| `createGitHubStep({ id: 'open-pr', ... })` | No `id` field — the step name comes from `.step('open-pr', createGitHubStep({...}))` |
+| `action: 'createPullRequest'` | `action: 'createPR'` (camelCase enum, not the GitHub API method name) |
+| `owner: 'AgentWorkforce', repo: 'nightcto'` | `repo: 'AgentWorkforce/nightcto'` — single `owner/repo` string |
+| `import { createGitHubStep } from '@agent-relay/github-primitive'` | `import { createGitHubStep } from '@agent-relay/sdk'` |
+| `{ ...createGitHubStep({...}) }` spread inside `.step('name', { ...createGitHubStep({...}) })` | Pass directly: `.step('name', createGitHubStep({...}))` |
+
+When targeting environments where the SDK may not yet support `type: 'integration'` steps in the builder (SDK < 6.0.9), fall back to a deterministic step with `gh pr create`. Keep the snippet fail-closed: if PR creation errors, the workflow should stop or route to an explicit repair step rather than silently succeeding:
+
+```typescript
+    .step('ship-pr', {
+      type: 'deterministic',
+      dependsOn: ['push-branch'],
+      command: [
+        'BRANCH=$(git rev-parse --abbrev-ref HEAD)',
+        'EXISTING=$(gh pr list --head "$BRANCH" --json number --jq ".[0].number" 2>/dev/null || echo "")',
+        'if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then echo "PR_ALREADY_EXISTS: #$EXISTING"',
+        'else gh pr create --base main --head "$BRANCH" --draft --title "feat: ..." --body "..." 2>&1 && echo "PR_CREATED"; fi',
+      ].join('\n'),
+      captureOutput: true,
+      failOnError: true,
+    })
+```
+
 ### Authoring rules for PR-shipping workflows
 
 1. **Open the PR from the workflow, not from the operator's shell.** "Tell the user to run `gh pr create`" is a regression to a manual step the workflow could have done. The whole point of running this in cloud is that there is no operator's shell.
