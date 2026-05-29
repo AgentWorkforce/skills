@@ -208,6 +208,9 @@
       ],
       "files": [
         "skills/adding-swarm-patterns/SKILL.md"
+      ]
+    },
+    {
       "name": "review-fix-signoff-loop",
       "version": "1.0.2",
       "description": "Use when writing Agent Relay or Ricky workflows that must loop review, fix, and validation with fresh agent context until independent signoff agents both agree the work is comprehensively complete",
