@@ -28,7 +28,7 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.13",
+      "version": "1.6.15",
       "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, mandatory Claude-then-Codex fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
@@ -125,25 +125,6 @@
       ]
     },
     {
-      "name": "review-fix-signoff-loop",
-      "version": "1.0.2",
-      "description": "Use when writing Agent Relay or Ricky workflows that must loop review, fix, and validation with fresh agent context until independent signoff agents both agree the work is comprehensively complete",
-      "format": "claude",
-      "subtype": "skill",
-      "tags": [
-        "workflow",
-        "review-loop",
-        "signoff",
-        "fresh-context",
-        "quality-assurance",
-        "multi-agent",
-        "pr-comments"
-      ],
-      "files": [
-        "skills/review-fix-signoff-loop/SKILL.md"
-      ]
-    },
-    {
       "name": "activity-summary",
       "version": "1.0.0",
       "description": "Use when an agent is asked \"what did I (or my team) work on yesterday / this week / today\" across provider data in a relayfile mount (Linear, GitHub, Notion, Slack, Confluence, Jira, etc.). Tells the agent to consult the pre-computed `digests/yesterday.md` (and sibling digest files) at the workspace root BEFORE doing manual exploration with `ls`/`grep`/`find`. The digest is deterministic, exhaustive over the window, and costs one file read instead of dozens of provider queries.",
@@ -180,7 +161,7 @@
     {
       "name": "writeback-as-files",
       "version": "1.0.0",
-      "description": "Use when an agent needs to write back to a provider (create a Linear comment, open a GitHub issue, post a Slack message, edit a Notion page, etc.) through a relayfile mount. Covers the file-creation writeback contract (drop a JSON file at the canonical path -> provider mutation), discovering paths and schemas via `.schema.json` siblings, idempotency keys, watching status with `relayfile writeback list`/`status`, and recovering dead-lettered writes under `.relay/dead-letter/`.",
+      "description": "Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path → provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -197,7 +178,7 @@
     {
       "name": "workspace-layout",
       "version": "1.0.0",
-      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/LAYOUT.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
+      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/.layout.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -227,6 +208,22 @@
       ],
       "files": [
         "skills/adding-swarm-patterns/SKILL.md"
+      "name": "review-fix-signoff-loop",
+      "version": "1.0.2",
+      "description": "Use when writing Agent Relay or Ricky workflows that must loop review, fix, and validation with fresh agent context until independent signoff agents both agree the work is comprehensively complete",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "workflow",
+        "review-loop",
+        "signoff",
+        "fresh-context",
+        "quality-assurance",
+        "multi-agent",
+        "pr-comments"
+      ],
+      "files": [
+        "skills/review-fix-signoff-loop/SKILL.md"
       ]
     },
     {
