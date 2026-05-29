@@ -1,6 +1,6 @@
 ---
 name: writeback-as-files
-description: Use when an agent needs to write back to a provider (create a Linear comment, open a GitHub issue, post a Slack message, edit a Notion page, etc.) through a relayfile mount. Covers the file-creation writeback contract (drop a JSON file at the canonical path → provider mutation), discovering the right path and schema via `.schema.json` siblings, idempotency keys, watching writeback status with `relayfile writeback list` and `relayfile status`, and recovering from dead-lettered writes under `.relay/dead-letter/`. NOT for read operations or for direct API calls — relayfile mediates the writeback so you can ignore provider auth, retries, and rate limits.
+description: Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path → provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/. NOT for read operations or for direct API calls — relayfile mediates the writeback so you can ignore provider auth, retries, and rate limits.
 ---
 
 # Writebacks Are Files

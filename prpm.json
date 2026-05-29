@@ -28,7 +28,7 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.13",
+      "version": "1.6.14",
       "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, mandatory Claude-then-Codex fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
@@ -161,7 +161,7 @@
     {
       "name": "writeback-as-files",
       "version": "1.0.0",
-      "description": "Use when an agent needs to write back to a provider (create a Linear comment, open a GitHub issue, post a Slack message, edit a Notion page, etc.) through a relayfile mount. Covers the file-creation writeback contract (drop a JSON file at the canonical path → provider mutation), discovering the right path and schema via `.schema.json` siblings, idempotency keys, watching writeback status with `relayfile writeback list` and `relayfile status`, and recovering from dead-lettered writes under `.relay/dead-letter/`.",
+      "description": "Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path → provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
