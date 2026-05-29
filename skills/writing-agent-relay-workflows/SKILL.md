@@ -923,7 +923,7 @@ For bug-fix or reliability workflows, do **not** stop at unit or integration tes
 8. **Record residual risks**
    - Call out what was not covered
 9. **Ship the result as a PR**
-   - Open the pull request from the workflow itself with `createGitHubStep`
+   - Open the pull request from the workflow itself with `createGitHubStep` from `@agent-relay/sdk` — **never** `gh pr create`, never `id:` inside the config, never `action: 'createPullRequest'`, never separate `owner`/`repo` fields
    - See [Shipping the Result — Open a PR via `createGitHubStep`](#shipping-the-result--open-a-pr-via-creategithubstep) below
    - A workflow that fixes a bug and stops short of the PR has only done half the loop
 
@@ -1040,26 +1040,11 @@ These produce hard errors at workflow boot (before any step runs), not at runtim
 | `import { createGitHubStep } from '@agent-relay/github-primitive'` | `import { createGitHubStep } from '@agent-relay/sdk'` |
 | `{ ...createGitHubStep({...}) }` spread inside `.step('name', { ...createGitHubStep({...}) })` | Pass directly: `.step('name', createGitHubStep({...}))` |
 
-When targeting environments where the SDK may not yet support `type: 'integration'` steps in the builder (SDK < 6.0.9), fall back to a deterministic step with `gh pr create`. Keep the snippet fail-closed: if PR creation errors, the workflow should stop or route to an explicit repair step rather than silently succeeding:
-
-```typescript
-    .step('ship-pr', {
-      type: 'deterministic',
-      dependsOn: ['push-branch'],
-      command: [
-        'BRANCH=$(git rev-parse --abbrev-ref HEAD)',
-        'EXISTING=$(gh pr list --head "$BRANCH" --json number --jq ".[0].number" 2>/dev/null || echo "")',
-        'if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then echo "PR_ALREADY_EXISTS: #$EXISTING"',
-        'else gh pr create --base main --head "$BRANCH" --draft --title "feat: ..." --body "..." 2>&1 && echo "PR_CREATED"; fi',
-      ].join('\n'),
-      captureOutput: true,
-      failOnError: true,
-    })
-```
+**Do not use `gh pr create` as a fallback.** Even on older SDKs the runner handles `type: 'integration'` steps — it is only the builder's `.step()` validation that is strict. Pass `createGitHubStep({...})` directly as the second argument to `.step()`; the SDK runner executes it correctly in both local and cloud modes.
 
 ### Authoring rules for PR-shipping workflows
 
-1. **Open the PR from the workflow, not from the operator's shell.** "Tell the user to run `gh pr create`" is a regression to a manual step the workflow could have done. The whole point of running this in cloud is that there is no operator's shell.
+1. **Use `createGitHubStep`, never `gh pr create`.** `gh pr create` is a local-only shell command that bypasses the SDK's local/cloud transport detection — the workflow loses portability and the ricky validator flags it as a missing PR-shipping step. `createGitHubStep({ action: 'createPR', repo: 'owner/repo', params: {...} })` works identically in local iteration and cloud runs without any env-var sniffing.
 2. **One PR per workflow, by default.** A workflow that opens five PRs from one run is almost always wrong — humans review one PR at a time. If you genuinely need multiple, prefer a tracking issue + linked PRs, or split into separate workflows.
 3. **Branch name encodes the run.** `agent-relay/run-${runId}` or `agent-relay/${workflow-name}-${timestamp}` so reviewers can tell the PR apart from other automation, and so reruns don't clash.
 4. **`draft: true` while iterating.** Once the workflow is stable end-to-end, flip to `draft: false`.
