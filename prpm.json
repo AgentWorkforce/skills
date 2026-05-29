@@ -193,6 +193,21 @@
       ]
     },
     {
+      "name": "adding-swarm-patterns",
+      "version": "1.0.0",
+      "description": "Use when adding new multi-agent coordination patterns to agent-relay - provides checklist for types, schema, templates, and docs updates",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "swarm",
+        "patterns",
+        "workflows",
+        "multi-agent",
+        "orchestration"
+      ],
+      "files": [
+        "skills/adding-swarm-patterns/SKILL.md"
       "name": "review-fix-signoff-loop",
       "version": "1.0.2",
       "description": "Use when writing Agent Relay or Ricky workflows that must loop review, fix, and validation with fresh agent context until independent signoff agents both agree the work is comprehensively complete",
