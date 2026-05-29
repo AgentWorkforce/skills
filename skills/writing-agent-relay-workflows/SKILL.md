@@ -1038,9 +1038,9 @@ These produce hard errors at workflow boot (before any step runs), not at runtim
 | `action: 'createPullRequest'` | `action: 'createPR'` (camelCase enum, not the GitHub API method name) |
 | `owner: 'AgentWorkforce', repo: 'nightcto'` | `repo: 'AgentWorkforce/nightcto'` — single `owner/repo` string |
 | `import { createGitHubStep } from '@agent-relay/github-primitive'` | `import { createGitHubStep } from '@agent-relay/sdk'` |
-| `...createGitHubStep({...})` spread inside `.step('name', { ...createGitHubStep })` | Pass directly: `.step('name', createGitHubStep({...}))` |
+| `{ ...createGitHubStep({...}) }` spread inside `.step('name', { ...createGitHubStep({...}) })` | Pass directly: `.step('name', createGitHubStep({...}))` |
 
-When targeting environments where the SDK may not yet support `type: 'integration'` steps in the builder (SDK < 6.0.9), fall back to a deterministic step with `gh pr create`:
+When targeting environments where the SDK may not yet support `type: 'integration'` steps in the builder (SDK < 6.0.9), fall back to a deterministic step with `gh pr create`. Keep the snippet fail-closed: if PR creation errors, the workflow should stop or route to an explicit repair step rather than silently succeeding:
 
 ```typescript
     .step('ship-pr', {
@@ -1053,7 +1053,7 @@ When targeting environments where the SDK may not yet support `type: 'integratio
         'else gh pr create --base main --head "$BRANCH" --draft --title "feat: ..." --body "..." 2>&1 && echo "PR_CREATED"; fi',
       ].join('\n'),
       captureOutput: true,
-      failOnError: false,
+      failOnError: true,
     })
 ```
 
