@@ -40,7 +40,7 @@ The orchestrator role is yours — the orchestrator is a claude agent itself, bu
 
 Every spawned pair gets a written sub-contract:
 
-```
+```text
 WS-<name> sub-contract
   Parent run: <run-name>
   Goal: <one sentence — what RED becomes GREEN when this workstream finishes>
@@ -82,7 +82,7 @@ The orchestrator aggregates into `/tmp/<run-name>-rollup.md` and updates the gat
 
 The scoreboard is a single markdown file (`/tmp/<run-name>-scoreboard.md`) maintained for the run's lifetime. It contains one row per pre-flip gate from the contract §4, with:
 
-```
+```text
 | # | Gate | State | Evidence | Last verified | Owner |
 |---|---|---|---|---|---|
 | G1 | Worker bundle B1 safety | GREEN | b1-worker-import-safety.test.ts pass @ <sha> | <ts> | orchestrator |

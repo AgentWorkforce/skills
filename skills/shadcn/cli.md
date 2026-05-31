@@ -3,7 +3,7 @@
 Configuration is read from `components.json`.
 
 > **IMPORTANT:** Always run commands using the project's package runner: `npx shadcn@latest`, `pnpm dlx shadcn@latest`, or `bunx --bun shadcn@latest`. Check `packageManager` from project context to choose the right one. Examples below use `npx shadcn@latest` but substitute the correct runner for the project.
-
+>
 > **IMPORTANT:** Only use the flags documented below. Do not invent or guess flags — if a flag isn't listed here, it doesn't exist. The CLI auto-detects the package manager from the project's lockfile; there is no `--package-manager` flag.
 
 ## Contents
@@ -156,7 +156,7 @@ Outputs resolved URLs for component documentation, examples, and API references.
 
 Example output for `npx shadcn@latest docs input button`:
 
-```
+```text
 base  radix
 
 input

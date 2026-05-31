@@ -211,7 +211,7 @@ File uploads and downloads **must not be implemented as Nango actions**. Both ar
 - Fetching documents, attachments, or any content the caller needs to handle directly
 
 **Structure:**
-```
+```text
 {integration}/
   proxy/
     upload-file.ts      # or fetch-document.ts, download-attachment.ts, etc.

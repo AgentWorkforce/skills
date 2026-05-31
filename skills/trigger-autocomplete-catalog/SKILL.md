@@ -29,7 +29,7 @@ npm run build --workspace=packages/core
 node --import tsx packages/core/src/cli.ts triggers generate --repo-root .
 node --import tsx packages/core/src/cli.ts triggers check --repo-root .
 node --import tsx --test packages/core/tests/triggers/catalog-generator.test.ts
-npm test --workspace=packages/<provider>
+npm test --workspace=packages/{provider}
 ```
 
 ## Notes

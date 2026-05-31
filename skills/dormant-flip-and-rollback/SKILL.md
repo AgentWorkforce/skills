@@ -62,7 +62,7 @@ When all gates read GREEN with evidence current within the last hour:
 1. **Re-verify each gate one final time.** Evidence current. CI live for any code-path-dependent gate.
 2. **Re-read the contract §5 + §6.** Confirm the flip command and rollback triggers.
 3. **Post the pre-flip statement** to the operator's channel:
-   ```
+   ```text
    Pre-flip statement, <run-name>, <ISO-utc>
    Gates: G1 GREEN <link>, G2 GREEN <link>, ... (full list)
    Flip command: <verbatim>
@@ -78,7 +78,7 @@ When all gates read GREEN with evidence current within the last hour:
 
 Rollback is **pre-authorized by the contract**. When any trigger from §6 fires, execute the rollback command without consulting the operator. Then post:
 
-```
+```text
 Rollback executed, <run-name>, <ISO-utc>
 Trigger: <name, e.g. G5 5xx rate>
 Observed: <metric value, baseline, threshold>

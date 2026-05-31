@@ -96,7 +96,7 @@ paths:
 
 ## Directory Structure
 
-```
+```text
 .claude/rules/
 ├── testing.md          # Path-scoped or global
 ├── typescript.md
@@ -118,4 +118,4 @@ Files discovered recursively. Use subdirectories to organize.
 
 ## Reference
 
-https://code.claude.com/docs/en/memory#modular-rules-with-claude/rules/
+<https://code.claude.com/docs/en/memory#modular-rules-with-claude/rules/>

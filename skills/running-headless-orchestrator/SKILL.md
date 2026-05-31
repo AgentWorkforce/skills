@@ -81,7 +81,7 @@ The broker:
 
 ### Step 2: Spawn Workers via MCP
 
-```
+```text
 mcp__relaycast__agent_add(
   name: "Worker1",
   cli: "Codex",
@@ -97,7 +97,7 @@ agent-relay spawn Worker1 Codex "Implement the authentication module following t
 
 ### Step 3: Monitor and Coordinate
 
-```
+```text
 # Check if workers have replied (returns unread counts — not the content)
 mcp__relaycast__message_inbox_check()
 
@@ -116,7 +116,7 @@ mcp__relaycast__agent_list()
 
 ### Step 4: Release Workers
 
-```
+```text
 mcp__relaycast__agent_remove(name: "Worker1")
 ```
 
@@ -154,7 +154,7 @@ agent-relay history
 agent-relay inbox --agent Worker1
 ```
 
-```
+```text
 # WRONG — inbox_check only tells you there are unread messages, not what they say
 mcp__relaycast__message_inbox_check()
 
@@ -219,7 +219,7 @@ agent-relay agents:logs Worker1
 
 Give your lead agent these instructions:
 
-```
+```text
 You are an autonomous orchestrator. Bootstrap the relay infrastructure and manage a team of workers.
 
 ## Step 1: Verify Installation
@@ -298,7 +298,7 @@ The broker emits these events (available via SDK subscriptions):
    # Or use npx without installing: npx agent-relay <command>
    ```
 
-2. **For spawning Codex agents**: Valid Anthropic credentials
-   - Set `ANTHROPIC_API_KEY` or authenticate via `Codex auth login`
+2. **For spawning Codex agents**: Valid OpenAI credentials
+   - Set `OPENAI_API_KEY` or authenticate with the Codex CLI in the environment that will run workers
 
 3. **For MCP tools** (optional): Relaycast MCP server configured in Codex's MCP settings

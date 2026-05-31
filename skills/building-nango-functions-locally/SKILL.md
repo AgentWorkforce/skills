@@ -147,13 +147,14 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)
-- Functions runtime SDK reference: https://nango.dev/docs/reference/functions
-- Implement an action: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
-- Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
-- Checkpoints: https://nango.dev/docs/implementation-guides/use-cases/syncs/checkpoints
-- Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
-- Testing integrations (dryrun, `--save`, Vitest): https://nango.dev/docs/implementation-guides/platform/functions/testing
-- Nango HTTP API reference: https://nango.dev/docs/reference/api
+
+- Functions runtime SDK reference: <https://nango.dev/docs/reference/functions>
+- Implement an action: <https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action>
+- Implement a sync: <https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync>
+- Checkpoints: <https://nango.dev/docs/implementation-guides/use-cases/syncs/checkpoints>
+- Deletion detection (full vs incremental): <https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection>
+- Testing integrations (dryrun, `--save`, Vitest): <https://nango.dev/docs/implementation-guides/platform/functions/testing>
+- Nango HTTP API reference: <https://nango.dev/docs/reference/api>
 
 ## When API Docs Do Not Render
 
@@ -189,7 +190,7 @@ If you see `YAML PROJECT DETECTED`:
 - Tell the user to upgrade to the TypeScript format first.
 - Do not attempt to mix YAML and TypeScript.
 
-Reference: https://nango.dev/docs/implementation-guides/platform/migrations/migrate-to-zero-yaml
+Reference: <https://nango.dev/docs/implementation-guides/platform/migrations/migrate-to-zero-yaml>
 
 ### Verify Nango Project Root
 
@@ -285,7 +286,7 @@ Hard rules:
 - If `nango` is not on `PATH`, use `npx nango ...`.
 - CLI upgrade prompts can block automation; set `NANGO_CLI_UPGRADE_MODE=ignore` if needed.
 
-Reference: https://nango.dev/docs/implementation-guides/platform/functions/testing
+Reference: <https://nango.dev/docs/implementation-guides/platform/functions/testing>
 
 ## Deploy (Optional)
 
@@ -299,7 +300,7 @@ nango deploy --action <action-name> dev
 nango deploy --sync <sync-name> dev
 ```
 
-Reference: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
+Reference: <https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action>
 
 ## Final Checklists
 
