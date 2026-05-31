@@ -406,7 +406,7 @@
       "id": "relayfile-workspace",
       "name": "Relayfile Workspace",
       "description": "Relayfile workspace primitives for agents - activity digests, workspace layout, and file-native provider writeback",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "development",
       "tags": [
         "relayfile",
