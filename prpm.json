@@ -343,6 +343,16 @@
       "files": [
         "skills/tiered-acceptance/SKILL.md"
       ]
+    },
+    {
+      "name": "openclaw-orchestrator",
+      "version": "1.0.0",
+      "description": "Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.",
+      "format": "claude",
+      "subtype": "skill",
+      "files": [
+        "skills/openclaw-orchestrator/SKILL.md"
+      ]
     }
   ],
   "collections": [
