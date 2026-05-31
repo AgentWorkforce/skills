@@ -22,15 +22,11 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
 | [auto-merge-and-composition-safety](skills/auto-merge-and-composition-safety/SKILL.md) | 1.0.0 | Review and auto-merge discipline for autonomous PR runs, including live CI checks, bot-finding triage, and cross-PR composition safety. |
 | [autonomous-run-contract](skills/autonomous-run-contract/SKILL.md) | 1.0.0 | Author the binding contract for autonomous multi-PR cutover runs: grants, gates, flip mechanism, rollback triggers, constraints, and escalation rules. |
-| [creating-claude-rules-skill](skills/creating-claude-rules-skill/SKILL.md) | 1.0.0 | Create or fix `.claude/rules/` files with Claude `paths` frontmatter and without Cursor-only fields. |
 | [dormant-flip-and-rollback](skills/dormant-flip-and-rollback/SKILL.md) | 1.0.0 | Design cutover-class changes with a dormant build, single-switch flip, and pre-authorized rollback path. |
 | [instrument-dont-guess](skills/instrument-dont-guess/SKILL.md) | 1.0.0 | Add temporary diagnostics after repeated failed fixes instead of continuing to guess at the same symptom. |
 | [swarm-blockers-and-gate-scoreboard](skills/swarm-blockers-and-gate-scoreboard/SKILL.md) | 1.0.0 | Dispatch paired worker/reviewer agents for hard blockers and maintain RED/GREEN gate scoreboards for autonomous runs. |
 | [tiered-acceptance](skills/tiered-acceptance/SKILL.md) | 1.0.0 | Split broad acceptance gates into deeply proven tier-1 coverage and explicitly accepted tier-2 smoke coverage. |
-| [building-nango-functions-locally](skills/building-nango-functions-locally/SKILL.md) | 1.0.0 | Build, validate, test, and optionally deploy local TypeScript Nango actions and syncs with CLI dryruns and generated tests. |
-| [running-headless-orchestrator](skills/running-headless-orchestrator/SKILL.md) | 1.0.0 | Self-bootstrap Agent Relay and manage a team of workers without human intervention. |
-| [trigger-autocomplete-catalog](skills/trigger-autocomplete-catalog/SKILL.md) | 1.0.0 | Register webhook events in the trigger autocomplete catalog when integrations add provider events. |
-| [shadcn](skills/shadcn/SKILL.md) | 1.0.0 | Work with shadcn/ui projects, registries, presets, component composition, styling, CLI commands, and MCP helpers. |
+| [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 1.0.0 | Run headless multi-agent orchestration sessions via Agent Relay — spawn teams across Claude/Codex/Gemini/Pi/Droid, create channels, and manage agent lifecycle. |
 
 ## Slash Commands
 
