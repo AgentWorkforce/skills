@@ -355,28 +355,6 @@
       ]
     },
     {
-      "name": "building-nango-functions-locally",
-      "version": "1.0.0",
-      "description": "Builds Nango Functions in a checked-out Zero YAML TypeScript project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy via CLI. Use when creating, updating, validating, testing, or deploying Nango actions or syncs locally in a repo. Prefer this over building-nango-functions when local files, a Nango root, CLI dryrun, generated tests, or deploy workflow is involved.",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/building-nango-functions-locally/SKILL.md",
-        "skills/building-nango-functions-locally/references/actions.md",
-        "skills/building-nango-functions-locally/references/syncs.md"
-      ]
-    },
-    {
-      "name": "running-headless-orchestrator",
-      "version": "1.0.0",
-      "description": "Use when an agent needs to self-bootstrap agent-relay and autonomously manage a team of workers - covers infrastructure startup, agent spawning, lifecycle monitoring, and team coordination without human intervention",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/running-headless-orchestrator/SKILL.md"
-      ]
-    },
-    {
       "name": "trigger-autocomplete-catalog",
       "version": "1.0.0",
       "description": "Use when adding webhook events to make sure integrations properly register the webhook events they carry",
@@ -384,28 +362,6 @@
       "subtype": "skill",
       "files": [
         "skills/trigger-autocomplete-catalog/SKILL.md"
-      ]
-    },
-    {
-      "name": "shadcn",
-      "version": "1.0.0",
-      "description": "Manages shadcn components and projects — adding, searching, fixing, debugging, styling, and composing UI. Provides project context, component docs, and usage examples. Applies when working with shadcn/ui, component registries, presets, --preset codes, or any project with a components.json file. Also triggers for \"shadcn init\", \"create an app with --preset\", or \"switch to --preset\".",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/shadcn/SKILL.md",
-        "skills/shadcn/agents/openai.yml",
-        "skills/shadcn/assets/shadcn-small.png",
-        "skills/shadcn/assets/shadcn.png",
-        "skills/shadcn/cli.md",
-        "skills/shadcn/customization.md",
-        "skills/shadcn/evals/evals.json",
-        "skills/shadcn/mcp.md",
-        "skills/shadcn/rules/base-vs-radix.md",
-        "skills/shadcn/rules/composition.md",
-        "skills/shadcn/rules/forms.md",
-        "skills/shadcn/rules/icons.md",
-        "skills/shadcn/rules/styling.md"
       ]
     }
   ],
