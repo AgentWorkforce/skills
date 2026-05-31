@@ -305,16 +305,6 @@
       ]
     },
     {
-      "name": "creating-claude-rules-skill",
-      "version": "1.0.0",
-      "description": "Use when creating or fixing .claude/rules/ files - provides correct paths frontmatter (not globs), glob patterns, and avoids Cursor-specific fields like alwaysApply",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/creating-claude-rules-skill/SKILL.md"
-      ]
-    },
-    {
       "name": "dormant-flip-and-rollback",
       "version": "1.0.0",
       "description": "Use when designing or executing a cutover-class change (migration, ingestion path swap, provider relink, flag enablement). Encodes the dark-launch + single-switch flip pattern, the refusal to flip on amber, and the pre-authorized rollback procedure — the canonical way to make irreversible-feeling infra changes reversible-feeling.",
