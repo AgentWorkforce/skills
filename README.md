@@ -2,17 +2,17 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.0.10`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.0`.
 
 ## Published Skills
 
 | Skill | Version | Description |
 |-------|---------|-------------|
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.3 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
-| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.12 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, mandatory Claude-then-Codex review/fix loops with test hardening, channels, and chat-native coordination recipes. |
+| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.15 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, mandatory Claude-then-Codex review/fix loops with test hardening, channels, and chat-native coordination recipes. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.0 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.3.0 | Participant-side MCP reference for a **registered** relay agent (spawned worker / registered lead): messaging, channels, threads, reactions, search, webhooks. Counterpart to `orchestrating-agent-relay`. |
-| [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.0.0 | The canonical way to run agent-relay: self-bootstrap the broker and autonomously spawn, monitor, and coordinate a worker team without human intervention. |
+| [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.1.2 | The canonical way to run agent-relay: self-bootstrap the broker and autonomously spawn, monitor, and coordinate a worker team without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.7 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, mandatory Claude-then-Codex review/fix with test hardening, and commit gates. |
 | [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.2 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
 | [activity-summary](skills/activity-summary/SKILL.md) | 1.0.0 | Answer "what did I work on yesterday" questions by reading `digests/yesterday.md` first instead of crawling provider directories. |
@@ -20,13 +20,21 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [writeback-as-files](skills/writeback-as-files/SKILL.md) | 1.0.0 | File-creation writeback contract — drop a JSON file at the canonical path and relayfile delivers the mutation, with dead-letter recovery. |
 | [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.0 | Navigate a relayfile mount via root and per-provider `LAYOUT.md` files plus `by-*` alias indexes instead of `find`/`grep -r`. |
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
+| [auto-merge-and-composition-safety](skills/auto-merge-and-composition-safety/SKILL.md) | 1.0.0 | Review and auto-merge discipline for autonomous PR runs, including live CI checks, bot-finding triage, and cross-PR composition safety. |
+| [autonomous-run-contract](skills/autonomous-run-contract/SKILL.md) | 1.0.0 | Author the binding contract for autonomous multi-PR cutover runs: grants, gates, flip mechanism, rollback triggers, constraints, and escalation rules. |
+| [dormant-flip-and-rollback](skills/dormant-flip-and-rollback/SKILL.md) | 1.0.0 | Design cutover-class changes with a dormant build, single-switch flip, and pre-authorized rollback path. |
+| [instrument-dont-guess](skills/instrument-dont-guess/SKILL.md) | 1.0.0 | Add temporary diagnostics after repeated failed fixes instead of continuing to guess at the same symptom. |
+| [swarm-blockers-and-gate-scoreboard](skills/swarm-blockers-and-gate-scoreboard/SKILL.md) | 1.0.0 | Dispatch paired worker/reviewer agents for hard blockers and maintain RED/GREEN gate scoreboards for autonomous runs. |
+| [tiered-acceptance](skills/tiered-acceptance/SKILL.md) | 1.0.0 | Split broad acceptance gates into deeply proven tier-1 coverage and explicitly accepted tier-2 smoke coverage. |
+| [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 1.0.0 | Run headless multi-agent orchestration sessions via Agent Relay — spawn teams across Claude/Codex/Gemini/Pi/Droid, create channels, and manage agent lifecycle. |
 
 ## Slash Commands
 
 | Command | Version | Description |
 |---------|---------|-------------|
-| [/create-workflow](commands/create-workflow.md) | 1.0.2 | Scaffold a model-agnostic Agent Relay workflow using the workflow and swarm-pattern skills, including mandatory Claude-then-Codex review/fix loops with test hardening. |
+| [/create-workflow](commands/create-workflow.md) | 1.0.3 | Scaffold a model-agnostic Agent Relay workflow using the workflow and swarm-pattern skills, including mandatory Claude-then-Codex review/fix loops with test hardening. |
 | [/spawn](commands/spawn.md) | 1.0.0 | Bootstrap the broker and spawn a worker for `claude`, `codex`, `opencode`, `droid`, `gemini`, or `pi`. |
+| [/review-loop](commands/review-loop.md) | 1.0.1 | Run a dual-reviewer code-review loop with repair and fresh-context signoff. |
 
 ## Claude Relay Plugin
 
