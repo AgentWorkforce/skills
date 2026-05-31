@@ -343,16 +343,6 @@
       "files": [
         "skills/tiered-acceptance/SKILL.md"
       ]
-    },
-    {
-      "name": "trigger-autocomplete-catalog",
-      "version": "1.0.0",
-      "description": "Use when adding webhook events to make sure integrations properly register the webhook events they carry",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/trigger-autocomplete-catalog/SKILL.md"
-      ]
     }
   ],
   "collections": [
