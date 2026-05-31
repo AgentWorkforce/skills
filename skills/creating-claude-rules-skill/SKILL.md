@@ -1,5 +1,5 @@
 ---
-name: creating-claude-rules
+name: creating-claude-rules-skill
 description: Use when creating or fixing .claude/rules/ files - provides correct paths frontmatter (not globs), glob patterns, and avoids Cursor-specific fields like alwaysApply
 ---
 
