@@ -629,7 +629,7 @@ Use this pattern only when the workflow is supposed to own repository delivery:
 7. Use `createGitHubStep({ name: 'open-pr', action: 'createPR', ... })` from `@agent-relay/sdk` to open the PR.
 8. Verify the PR URL/state deterministically and write it into the final signoff artifact.
 
-Do not hide commit/PR work in agent prose. Model it as deterministic steps whenever possible. For PR creation, issue updates, file reads, or any GitHub operation, prefer `createGitHubStep` over shelling out to `gh`; import it from the SDK root (`import { createGitHubStep } from '@agent-relay/sdk'`) on SDK versions that include AgentWorkforce/relay#823, or from the legacy subpath only when pinned to an older SDK. The downstream acceptance gate must still verify the PR exists before signoff, and any PR creation failure should route to a repair step before the workflow stops.
+Do not hide commit/PR work in agent prose. Model it as deterministic or integration steps whenever possible. For PR creation, issue updates, file reads, or any GitHub operation, prefer `createGitHubStep` over shelling out to `gh`; import it from the SDK root (`import { createGitHubStep } from '@agent-relay/sdk'`) on SDK versions that include AgentWorkforce/relay#823, or from the legacy subpath only when pinned to an older SDK. The downstream acceptance gate must still verify the PR exists before signoff, and any PR creation failure should route to a repair step before the workflow stops.
 
 If commit or PR creation is intentionally outside the workflow, say that directly in the workflow description and signoff so the operator knows to do it after completion.
 
@@ -977,60 +977,81 @@ You write **one** workflow. The same `createPR` step opens a PR via your local `
 ### The minimal "open a PR" recipe
 
 ```typescript
-import { workflow } from '@agent-relay/sdk/workflows';
-import { createGitHubStep } from '@agent-relay/sdk';
+import { createGitHubStep, github } from '@agent-relay/sdk';
+import { WorkflowRunner, type RelayYamlConfig } from '@agent-relay/sdk/workflows';
 
 const REPO = 'AgentWorkforce/cloud';
 const BRANCH = `agent-relay/run-${Date.now()}`;
 
+const config: RelayYamlConfig = {
+  version: '1.0',
+  name: 'feature-x',
+  swarm: { pattern: 'pipeline' },
+  agents: [],
+  workflows: [
+    {
+      name: 'feature-x-workflow',
+      steps: [
+        // ... your real implementation, repair, review loops, and final acceptance ...
+        {
+          name: 'write-marker',
+          type: 'deterministic',
+          command: `echo "fix landed at $(date -u)" >> CHANGELOG.md`,
+        },
+
+        // Branch off main on the remote.
+        createGitHubStep({
+          name: 'create-branch',
+          dependsOn: ['write-marker'],
+          action: 'createBranch',
+          repo: REPO,
+          params: { branch: BRANCH, fromBranch: 'main' },
+        }),
+
+        // Commit the change to the branch via Contents API.
+        createGitHubStep({
+          name: 'commit-change',
+          dependsOn: ['create-branch'],
+          action: 'createFile',
+          repo: REPO,
+          params: {
+            path: 'CHANGELOG.md',
+            branch: BRANCH,
+            content: '<file body here>',
+            message: 'chore: changelog entry',
+          },
+        }),
+
+        // Open the PR. This is the load-bearing step.
+        createGitHubStep({
+          name: 'open-pr',
+          dependsOn: ['commit-change'],
+          action: 'createPR',
+          repo: REPO,
+          params: {
+            title: 'feat: ship feature X',
+            head: BRANCH,
+            base: 'main',
+            body: '## Summary\n\n- ...\n\n## Test plan\n\n- [x] ...',
+            draft: false,
+          },
+          output: { mode: 'data', format: 'json', path: 'html_url' },
+        }),
+      ],
+    },
+  ],
+  errorHandling: { strategy: 'fail-fast' },
+};
+
 async function runWorkflow() {
-  await workflow('feature-x')
-    // ... your real implementation, repair, review loops, and final acceptance ...
-    .step('write-marker', {
-      type: 'deterministic',
-      command: `echo "fix landed at $(date -u)" >> CHANGELOG.md`,
-    })
+  const runner = new WorkflowRunner({
+    cwd: process.cwd(),
+    // Local runs use the GitHub primitive executor, which auto-detects `gh`.
+    // Cloud runs provide their own integration executor.
+    executor: new github.GitHubStepExecutor(),
+  });
 
-    // Branch off main on the remote.
-    .step('create-branch', createGitHubStep({
-      name: 'create-branch',
-      dependsOn: ['write-marker'],
-      action: 'createBranch',
-      repo: REPO,
-      params: { branch: BRANCH, fromBranch: 'main' },
-    }))
-
-    // Commit the change to the branch via Contents API.
-    .step('commit-change', createGitHubStep({
-      name: 'commit-change',
-      dependsOn: ['create-branch'],
-      action: 'createFile',
-      repo: REPO,
-      params: {
-        path: 'CHANGELOG.md',
-        branch: BRANCH,
-        content: '<file body here>',
-        message: 'chore: changelog entry',
-      },
-    }))
-
-    // Open the PR. This is the load-bearing step.
-    .step('open-pr', createGitHubStep({
-      name: 'open-pr',
-      dependsOn: ['commit-change'],
-      action: 'createPR',
-      repo: REPO,
-      params: {
-        title: 'feat: ship feature X',
-        head: BRANCH,
-        base: 'main',
-        body: '## Summary\n\n- ...\n\n## Test plan\n\n- [x] ...',
-        draft: false,
-      },
-      output: { mode: 'data', format: 'json', path: 'html_url' },
-    }))
-
-    .run({ cwd: process.cwd() });
+  await runner.execute(config, 'feature-x-workflow');
 }
 
 runWorkflow().catch((error) => {
@@ -1041,25 +1062,46 @@ runWorkflow().catch((error) => {
 
 `createGitHubStep` is bundled with `@agent-relay/sdk`; do not add a separate install. Its actions are stable across runtimes: `getRepo`, `createBranch`, `createFile`, `updateFile`, `createPR`, `updatePR`, `getPR`, `listPRs`, `mergePR`, `createIssue`, etc. See the SDK GitHub primitive docs for the full enum.
 
+For YAML workflows, write the same steps as ordinary integration steps:
+
+```yaml
+workflows:
+  - name: feature-x-workflow
+    steps:
+      - name: open-pr
+        type: integration
+        integration: github
+        action: createPR
+        dependsOn: [commit-change]
+        params:
+          repo: AgentWorkforce/cloud
+          title: 'feat: ship feature X'
+          head: agent-relay/run-123
+          base: main
+          body: |
+            ## Summary
+            - ...
+```
+
 #### Common authoring mistakes that cause startup parse errors
 
-These produce hard errors at workflow boot (before any step runs), not at runtime. `createGitHubStep` requires both the outer workflow step name and a matching non-empty `name` field inside the config object; the SDK validates the config before the workflow can start.
+These produce hard errors at workflow boot (before any step runs), not at runtime. `createGitHubStep` requires a non-empty `name` field because the helper returns a complete integration step object; the SDK validates the config before the workflow can start. On strict `WorkflowBuilder.step()` SDK versions, pass that integration step through the config/YAML `workflows[].steps` path instead of through `.step()`.
 
 | Mistake | Correct form |
 |---|---|
-| `.step('open-pr', createGitHubStep({ action: 'createPR', ... }))` | Include `name: 'open-pr'` inside the config: `.step('open-pr', createGitHubStep({ name: 'open-pr', action: 'createPR', ... }))` |
-| `createGitHubStep({ id: 'open-pr', ... })` | No `id` field — use `name: 'open-pr'` inside the config and the same name in `.step('open-pr', ...)` |
+| `.step('open-pr', createGitHubStep({ name: 'open-pr', action: 'createPR', ... }))` | Strict builders reject integration steps here. Put `createGitHubStep({ name: 'open-pr', action: 'createPR', ... })` in `workflows[].steps`, or use YAML `type: integration` |
+| `createGitHubStep({ id: 'open-pr', ... })` | No `id` field — use `name: 'open-pr'` inside the config object |
 | `action: 'createPullRequest'` | `action: 'createPR'` (camelCase enum, not the GitHub API method name) |
 | `owner: 'AgentWorkforce', repo: 'nightcto'` | `repo: 'AgentWorkforce/nightcto'` — single `owner/repo` string |
 | `import { createGitHubStep } from '@agent-relay/github-primitive'` | `import { createGitHubStep } from '@agent-relay/sdk'` |
-| `{ ...createGitHubStep({...}) }` spread inside `.step('name', { ...createGitHubStep({...}) })` | Pass directly: `.step('name', createGitHubStep({...}))` |
+| `{ ...createGitHubStep({...}) }` spread inside `.step('name', { ...createGitHubStep({...}) })` | Do not route GitHub integration steps through `.step()`. Use `workflows[].steps: [createGitHubStep({...})]` |
 | `createGitHubStep({ command: ['gh pr create ...'], ... })` | `createGitHubStep` has no `command` field. Use GitHub primitive fields (`name`, `action`, `repo`, `params`) instead of shell-step shape. |
 
-**Do not use `gh pr create` as a fallback.** Even on older SDKs the runner handles `type: 'integration'` steps — it is only the builder's `.step()` validation that is strict. Pass `createGitHubStep({ name: '<same-as-step-name>', action: 'createPR', ... })` directly as the second argument to `.step()`; the SDK runner executes it correctly in both local and cloud modes.
+**Do not use `gh pr create` as a fallback.** The runner handles `type: 'integration'` steps; it is the builder's `.step()` validation that is strict in released SDKs. Put `createGitHubStep({ name: '<step-name>', action: 'createPR', ... })` directly in the workflow config's `steps` array, or author the equivalent YAML integration step. Local TypeScript runs need a GitHub integration executor such as `new github.GitHubStepExecutor()`; cloud runs provide the executor.
 
 ### Authoring rules for PR-shipping workflows
 
-1. **Use `createGitHubStep`, never `gh pr create`.** `gh pr create` is a local-only shell command that bypasses the SDK's local/cloud transport detection — the workflow loses portability and the ricky validator flags it as a missing PR-shipping step. `createGitHubStep({ name: 'open-pr', action: 'createPR', repo: 'owner/repo', params: {...} })` works identically in local iteration and cloud runs without any env-var sniffing.
+1. **Use `createGitHubStep`, never `gh pr create`.** `gh pr create` is a local-only shell command that bypasses the SDK's local/cloud transport detection — the workflow loses portability and the ricky validator flags it as a missing PR-shipping step. `createGitHubStep({ name: 'open-pr', action: 'createPR', repo: 'owner/repo', params: {...} })` keeps one step shape across local iteration and cloud runs; wire `GitHubStepExecutor` locally and let cloud provide the integration executor.
 2. **One PR per workflow, by default.** A workflow that opens five PRs from one run is almost always wrong — humans review one PR at a time. If you genuinely need multiple, prefer a tracking issue + linked PRs, or split into separate workflows.
 3. **Branch name encodes the run.** `agent-relay/run-${runId}` or `agent-relay/${workflow-name}-${timestamp}` so reviewers can tell the PR apart from other automation, and so reruns don't clash.
 4. **`draft: true` while iterating.** Once the workflow is stable end-to-end, flip to `draft: false`.
