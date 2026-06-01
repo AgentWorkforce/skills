@@ -626,7 +626,7 @@ Use this pattern only when the workflow is supposed to own repository delivery:
 4. Stage only the declared target files and review/signoff artifacts.
 5. Commit with a deterministic message.
 6. Push the branch.
-7. Use `createGitHubStep({ action: 'createPR', ... })` from `@agent-relay/sdk` to open the PR.
+7. Use `createGitHubStep({ name: 'open-pr', action: 'createPR', ... })` from `@agent-relay/sdk` to open the PR.
 8. Verify the PR URL/state deterministically and write it into the final signoff artifact.
 
 Do not hide commit/PR work in agent prose. Model it as deterministic steps whenever possible. For PR creation, issue updates, file reads, or any GitHub operation, prefer `createGitHubStep` over shelling out to `gh`; import it from the SDK root (`import { createGitHubStep } from '@agent-relay/sdk'`) on SDK versions that include AgentWorkforce/relay#823, or from the legacy subpath only when pinned to an older SDK. The downstream acceptance gate must still verify the PR exists before signoff, and any PR creation failure should route to a repair step before the workflow stops.
@@ -993,14 +993,16 @@ async function runWorkflow() {
 
     // Branch off main on the remote.
     .step('create-branch', createGitHubStep({
+      name: 'create-branch',
       dependsOn: ['write-marker'],
       action: 'createBranch',
       repo: REPO,
-      params: { branch: BRANCH, source: 'main' },
+      params: { branch: BRANCH, fromBranch: 'main' },
     }))
 
     // Commit the change to the branch via Contents API.
     .step('commit-change', createGitHubStep({
+      name: 'commit-change',
       dependsOn: ['create-branch'],
       action: 'createFile',
       repo: REPO,
@@ -1014,6 +1016,7 @@ async function runWorkflow() {
 
     // Open the PR. This is the load-bearing step.
     .step('open-pr', createGitHubStep({
+      name: 'open-pr',
       dependsOn: ['commit-change'],
       action: 'createPR',
       repo: REPO,
@@ -1040,21 +1043,23 @@ runWorkflow().catch((error) => {
 
 #### Common authoring mistakes that cause startup parse errors
 
-These produce hard errors at workflow boot (before any step runs), not at runtime:
+These produce hard errors at workflow boot (before any step runs), not at runtime. `createGitHubStep` requires both the outer workflow step name and a matching non-empty `name` field inside the config object; the SDK validates the config before the workflow can start.
 
 | Mistake | Correct form |
 |---|---|
-| `createGitHubStep({ id: 'open-pr', ... })` | No `id` field — the step name comes from `.step('open-pr', createGitHubStep({...}))` |
+| `.step('open-pr', createGitHubStep({ action: 'createPR', ... }))` | Include `name: 'open-pr'` inside the config: `.step('open-pr', createGitHubStep({ name: 'open-pr', action: 'createPR', ... }))` |
+| `createGitHubStep({ id: 'open-pr', ... })` | No `id` field — use `name: 'open-pr'` inside the config and the same name in `.step('open-pr', ...)` |
 | `action: 'createPullRequest'` | `action: 'createPR'` (camelCase enum, not the GitHub API method name) |
 | `owner: 'AgentWorkforce', repo: 'nightcto'` | `repo: 'AgentWorkforce/nightcto'` — single `owner/repo` string |
 | `import { createGitHubStep } from '@agent-relay/github-primitive'` | `import { createGitHubStep } from '@agent-relay/sdk'` |
 | `{ ...createGitHubStep({...}) }` spread inside `.step('name', { ...createGitHubStep({...}) })` | Pass directly: `.step('name', createGitHubStep({...}))` |
+| `createGitHubStep({ command: ['gh pr create ...'], ... })` | `createGitHubStep` has no `command` field. Use GitHub primitive fields (`name`, `action`, `repo`, `params`) instead of shell-step shape. |
 
-**Do not use `gh pr create` as a fallback.** Even on older SDKs the runner handles `type: 'integration'` steps — it is only the builder's `.step()` validation that is strict. Pass `createGitHubStep({...})` directly as the second argument to `.step()`; the SDK runner executes it correctly in both local and cloud modes.
+**Do not use `gh pr create` as a fallback.** Even on older SDKs the runner handles `type: 'integration'` steps — it is only the builder's `.step()` validation that is strict. Pass `createGitHubStep({ name: '<same-as-step-name>', action: 'createPR', ... })` directly as the second argument to `.step()`; the SDK runner executes it correctly in both local and cloud modes.
 
 ### Authoring rules for PR-shipping workflows
 
-1. **Use `createGitHubStep`, never `gh pr create`.** `gh pr create` is a local-only shell command that bypasses the SDK's local/cloud transport detection — the workflow loses portability and the ricky validator flags it as a missing PR-shipping step. `createGitHubStep({ action: 'createPR', repo: 'owner/repo', params: {...} })` works identically in local iteration and cloud runs without any env-var sniffing.
+1. **Use `createGitHubStep`, never `gh pr create`.** `gh pr create` is a local-only shell command that bypasses the SDK's local/cloud transport detection — the workflow loses portability and the ricky validator flags it as a missing PR-shipping step. `createGitHubStep({ name: 'open-pr', action: 'createPR', repo: 'owner/repo', params: {...} })` works identically in local iteration and cloud runs without any env-var sniffing.
 2. **One PR per workflow, by default.** A workflow that opens five PRs from one run is almost always wrong — humans review one PR at a time. If you genuinely need multiple, prefer a tracking issue + linked PRs, or split into separate workflows.
 3. **Branch name encodes the run.** `agent-relay/run-${runId}` or `agent-relay/${workflow-name}-${timestamp}` so reviewers can tell the PR apart from other automation, and so reruns don't clash.
 4. **`draft: true` while iterating.** Once the workflow is stable end-to-end, flip to `draft: false`.
@@ -1091,7 +1096,7 @@ verification: { type: 'pr_url', value: 'owner/repo' }      // step must leave be
 
 Only these five types are valid: `exit_code`, `output_contains`, `file_exists`, `custom`, `pr_url`. Invalid types are silently ignored and fall through to process-exit auto-pass.
 
-**Use `pr_url` for any step whose deliverable is a published change** — opening a PR, merging a branch, publishing a package. It blocks the common failure mode where a worker produces green tests and posts `OWNER_DECISION: COMPLETE` but never actually opened a PR. Pair it with `createGitHubStep({ action: 'createPR' })` (see [Shipping the Result — Open a PR via `createGitHubStep`](#shipping-the-result--open-a-pr-via-creategithubstep) above) — that primitive's output naturally contains the PR URL, so the verification gate trips cleanly when the create step is missing or fails. Pass `<owner>/<repo>` to require the URL belongs to a specific repository, or leave `value: ''` to accept any GitHub PR URL in the step output. **Workers should never shell out to `gh pr create` directly** when `createGitHubStep` is available; raw `gh` bypasses the local/cloud runtime detection and the workflow loses its `local-iteration → cloud-run` portability.
+**Use `pr_url` for any step whose deliverable is a published change** — opening a PR, merging a branch, publishing a package. It blocks the common failure mode where a worker produces green tests and posts `OWNER_DECISION: COMPLETE` but never actually opened a PR. Pair it with `createGitHubStep({ name: 'open-pr', action: 'createPR' })` (see [Shipping the Result — Open a PR via `createGitHubStep`](#shipping-the-result--open-a-pr-via-creategithubstep) above) — that primitive's output naturally contains the PR URL, so the verification gate trips cleanly when the create step is missing or fails. Pass `<owner>/<repo>` to require the URL belongs to a specific repository, or leave `value: ''` to accept any GitHub PR URL in the step output. **Workers should never shell out to `gh pr create` directly** when `createGitHubStep` is available; raw `gh` bypasses the local/cloud runtime detection and the workflow loses its `local-iteration → cloud-run` portability.
 
 **Verification token gotcha:** If the token appears in the task text, the runner requires it **twice** in output (once from task echo, once from agent). Prefer `exit_code` for code-editing steps to avoid this.
 
@@ -2027,7 +2032,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
 | Using `preset: 'worker'` for Codex in *interactive team* patterns when coordination is needed | Codex interactive mode works fine with PTY channel injection. Drop the preset for interactive team patterns (keep it for one-shot DAG workers where clean stdout matters) |
 | Treating the lead's informal review as final signoff | The lead may review during implementation, but final signoff still requires the selected review-depth fresh-eyes loop and final deterministic acceptance |
-| Not printing PR URL after `createGitHubStep({ action: 'createPR' })` | Capture `html_url` with `output: { mode: 'data', format: 'json', path: 'html_url' }` and echo or write it in a final deterministic step |
+| Not printing PR URL after `createGitHubStep({ name: 'open-pr', action: 'createPR' })` | Capture `html_url` with `output: { mode: 'data', format: 'json', path: 'html_url' }` and echo or write it in a final deterministic step |
 | Workflow ending without worktree + PR for cross-repo changes | Add `setup-worktree` at start and `push-and-pr` + `cleanup-worktree` at end |
 
 ## YAML Alternative
