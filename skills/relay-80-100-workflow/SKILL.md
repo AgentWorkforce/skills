@@ -62,9 +62,9 @@ For high-stakes implementation workflows, validation should include human-like r
 3. Before external review, the implementer writes a self-reflection artifact under `.workflow-artifacts/<task>/` covering spec coverage, changed files, tests/proofs, repo-rule alignment, and known risks.
 4. A fresh self-review agent reads the actual files, AGENTS.md / CLAUDE.md, recent related work, and local conventions. It writes findings to disk.
 5. The implementer repairs valid findings, then deterministic gates rerun from captured output.
-6. After all squads converge, run the review-depth fresh-eyes review/fix loops. Deep-tier workflows require Claude to review the final diff and artifacts, a fixer to repair valid findings and add or update appropriate tests/proofs, Claude to review the post-fix state again, then Codex to repeat the same cycle from scratch over the post-Claude-fix state. Light and standard generated workflows may scale down only when the workflow spec is explicitly classified for that tier and deterministic gates plus at least one independent Claude review/fix pass remain mandatory.
-7. If the selected final review path still finds issues, run another explicit fix pass or write `BLOCKED_NO_COMMIT` with exact evidence.
-8. Commit or PR creation is allowed only after final deterministic acceptance and the selected post-fix review path is green. Deep-tier workflows require the post-Codex-fix review to be green. Otherwise write a `BLOCKED_NO_COMMIT` artifact with exact evidence.
+6. After all squads converge, run the selected review-depth fresh-eyes review/fix path. Light requires `review-claude` -> `fix-loop` and gates final review pass on `post-fix-validation`. Standard adds `final-review-claude` -> `final-fix-claude` and gates final review pass on `final-fix-claude`. Deep requires the standard Claude path plus `review-codex` -> `fix-loop-codex` -> `final-review-codex` -> `final-fix-codex` and gates final review pass on `final-fix-codex`.
+7. If the selected review path still finds issues, run another explicit fix pass or write `BLOCKED_NO_COMMIT` with exact evidence.
+8. Commit or PR creation is allowed only after the selected review-depth path, final-review-pass gate, final deterministic acceptance, and scoped diff/regression gates are green. Otherwise write a `BLOCKED_NO_COMMIT` artifact with exact evidence.
 
 This keeps "100%" tied to both executable evidence and independent review over the final state.
 

@@ -31,7 +31,7 @@ Every generated workflow should satisfy this checklist before it is considered c
 3. Use repairable validation gates: capture red output with `failOnError: false`, hand it to a repair owner, then rerun the same check.
 4. Run fresh-eyes review at the depth warranted by the spec: deep-tier workflows use Claude review/fix/final review/final fix followed by Codex review/fix/final review/final fix; lighter generated workflows may scale down only when deterministic gates, hard validation, and at least one independent Claude review/fix pass remain on the critical path.
 5. Require review fixers to add or update appropriate tests, fixtures, assertions, or deterministic proofs for testable findings.
-6. Run final deterministic acceptance after the selected post-fix review path and before commit, PR creation, or handoff.
+6. Run final deterministic acceptance after the selected review-depth path and before commit, PR creation, or handoff.
 7. If a real blocker remains, write `BLOCKED_NO_COMMIT` with exact evidence and skip commit/PR creation instead of crashing the workflow.
 8. If the workflow owns shipping, model branch, commit, push, PR creation, and PR URL verification as explicit deterministic steps.
 
@@ -49,7 +49,17 @@ Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows tha
 
 ## Review-Depth Fresh-Eyes Loops
 
-Deep-tier workflows must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. Lighter generated workflows may use a scaled review depth only when the workflow spec is explicitly classified as light or standard, deterministic tests and hard validation stay mandatory, and at least one independent Claude review/fix pass reads the resulting files and artifacts as if the reviewing agent did not author them.
+Review depth changes only the number of LLM fresh-eyes passes. It never removes deterministic proof, repairable validation, final hard validation, scoped diff evidence, blocked-state handling, or final signoff.
+
+Use this contract when Ricky or a workflow generator selects a depth:
+
+| Tier | Required review/fix path | Final review pass gate depends on | Required final review artifacts |
+| --- | --- | --- | --- |
+| `light` | `review-claude` -> `fix-loop` | `post-fix-validation` | `review-claude.md`, `fix-loop-report.md` |
+| `standard` | `review-claude` -> `fix-loop` -> `final-review-claude` -> `final-fix-claude` | `final-fix-claude` | `claude-final-fix.md`, `claude-final-fix-status.json` |
+| `deep` | `review-claude` -> `fix-loop` -> `final-review-claude` -> `final-fix-claude` -> `review-codex` -> `fix-loop-codex` -> `final-review-codex` -> `final-fix-codex` | `final-fix-codex` | `claude-final-fix.md`, `claude-final-fix-status.json`, `codex-final-fix.md`, `codex-final-fix-status.json` |
+
+For every tier, `final-hard-validation` must depend on `final-review-pass-gate`, and commit, PR creation, or handoff must depend on final deterministic acceptance, not directly on implementation or a review step. `light` and `standard` are valid only when the generator selected that tier from bounded complexity signals or the operator explicitly requested it; ambiguous, high-risk, production, security, billing, destructive, or broad multi-file work should use `deep`.
 
 The required deep-tier shape is:
 
@@ -90,7 +100,7 @@ Before writing the workflow, decide *how the agents will coordinate*. The relay 
 | Shape | What it is | Use when |
 |---|---|---|
 | **Conversation** (chat-native) | Interactive agents share a channel; messages, `@-mentions`, and ambient awareness drive coordination. Lead and workers spawn in parallel and self-organize. The relay is the coordination layer, not just transport. | Multi-file work, peer review loops, cross-agent feedback, dynamic re-planning, multi-PR coordination, anything with a human-in-the-loop escape, swarms where workers pick up each other's output. |
-| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no live agent-to-agent coordination during implementation. The selected review-depth review/fix loops still apply before final acceptance. |
+| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no live agent-to-agent coordination during implementation. The selected review-depth path and deterministic final gates still apply. |
 
 **Default to Conversation for any non-trivial work.** Pipeline DAGs are simpler to reason about but they do not exercise the relay primitive — they are a Unix pipe with extra steps. If you would happily write the same task as a single shell pipeline, pipeline-shape is fine. Otherwise, you almost certainly want a Conversation shape.
 
@@ -485,7 +495,7 @@ Encode the loop explicitly:
 5. A fresh self-review agent reads the post-implementation files, recent local conventions, AGENTS.md / CLAUDE.md, and related rules. It should not rely on the implementer's summary.
 6. The implementer gets that feedback and performs a repair pass.
 7. Deterministic gates run with captured output. Red output goes to a repair owner, then the same gate reruns.
-8. Run the selected review-depth fresh-eyes loops. Deep-tier workflows run the full Claude loop followed by the Codex loop; light and standard generated workflows may scale down only when the workflow spec is explicitly classified for that tier.
+8. Run the selected review-depth fresh-eyes loop exactly: light ends after `fix-loop` and `post-fix-validation`; standard adds `final-review-claude` and `final-fix-claude`; deep adds the full Codex loop after the Claude final fix.
 9. Optional extra reviewers can be added for high-stakes work, but they do not replace the selected review-depth loop.
 10. Final signoff only happens after the selected post-fix review path and final deterministic gates prove the spec is complete, or a blocker artifact explains why it cannot be completed.
 
@@ -2016,7 +2026,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Agents receiving noisy cross-channel messages during focused work | Use `relay.mute({ agent, channel })` to silence non-primary channels without leaving them |
 | Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
 | Using `preset: 'worker'` for Codex in *interactive team* patterns when coordination is needed | Codex interactive mode works fine with PTY channel injection. Drop the preset for interactive team patterns (keep it for one-shot DAG workers where clean stdout matters) |
-| Treating the lead's informal review as final signoff | The lead may review during implementation, but final signoff still requires the review-depth fresh-eyes loop selected for the spec |
+| Treating the lead's informal review as final signoff | The lead may review during implementation, but final signoff still requires the selected review-depth fresh-eyes loop and final deterministic acceptance |
 | Not printing PR URL after `createGitHubStep({ action: 'createPR' })` | Capture `html_url` with `output: { mode: 'data', format: 'json', path: 'html_url' }` and echo or write it in a final deterministic step |
 | Workflow ending without worktree + PR for cross-repo changes | Add `setup-worktree` at start and `push-and-pr` + `cleanup-worktree` at end |
 

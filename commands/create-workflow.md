@@ -19,7 +19,8 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 3. **Author the workflow.** Using the WorkflowBuilder API from the skill:
    - Define each step with explicit inputs and `{{steps.X.output}}` chaining.
    - Add a `verify` gate that fails closed on missing evidence.
-   - Add fresh-eyes review/fix loops at the depth warranted by the spec: deep-tier workflows use Claude review/fix/final review/final fix followed by Codex review/fix/final review/final fix; lighter generated workflows may scale down only when deterministic gates, hard validation, and at least one independent Claude review/fix pass remain on the critical path. Bounded loops must reach `NO_ISSUES_FOUND` or write `BLOCKED_NO_COMMIT`.
+   - Add the selected review-depth fresh-eyes path: `light` uses Claude review -> fix; `standard` adds final Claude review -> final fix; `deep` adds the full Codex review/fix/final-review/final-fix path after the Claude path. Default to `deep` when the task is ambiguous, production, security, billing, destructive, or broad multi-file work.
+   - Make final acceptance depend on `final-review-pass-gate`, final hard validation, scoped diff evidence, and regression gates for the selected review-depth path. Never let light or standard skip deterministic proof.
    - Keep prompts model-agnostic — never hardcode a specific model name into a step's instructions.
    - Size steps so a single agent can complete them in one focused pass.
 
@@ -38,7 +39,7 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 ## Output Contract
 
 - The workflow source file (TypeScript or YAML — match the surrounding repo convention).
-- A one-paragraph summary: pattern chosen, agent roster, verify gate, and selected review-depth review/fix loops.
+- A one-paragraph summary: pattern chosen, agent roster, verify gate, selected review depth, and review/fix path.
 - Integration checklist (5 bullets max).
 
 ## Constraints
@@ -46,5 +47,5 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
 - Model-agnostic prompts only. No "use claude-opus" or "use gpt-5" inside step instructions.
 - Verify gates must check evidence (artifacts, test results, file contents), not self-reports.
 - Review fix steps must harden fixes with appropriate tests, fixtures, assertions, or deterministic proof commands whenever the finding is testable.
-- Final acceptance, commit, PR creation, or handoff must depend on the selected post-fix review path, not directly on implementation or tests alone.
+- Final acceptance, commit, PR creation, or handoff must depend on the selected review-depth path plus final deterministic gates, not directly on implementation or an informal lead review.
 - Do not invent SDK APIs — if the skill doesn't document it, ask before adding.

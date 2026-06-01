@@ -32,7 +32,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 
 | Command | Version | Description |
 |---------|---------|-------------|
-| [/create-workflow](commands/create-workflow.md) | 1.0.4 | Scaffold a model-agnostic Agent Relay workflow using the workflow and swarm-pattern skills, including review-depth review/fix loops with test hardening. |
+| [/create-workflow](commands/create-workflow.md) | 1.0.4 | Scaffold a model-agnostic Agent Relay workflow using the workflow and swarm-pattern skills, including selected review-depth review/fix loops with test hardening. |
 | [/spawn](commands/spawn.md) | 1.0.0 | Bootstrap the broker and spawn a worker for `claude`, `codex`, `opencode`, `droid`, `gemini`, or `pi`. |
 | [/review-loop](commands/review-loop.md) | 1.0.1 | Run a dual-reviewer code-review loop with repair and fresh-context signoff. |
 
