@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, mandatory Claude-then-Codex fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
+description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
 ---
 
 # Writing Agent Relay Workflows
@@ -29,7 +29,7 @@ Every generated workflow should satisfy this checklist before it is considered c
 1. Start with a deterministic, resumable preflight for repository state, credentials, and declared write scope.
 2. Pick the coordination shape deliberately: Conversation for non-trivial coordination, Pipeline only for linear one-shot handoffs.
 3. Use repairable validation gates: capture red output with `failOnError: false`, hand it to a repair owner, then rerun the same check.
-4. Run the mandatory fresh-eyes loops in order: Claude review/fix/final review/final fix, then Codex review/fix/final review/final fix.
+4. Run fresh-eyes review at the depth warranted by the spec: deep-tier workflows use Claude review/fix/final review/final fix followed by Codex review/fix/final review/final fix; lighter generated workflows may scale down only when deterministic gates, hard validation, and at least one independent Claude review/fix pass remain on the critical path.
 5. Require review fixers to add or update appropriate tests, fixtures, assertions, or deterministic proofs for testable findings.
 6. Run final deterministic acceptance after the Codex loop and before commit, PR creation, or handoff.
 7. If a real blocker remains, write `BLOCKED_NO_COMMIT` with exact evidence and skip commit/PR creation instead of crashing the workflow.
@@ -47,11 +47,11 @@ The point of an agent team workflow is not to discover a red gate and stop. The 
 
 Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows that are supposed to be self-healing. Even cheap preconditions such as missing credentials, wrong repository, or an unsafe dirty worktree should normally write a clear `BLOCKED_*` artifact and exit cleanly. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
 
-## Mandatory Fresh-Eyes Review Loops
+## Review-Depth Fresh-Eyes Loops
 
-Every workflow must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. This applies even to small workflows and even when deterministic tests pass. Tests prove commands passed; the fresh-eyes loops make independent agents read the actual resulting files and artifacts as if they did not author them.
+Deep-tier workflows must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. Lighter generated workflows may use a scaled review depth only when Ricky classifies the spec as light or standard, deterministic tests and hard validation stay mandatory, and at least one independent Claude review/fix pass reads the resulting files and artifacts as if it did not author them.
 
-The required shape is:
+The required deep-tier shape is:
 
 1. `claude-review`: Claude reads the spec, repo rules, changed files, artifacts, test evidence, and final diff. It must produce a durable review artifact with either actionable findings or an explicit `NO_ISSUES_FOUND` verdict.
 2. `claude-fix`: a fixer repairs every valid Claude finding, adds or updates appropriate tests/proofs for the fix, reruns the relevant checks, and records what changed. If the review found no issues, it records that no fix was needed.
@@ -485,11 +485,11 @@ Encode the loop explicitly:
 5. A fresh self-review agent reads the post-implementation files, recent local conventions, AGENTS.md / CLAUDE.md, and related rules. It should not rely on the implementer's summary.
 6. The implementer gets that feedback and performs a repair pass.
 7. Deterministic gates run with captured output. Red output goes to a repair owner, then the same gate reruns.
-8. Run the mandatory fresh-eyes review loops in sequence: Claude reviews the actual final diff and artifacts, a fixer repairs findings and hardens them with appropriate tests/proofs, Claude reviews the post-fix state again, then Codex repeats the same cycle from scratch over the post-Claude-fix state.
-9. Optional extra reviewers can be added for high-stakes work, but they do not replace the sequential Claude-then-Codex loops.
-10. Final signoff only happens after post-Codex-fix review and final deterministic gates prove the spec is complete, or a blocker artifact explains why it cannot be completed.
+8. Run the selected review-depth fresh-eyes loops. Deep-tier workflows run the full Claude loop followed by the Codex loop; light and standard generated workflows may scale down only when Ricky selected that tier.
+9. Optional extra reviewers can be added for high-stakes work, but they do not replace the selected review-depth loop.
+10. Final signoff only happens after the selected post-fix review path and final deterministic gates prove the spec is complete, or a blocker artifact explains why it cannot be completed.
 
-For small doc/spec workflows, a lead + author + the mandatory Claude-then-Codex review/fix loops is enough. For serious implementation workflows, do not collapse implementer self-reflection, shadow review, independent review, final dual review, and repair into one vague "review" step.
+For small doc/spec workflows, a lead + author + the selected review-depth review/fix loop is enough. For serious implementation workflows, do not collapse implementer self-reflection, shadow review, independent review, final dual review when selected, and repair into one vague "review" step.
 
 **Critical TypeScript rules:**
 1. Check the project's `package.json` for `"type": "module"` — if ESM, use `import`; if CJS, use `require()`. In both cases, wrap execution in an async function instead of raw top-level `await`.
@@ -612,7 +612,7 @@ Use this pattern only when the workflow is supposed to own repository delivery:
 
 1. Preflight the git state and fail on unexpected staged changes.
 2. Create or verify the intended branch.
-3. Run implementation, repairable validation, the mandatory sequential Claude-then-Codex review/fix loops, and final acceptance gates.
+3. Run implementation, repairable validation, the selected review-depth review/fix loops, and final acceptance gates.
 4. Stage only the declared target files and review/signoff artifacts.
 5. Commit with a deterministic message.
 6. Push the branch.
@@ -791,8 +791,8 @@ Do not commit by default:
 Default team split for workflow-authored agent roles:
 
 - **lead / implementer / writer / fixer** → `codex`
-- **first mandatory fresh-eyes review loop** → `claude`
-- **second mandatory fresh-eyes review loop** → `codex`
+- **first fresh-eyes review loop** → `claude`
+- **deep-tier second fresh-eyes review loop** → `codex`
 
 Use Claude as the primary implementer only when there is a specific reason. Use only one reviewer CLI only when the target environment cannot run the other, and record that limitation in the workflow artifact.
 
@@ -1577,7 +1577,7 @@ Tests: <pass/fail summary>. Commit: <sha>."`,
 
 ### Pipeline (sequential handoff)
 
-Use this only for the linear implementation handoff. Production workflows still need repairable validation gates and the mandatory Claude-then-Codex review/fix loops before final acceptance.
+Use this only for the linear implementation handoff. Production workflows still need repairable validation gates and the selected review-depth review/fix loops before final acceptance.
 
 ```typescript
 .pattern('pipeline')
@@ -2008,15 +2008,15 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Codex login checked only with `codex login status` | Add a tiny `codex exec --ephemeral --json --sandbox read-only` preflight probe so stale refresh tokens fail before agent steps |
 | Edit gate uses `git diff --quiet` for new files/packages | `git diff` ignores untracked files and can fail a valid implementation with `NO_CHANGES`; use `git status --short -- <paths>` for materialization gates |
 | Hard-stop validation gates in product workflows | A red check stops the agent team at the exact moment it should fix the problem. Capture gate output with `failOnError: false`, add a repair agent step, rerun, and reserve hard failure for exhausted repair budget or external blockers |
-| Final acceptance before repair and dual review | Broken work can stop or commit without giving the team a final chance to fix it. Run repairable gates first, then the Claude-then-Codex review/fix loops, then final deterministic acceptance before commit/PR |
-| Skipping the mandatory dual review loops | Add sequential Claude-then-Codex fresh-eyes review/fix loops after repairable verification and before final acceptance, commit, PR creation, or handoff |
+| Final acceptance before repair and required review | Broken work can stop or commit without giving the team a final chance to fix it. Run repairable gates first, then the selected review-depth review/fix loop, then final deterministic acceptance before commit/PR |
+| Skipping required review-depth loops | Add the review/fix loop required for the generated review depth after repairable verification and before final acceptance, commit, PR creation, or handoff; deep tier requires sequential Claude-then-Codex fresh-eyes loops |
 | Treating optional notification credentials as fatal | Workflow progress gets blocked by a non-core side effect. Prefer primitive/runtime fallbacks such as the Slack primitive's `cloud-relay` or `noop` shape from AgentWorkforce/relay#823 when notification is not the product contract |
 | Manual peer fanout in `handleChannelMessage()` | Use broker-managed channel subscriptions — broker fans out to all subscribers automatically |
 | Client-side `personaNames.has(from)` filtering | Use `relay.subscribe()`/`relay.unsubscribe()` — only subscribed agents receive messages |
 | Agents receiving noisy cross-channel messages during focused work | Use `relay.mute({ agent, channel })` to silence non-primary channels without leaving them |
 | Hardcoding all channels at spawn time | Use `agent.subscribe()` / `agent.unsubscribe()` for dynamic channel membership post-spawn |
 | Using `preset: 'worker'` for Codex in *interactive team* patterns when coordination is needed | Codex interactive mode works fine with PTY channel injection. Drop the preset for interactive team patterns (keep it for one-shot DAG workers where clean stdout matters) |
-| Treating the lead's informal review as final signoff | The lead may review during implementation, but final signoff still requires the mandatory Claude-then-Codex fresh-eyes review/fix loops |
+| Treating the lead's informal review as final signoff | The lead may review during implementation, but final signoff still requires the review-depth fresh-eyes loop selected for the spec |
 | Not printing PR URL after `createGitHubStep({ action: 'createPR' })` | Capture `html_url` with `output: { mode: 'data', format: 'json', path: 'html_url' }` and echo or write it in a final deterministic step |
 | Workflow ending without worktree + PR for cross-repo changes | Add `setup-worktree` at start and `push-and-pr` + `cleanup-worktree` at end |
 

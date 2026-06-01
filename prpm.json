@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -28,8 +28,8 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.15",
-      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, mandatory Claude-then-Codex fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
+      "version": "1.6.16",
+      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -107,8 +107,8 @@
     },
     {
       "name": "relay-80-100-workflow",
-      "version": "1.0.7",
-      "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with mandatory sequential Claude-then-Codex fresh-eyes review/fix loops with test hardening, PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
+      "version": "1.0.8",
+      "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with review-depth fresh-eyes review/fix loops with test hardening, PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -380,7 +380,7 @@
           "packageId": "@agent-relay/writing-agent-relay-workflows",
           "version": "latest",
           "required": true,
-          "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows with mandatory Claude-then-Codex review/fix loops and test hardening"
+          "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows with review-depth review/fix loops and test hardening"
         },
         {
           "packageId": "@agent-workforce/trail-snippet",
@@ -392,7 +392,7 @@
           "packageId": "@agent-relay/relay-80-100-workflow",
           "version": "latest",
           "required": false,
-          "reason": "E2E validation patterns for workflows that must be production-ready before merging, including dual review/fix loops with test hardening"
+          "reason": "E2E validation patterns for workflows that must be production-ready before merging, including review-depth review/fix loops with test hardening"
         },
         {
           "packageId": "@agent-relay/review-fix-signoff-loop",
