@@ -49,7 +49,7 @@ Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows tha
 
 ## Review-Depth Fresh-Eyes Loops
 
-Deep-tier workflows must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. Lighter generated workflows may use a scaled review depth only when Ricky classifies the spec as light or standard, deterministic tests and hard validation stay mandatory, and at least one independent Claude review/fix pass reads the resulting files and artifacts as if the reviewing agent did not author them.
+Deep-tier workflows must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. Lighter generated workflows may use a scaled review depth only when the workflow spec is explicitly classified as light or standard, deterministic tests and hard validation stay mandatory, and at least one independent Claude review/fix pass reads the resulting files and artifacts as if the reviewing agent did not author them.
 
 The required deep-tier shape is:
 
@@ -485,7 +485,7 @@ Encode the loop explicitly:
 5. A fresh self-review agent reads the post-implementation files, recent local conventions, AGENTS.md / CLAUDE.md, and related rules. It should not rely on the implementer's summary.
 6. The implementer gets that feedback and performs a repair pass.
 7. Deterministic gates run with captured output. Red output goes to a repair owner, then the same gate reruns.
-8. Run the selected review-depth fresh-eyes loops. Deep-tier workflows run the full Claude loop followed by the Codex loop; light and standard generated workflows may scale down only when Ricky selects that tier.
+8. Run the selected review-depth fresh-eyes loops. Deep-tier workflows run the full Claude loop followed by the Codex loop; light and standard generated workflows may scale down only when the workflow spec is explicitly classified for that tier.
 9. Optional extra reviewers can be added for high-stakes work, but they do not replace the selected review-depth loop.
 10. Final signoff only happens after the selected post-fix review path and final deterministic gates prove the spec is complete, or a blocker artifact explains why it cannot be completed.
 
@@ -1277,9 +1277,9 @@ Use for: file checks, reading files for injection, build/test gates, git operati
 
 ## Common Patterns
 
-### Mandatory Claude-Then-Codex Review/Fix Loops
+### Deep-Tier Claude-Then-Codex Review/Fix Loops
 
-Place these loops after implementation and repairable verification, before final acceptance, commit, PR creation, or handoff. Claude reviews and fixes first; Codex then reviews and fixes the post-Claude state from scratch. The example uses two unrolled review/fix rounds per CLI because WorkflowBuilder is DAG-shaped; add more rounds for high-risk work.
+Use this shape when the selected review depth is deep. Place the loops after implementation and repairable verification, before final acceptance, commit, PR creation, or handoff. Claude reviews and fixes first; Codex then reviews and fixes the post-Claude state from scratch. The example uses two unrolled review/fix rounds per CLI because WorkflowBuilder is DAG-shaped; add more rounds for high-risk work.
 
 ```typescript
 .agent('claude-reviewer', {
