@@ -31,7 +31,7 @@ Every generated workflow should satisfy this checklist before it is considered c
 3. Use repairable validation gates: capture red output with `failOnError: false`, hand it to a repair owner, then rerun the same check.
 4. Run fresh-eyes review at the depth warranted by the spec: deep-tier workflows use Claude review/fix/final review/final fix followed by Codex review/fix/final review/final fix; lighter generated workflows may scale down only when deterministic gates, hard validation, and at least one independent Claude review/fix pass remain on the critical path.
 5. Require review fixers to add or update appropriate tests, fixtures, assertions, or deterministic proofs for testable findings.
-6. Run final deterministic acceptance after the Codex loop and before commit, PR creation, or handoff.
+6. Run final deterministic acceptance after the selected post-fix review path and before commit, PR creation, or handoff.
 7. If a real blocker remains, write `BLOCKED_NO_COMMIT` with exact evidence and skip commit/PR creation instead of crashing the workflow.
 8. If the workflow owns shipping, model branch, commit, push, PR creation, and PR URL verification as explicit deterministic steps.
 
@@ -49,7 +49,7 @@ Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows tha
 
 ## Review-Depth Fresh-Eyes Loops
 
-Deep-tier workflows must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. Lighter generated workflows may use a scaled review depth only when Ricky classifies the spec as light or standard, deterministic tests and hard validation stay mandatory, and at least one independent Claude review/fix pass reads the resulting files and artifacts as if it did not author them.
+Deep-tier workflows must include two comprehensive fresh-eyes review/fix loops before final acceptance, commit, PR creation, or handoff: first Claude, then Codex. Lighter generated workflows may use a scaled review depth only when Ricky classifies the spec as light or standard, deterministic tests and hard validation stay mandatory, and at least one independent Claude review/fix pass reads the resulting files and artifacts as if the reviewing agent did not author them.
 
 The required deep-tier shape is:
 
@@ -61,11 +61,11 @@ The required deep-tier shape is:
 6. `codex-fix`: a fixer repairs every valid Codex finding, adds or updates appropriate tests/proofs for the fix, reruns relevant checks, and records what changed.
 7. `codex-review-final`: Codex reviews the post-fix state from scratch.
 8. `codex-fix-final`: if the final Codex review still finds issues, fix them, add or update appropriate tests/proofs, and rerun checks. If anything cannot be fixed, write `BLOCKED_NO_COMMIT`.
-9. Final acceptance/commit/PR steps depend on the post-Codex-fix review path, not directly on implementation, tests, or the Claude loop.
+9. Final acceptance/commit/PR steps depend on the selected post-fix review path, not directly on implementation or tests alone. In deep-tier workflows, that means the post-Codex-fix review path.
 
 Because WorkflowBuilder DAGs do not provide an unbounded dynamic `while` loop, model this as explicit bounded review/fix loops plus a final signoff gate. Inside each fix step, instruct the agent to keep iterating locally: review the finding, edit, add or update appropriate regression tests/proofs, rerun targeted checks, review its own fix, and repeat until that round has no remaining valid issues. For high-risk workflows, add more unrolled review/fix rounds or split the reviews into focused reviewers by subsystem.
 
-Use Claude first and Codex second unless one of those CLIs is unavailable in the target environment. If one is unavailable, write that limitation into the workflow artifact and keep the remaining review loop mandatory.
+When the selected review depth includes both reviewers, use Claude first and Codex second unless one of those CLIs is unavailable in the target environment. If one is unavailable, write that limitation into the workflow artifact and keep the remaining review loop mandatory.
 
 Review artifacts should use a consistent schema so later steps can act on them deterministically:
 
@@ -90,7 +90,7 @@ Before writing the workflow, decide *how the agents will coordinate*. The relay 
 | Shape | What it is | Use when |
 |---|---|---|
 | **Conversation** (chat-native) | Interactive agents share a channel; messages, `@-mentions`, and ambient awareness drive coordination. Lead and workers spawn in parallel and self-organize. The relay is the coordination layer, not just transport. | Multi-file work, peer review loops, cross-agent feedback, dynamic re-planning, multi-PR coordination, anything with a human-in-the-loop escape, swarms where workers pick up each other's output. |
-| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no live agent-to-agent coordination during implementation. The mandatory final Claude-then-Codex review/fix loops still apply. |
+| **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no live agent-to-agent coordination during implementation. The selected review-depth review/fix loops still apply before final acceptance. |
 
 **Default to Conversation for any non-trivial work.** Pipeline DAGs are simpler to reason about but they do not exercise the relay primitive — they are a Unix pipe with extra steps. If you would happily write the same task as a single shell pipeline, pipeline-shape is fine. Otherwise, you almost certainly want a Conversation shape.
 
@@ -485,7 +485,7 @@ Encode the loop explicitly:
 5. A fresh self-review agent reads the post-implementation files, recent local conventions, AGENTS.md / CLAUDE.md, and related rules. It should not rely on the implementer's summary.
 6. The implementer gets that feedback and performs a repair pass.
 7. Deterministic gates run with captured output. Red output goes to a repair owner, then the same gate reruns.
-8. Run the selected review-depth fresh-eyes loops. Deep-tier workflows run the full Claude loop followed by the Codex loop; light and standard generated workflows may scale down only when Ricky selected that tier.
+8. Run the selected review-depth fresh-eyes loops. Deep-tier workflows run the full Claude loop followed by the Codex loop; light and standard generated workflows may scale down only when Ricky selects that tier.
 9. Optional extra reviewers can be added for high-stakes work, but they do not replace the selected review-depth loop.
 10. Final signoff only happens after the selected post-fix review path and final deterministic gates prove the spec is complete, or a blocker artifact explains why it cannot be completed.
 
@@ -786,7 +786,7 @@ Do not commit by default:
 - retry artifacts
 - temporary step-output files
 
-### 5. Prefer Codex for implementation-heavy roles and dual review loops
+### 5. Prefer Codex for implementation-heavy roles and deep-tier second review loops
 
 Default team split for workflow-authored agent roles:
 
@@ -2009,7 +2009,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Edit gate uses `git diff --quiet` for new files/packages | `git diff` ignores untracked files and can fail a valid implementation with `NO_CHANGES`; use `git status --short -- <paths>` for materialization gates |
 | Hard-stop validation gates in product workflows | A red check stops the agent team at the exact moment it should fix the problem. Capture gate output with `failOnError: false`, add a repair agent step, rerun, and reserve hard failure for exhausted repair budget or external blockers |
 | Final acceptance before repair and required review | Broken work can stop or commit without giving the team a final chance to fix it. Run repairable gates first, then the selected review-depth review/fix loop, then final deterministic acceptance before commit/PR |
-| Skipping required review-depth loops | Add the review/fix loop required for the generated review depth after repairable verification and before final acceptance, commit, PR creation, or handoff; deep tier requires sequential Claude-then-Codex fresh-eyes loops |
+| Skipping required review-depth loops | Add the review/fix loop required for the selected review depth after repairable verification and before final acceptance, commit, PR creation, or handoff; deep tier requires sequential Claude-then-Codex fresh-eyes loops |
 | Treating optional notification credentials as fatal | Workflow progress gets blocked by a non-core side effect. Prefer primitive/runtime fallbacks such as the Slack primitive's `cloud-relay` or `noop` shape from AgentWorkforce/relay#823 when notification is not the product contract |
 | Manual peer fanout in `handleChannelMessage()` | Use broker-managed channel subscriptions — broker fans out to all subscribers automatically |
 | Client-side `personaNames.has(from)` filtering | Use `relay.subscribe()`/`relay.unsubscribe()` — only subscribed agents receive messages |
