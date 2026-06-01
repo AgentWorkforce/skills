@@ -9,7 +9,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | Skill | Version | Description |
 |-------|---------|-------------|
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.3 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
-| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.16 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, review-depth review/fix loops with test hardening, channels, and chat-native coordination recipes. |
+| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.17 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, review-depth review/fix loops with test hardening, channels, and chat-native coordination recipes. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.0 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.3.0 | Participant-side MCP reference for a **registered** relay agent (spawned worker / registered lead): messaging, channels, threads, reactions, search, webhooks. Counterpart to `orchestrating-agent-relay`. |
 | [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.1.2 | The canonical way to run agent-relay: self-bootstrap the broker and autonomously spawn, monitor, and coordinate a worker team without human intervention. |
