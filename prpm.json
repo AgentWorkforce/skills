@@ -285,6 +285,29 @@
       ]
     },
     {
+      "name": "creating-cloud-persona",
+      "version": "1.0.0",
+      "description": "Use when creating or updating a Workforce cloud persona (persona.json + agent.ts) for the current deploy/runtime shape: defineAgent(...) triggers/schedules/watch in agent.ts, flat top-level harness/model/systemPrompt/harnessSettings, integrations, memory, onEvent, provider IO via @relayfile/relay-helpers, and the agent-driven login then deploy flow.",
+      "format": "claude",
+      "subtype": "skill",
+      "languages": [
+        "typescript",
+        "json"
+      ],
+      "tags": [
+        "persona",
+        "cloud",
+        "workforce",
+        "defineAgent",
+        "relay-helpers",
+        "deploy"
+      ],
+      "files": [
+        "skills/creating-cloud-persona/SKILL.md",
+        "skills/creating-cloud-persona/references/workforce-cloud-persona-notes.md"
+      ]
+    },
+    {
       "name": "auto-merge-and-composition-safety",
       "version": "1.0.0",
       "description": "Use before auto-merging any PR in an autonomous run, and between consecutive merges that touch overlapping code. Covers the per-PR auto-merge bar (live CI verification, substantive review by area, bot-finding stale-vs-actionable triage) and the cross-PR composition discipline (serialize through green main, rebase + re-CI between merges, dormant-safety audit, force-reset over half-merged commits).",
