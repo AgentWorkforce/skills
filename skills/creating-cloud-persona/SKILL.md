@@ -45,8 +45,7 @@ For cloud personas, expect fields like:
 - `description`
 - `cloud: true`
 - `useSubscription` (optional)
-- `integrations` (optional)
-- `schedules` (optional)
+- `integrations` (optional, for provider connection requirements)
 - `memory` (optional)
 - `onEvent`
 - top-level runtime fields:
@@ -54,7 +53,7 @@ For cloud personas, expect fields like:
   - `model`
   - `systemPrompt`
   - `harnessSettings`
-- optional `inputs`, `env`, `skills`, `permissions`, `mount`, `mcpServers`
+- optional `inputs`, `env`, `skills`, `permissions`, `mount`, `mcpServers`, `capabilities`
 
 Do **not** author older `tiers` / `defaultTier` structures unless the repo explicitly still uses them. The latest Workforce examples use flat top-level runtime fields.
 
@@ -103,9 +102,9 @@ Cloud agents currently have three practical wakeup shapes, and they are authored
 
 ## Authoring rules
 
-### 1. Prefer one handler file
+### 1. Prefer one `defineAgent(...)` file
 
-Default to one `agent.ts` per persona with internal branching:
+Default to one `agent.ts` per persona, exporting one `defineAgent({...})` with internal branching:
 
 - `if (event.source === 'cron') ...`
 - `if (event.source === 'github' && event.type === 'pull_request.opened') ...`
@@ -118,9 +117,9 @@ Use `defineAgent(...)` to declare **what can wake the agent**.
 Do not try to encode the workflow in `persona.json`.
 The actual routing and business logic belong in `agent.ts`.
 
-### 3. Only declare integrations the handler actually uses
+### 3. Only declare integrations the agent actually needs connected
 
-If `agent.ts` never touches `ctx.slack`, do not declare Slack just because it might be useful later.
+If `agent.ts` never uses Slack behavior or Slack-backed writes, do not declare Slack in `persona.json` just because it might be useful later.
 
 ### 4. Schedules are named APIs
 
@@ -149,10 +148,10 @@ Examples:
 
 Do not enable memory by reflex if the persona is purely stateless.
 
-### 6. `systemPrompt` should define the agent’s role, not the trigger plumbing
+### 6. `systemPrompt` should define the agent’s role, not the listener plumbing
 
 The prompt should say what kind of agent this is and what quality bar it follows.
-Do not stuff trigger-routing details into the prompt when they are already in code.
+Do not stuff listener-routing details into the prompt when they are already in code.
 
 ## Good starter pattern
 
@@ -247,6 +246,7 @@ When reading provider payloads:
 - treat `event.payload` as provider-normalized but still loosely typed
 - write small local extractor helpers instead of spreading unsafe casts everywhere
 - validate required identifiers early and fail clearly
+- prefer `defineAgent({...})` + helper functions over giant inline `if` blocks
 
 ## Context usage guidance
 
@@ -325,7 +325,7 @@ Agent:
 
 - `defineAgent({ triggers: { <provider>: [...] } })`
 - branch on provider source
-- branch on trigger type
+- branch on event type
 - extract target identifiers from payload
 - optionally load prior memory
 - call harness for judgment/output
@@ -348,7 +348,7 @@ Avoid these:
 - writing old `tiers`-based personas when the repo uses flat runtime fields
 - putting business logic into `persona.json`
 - declaring integrations that `agent.ts` never uses
-- declaring `defineAgent(...).triggers` or `schedules` without implementing branches for them
+- declaring `defineAgent(...).triggers`, `schedules`, or `watch` without implementing branches for them
 - using `systemPrompt` as a substitute for explicit code routing
 - giant unstructured handlers with no helper functions
 - shelling out for provider operations that already exist on `ctx`
@@ -364,7 +364,7 @@ Before declaring the persona done:
    - `triggers`, or
    - `schedules`, or
    - `watch`
-4. every declared trigger/schedule/watch path has a code path in `handler`
+4. every declared trigger, schedule, or watch rule has a code path in `handler`
 5. every provider named in `agent.ts` listener config is also declared in `persona.json.integrations`
 6. `systemPrompt` describes the role clearly
 7. harness/model/settings fit the job
