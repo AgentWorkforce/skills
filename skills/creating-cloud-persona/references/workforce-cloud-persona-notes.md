@@ -10,7 +10,8 @@ Use these notes to ground the skill in the current repo shape.
   - `systemPrompt`
   - `harnessSettings`
 - `onEvent` points to the handler entrypoint, usually `./agent.ts`
-- Triggers are declared on the persona, but handler logic lives in `agent.ts`
+- Trigger, schedule, and watch declarations now live in `agent.ts` via `defineAgent(...)`
+- `persona.json.integrations` is for connection/setup requirements, not event trigger declaration
 - Runtime events are currently shaped around:
   - `source: 'cron'` plus `name`
   - provider events with `source`, `type`, `payload`
@@ -28,11 +29,12 @@ Use these notes to ground the skill in the current repo shape.
 
 ## Important nuance
 
-Older plan/docs may still mention `tiers` or older phrasing around deployability. Prefer the real example personas and current `persona-kit` / runtime types over older planning text when they conflict.
+Older plan/docs may still mention `tiers`, old proactive shapes, or trigger declarations on the persona. Prefer the real example personas, `defineAgent(...)` examples, and current `persona-kit` / runtime types over older planning text when they conflict.
 
 ## Authoring heuristic
 
-- Put wakeup declarations in `persona.json`
-- Put branch logic and side effects in `agent.ts`
-- Keep one persona = one coherent job
+- Put deploy/runtime config and integration connection requirements in `persona.json`
+- Put wakeup declarations in `defineAgent(...)` inside `agent.ts`
+- Put branch logic and side effects in the handler
+- Keep one persona/agent = one coherent job
 - Keep the handler imperative and readable

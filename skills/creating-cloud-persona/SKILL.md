@@ -1,6 +1,6 @@
 ---
 name: creating-cloud-persona
-description: Use when creating or updating a Workforce cloud persona (`persona.json` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, `integrations`, `schedules`, `memory`, `onEvent`, current top-level `harness`/`model`/`systemPrompt`/`harnessSettings`, and the event-handler pattern where triggers route into `agent.ts`. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add schedules/integrations to a persona”, or “author the agent.ts handler for a workforce persona”.
+description: Use when creating or updating a Workforce cloud persona (`persona.json` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, `integrations`, `memory`, `onEvent`, current top-level `harness`/`model`/`systemPrompt`/`harnessSettings`, and the latest `defineAgent(...)` pattern where triggers, schedules, and watch rules are declared in `agent.ts`, not in `persona.json`. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, or “author the agent.ts handler for a workforce persona”.
 ---
 
 # Creating Cloud Persona
@@ -14,8 +14,8 @@ A cloud persona is two things together:
 1. `persona.json` declares **deployment metadata and runtime wiring**
 2. `agent.ts` implements the **actual behavior**
 
-Important: **triggers are declared in the persona, but the behavior lives in `agent.ts`.**
-The handler branches on `event.source` and `event.type`.
+Important: **triggers, schedules, and watch rules are declared in `agent.ts` via `defineAgent(...)`, while `persona.json` declares deploy/runtime config and integration connection requirements.**
+The handler branches on `event.source` and `event.type` or `event.name`.
 
 ## First read
 
@@ -64,15 +64,16 @@ Do **not** author older `tiers` / `defaultTier` structures unless the repo expli
 
 - declares whether the persona is deployable
 - chooses the harness/model/runtime knobs
-- declares which integrations are attached
-- declares which triggers can wake the agent
-- declares schedules
+- declares which integrations must be connected
 - enables memory
 - points at the handler entrypoint
+- optionally declares capabilities/metadata
 
 ### `agent.ts` does
 
-- receives `ctx` and `event`
+- exports `defineAgent({...})`
+- declares `triggers`, `schedules`, and optionally `watch`
+- receives `ctx` and `event` in `handler`
 - inspects `event.source`
 - inspects `event.type` or `event.name`
 - calls integration clients on `ctx` (`ctx.github`, `ctx.linear`, `ctx.slack`, etc.)
@@ -82,19 +83,23 @@ Do **not** author older `tiers` / `defaultTier` structures unless the repo expli
 
 ## Trigger model
 
-Cloud personas currently have three practical wakeup shapes:
+Cloud agents currently have three practical wakeup shapes, and they are authored in `agent.ts`:
 
-1. **Clock** via `schedules[]`
+1. **Clock** via `defineAgent({ schedules: [...] })`
    - runtime event source: `cron`
    - branch on `event.source === 'cron'`
    - discriminate with `event.name`
 
-2. **Radio** via `integrations.<provider>.triggers[]`
+2. **Radio** via `defineAgent({ triggers: { <provider>: [...] } })`
    - runtime event source: provider name like `github`, `linear`, `slack`, `notion`, `jira`
    - branch on `event.source`
    - then branch on `event.type`
 
-3. **Inbox** is part of the runtime model, but do not invent a persona schema field for it unless the current repo already supports it explicitly.
+3. **Relayfile watch** via `defineAgent({ watch: [...] })`
+   - for file/path-driven proactive behavior
+   - keep this for cases that are truly about Relayfile path changes, not provider event hooks
+
+`persona.json.integrations` still matters, but for **connection/setup**, not for declaring which events fire the handler.
 
 ## Authoring rules
 
@@ -107,10 +112,10 @@ Default to one `agent.ts` per persona with internal branching:
 
 Do not split into many handlers unless the behavior is truly large.
 
-### 2. Keep triggers declarative, behavior imperative
+### 2. Keep wakeups declarative in `defineAgent(...)`, behavior imperative in the handler
 
-Use persona triggers only to declare **what can wake the persona**.
-Do not try to encode the workflow in JSON.
+Use `defineAgent(...)` to declare **what can wake the agent**.
+Do not try to encode the workflow in `persona.json`.
 The actual routing and business logic belong in `agent.ts`.
 
 ### 3. Only declare integrations the handler actually uses
@@ -118,6 +123,8 @@ The actual routing and business logic belong in `agent.ts`.
 If `agent.ts` never touches `ctx.slack`, do not declare Slack just because it might be useful later.
 
 ### 4. Schedules are named APIs
+
+Declare schedules in `defineAgent({ schedules: [...] })`, not in `persona.json`.
 
 Every schedule name should mean something operationally useful, because `event.name` is what the handler receives.
 
@@ -162,16 +169,8 @@ Use this shape unless there is a strong reason not to.
   "cloud": true,
   "useSubscription": true,
   "integrations": {
-    "github": {
-      "triggers": [
-        { "on": "pull_request.opened" },
-        { "on": "issue_comment.created", "match": "@mention" },
-        { "on": "check_run.completed", "where": "conclusion=failure" }
-      ]
-    },
-    "slack": {
-      "triggers": [{ "on": "app_mention" }]
-    }
+    "github": {},
+    "slack": {}
   },
   "memory": {
     "enabled": true,
@@ -193,32 +192,43 @@ Use this shape unless there is a strong reason not to.
 ### agent.ts
 
 ```ts
-import { handler } from '@agentworkforce/runtime';
+import { defineAgent } from '@agentworkforce/runtime';
 
-export default handler(async (ctx, event) => {
-  if (event.source === 'github') {
-    if (event.type === 'pull_request.opened') {
-      // review flow
+export default defineAgent({
+  triggers: {
+    github: [
+      { on: 'pull_request.opened' },
+      { on: 'issue_comment.created', match: '@mention' },
+      { on: 'check_run.completed', where: 'conclusion=failure' }
+    ],
+    slack: [{ on: 'app_mention' }]
+  },
+  schedules: [{ name: 'daily-triage', cron: '0 9 * * 1-5', tz: 'UTC' }],
+  handler: async (ctx, event) => {
+    if (event.source === 'github') {
+      if (event.type === 'pull_request.opened') {
+        // review flow
+        return;
+      }
+      if (event.type === 'issue_comment.created') {
+        // mention reply flow
+        return;
+      }
+      if (event.type === 'check_run.completed') {
+        // failed-CI reaction flow
+        return;
+      }
+    }
+
+    if (event.source === 'slack' && event.type === 'app_mention') {
+      // slack reply flow
       return;
     }
-    if (event.type === 'issue_comment.created') {
-      // mention reply flow
+
+    if (event.source === 'cron' && event.name === 'daily-triage') {
+      // scheduled flow
       return;
     }
-    if (event.type === 'check_run.completed') {
-      // failed-CI reaction flow
-      return;
-    }
-  }
-
-  if (event.source === 'slack' && event.type === 'app_mention') {
-    // slack reply flow
-    return;
-  }
-
-  if (event.source === 'cron' && event.name === 'daily-triage') {
-    // scheduled flow
-    return;
   }
 });
 ```
@@ -283,17 +293,17 @@ Do not put secrets into `inputs`.
 
 ### Scheduled digest
 
-Use when the persona runs on a cron schedule and writes a summary somewhere.
+Use when the agent runs on a cron schedule and writes a summary somewhere.
 
 Persona:
 
 - `cloud: true`
-- one `schedules[]` entry
-- often one integration target like `github` or `slack`
+- integration connection declarations like `github` or `slack`
 - optional `inputs` for topics/repos/channels
 
-Handler:
+Agent:
 
+- `defineAgent({ schedules: [...] })`
 - branch on `event.source === 'cron'`
 - use `event.name` to select the schedule
 - fetch/search/gather
@@ -303,32 +313,33 @@ Handler:
 
 ### Integration-triggered reviewer
 
-Use when the persona wakes on GitHub, Linear, Slack, etc.
+Use when the agent wakes on GitHub, Linear, Slack, etc.
 
 Persona:
 
-- `integrations.<provider>.triggers[]`
+- `integrations.<provider>` for connection requirements
 - `useSubscription: true` if the judgment should run on the user’s linked provider path
 - often `memory.workspace`
 
-Handler:
+Agent:
 
+- `defineAgent({ triggers: { <provider>: [...] } })`
 - branch on provider source
 - branch on trigger type
 - extract target identifiers from payload
 - optionally load prior memory
 - call harness for judgment/output
-- write back via provider client
+- write back via provider client or Relayfile draft writes
 
-### Mixed schedule + integrations persona
+### Mixed schedule + integrations agent
 
-Fine to combine both in one persona when the role is coherent.
+Fine to combine both in one cloud agent when the role is coherent.
 Examples:
 
 - responds to Slack mentions and also runs a daily cleanup
 - reacts to GitHub events and runs a weekly scan
 
-Do not combine unrelated jobs into one persona just because the runtime allows it.
+Do not combine unrelated jobs into one agent just because the runtime allows it.
 
 ## Anti-patterns
 
@@ -337,7 +348,7 @@ Avoid these:
 - writing old `tiers`-based personas when the repo uses flat runtime fields
 - putting business logic into `persona.json`
 - declaring integrations that `agent.ts` never uses
-- declaring triggers without implementing branches for them
+- declaring `defineAgent(...).triggers` or `schedules` without implementing branches for them
 - using `systemPrompt` as a substitute for explicit code routing
 - giant unstructured handlers with no helper functions
 - shelling out for provider operations that already exist on `ctx`
@@ -349,11 +360,12 @@ Before declaring the persona done:
 
 1. `persona.json` matches the current schema shape used in examples
 2. `cloud` personas include `onEvent`
-3. at least one trigger source exists:
-   - `integrations.*.triggers[]`, or
-   - `schedules[]`
-4. every declared trigger has a code path in `agent.ts`
-5. every integration used in code is declared in `persona.json`
+3. `agent.ts` uses `defineAgent(...)` with at least one listener source:
+   - `triggers`, or
+   - `schedules`, or
+   - `watch`
+4. every declared trigger/schedule/watch path has a code path in `handler`
+5. every provider named in `agent.ts` listener config is also declared in `persona.json.integrations`
 6. `systemPrompt` describes the role clearly
 7. harness/model/settings fit the job
 8. memory config is intentional, not accidental
@@ -366,6 +378,7 @@ When creating or editing a cloud persona, return:
 1. the full `persona.json`
 2. the full `agent.ts`
 3. a short note explaining:
-   - why the chosen triggers belong in the persona
+   - why the chosen listener declarations belong in `defineAgent(...)`
+   - why the chosen deploy/runtime config belongs in `persona.json`
    - why the chosen behavior belongs in `agent.ts`
    - which current Workforce example the shape most closely follows
