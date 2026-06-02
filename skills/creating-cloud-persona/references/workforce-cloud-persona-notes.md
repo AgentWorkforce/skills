@@ -16,7 +16,7 @@ Use these notes to ground the skill in the current repo shape.
   - `source: 'cron'` plus `name`
   - provider events with `source`, `type`, `payload`
 - There are **no** per-provider clients on `ctx` (`ctx.github` / `ctx.linear` were removed). Provider reads/writes use **`@relayfile/relay-helpers`** — catalog-backed factory clients (`linearClient().comment(...)`, `slackClient().post(...)`, `githubClient().mergePullRequest(...)`, generic `relayClient(provider)` / `providerClient(provider)`). Writes are draft files the Relayfile writeback worker materializes into real provider calls. The raw `@agentworkforce/runtime` VFS helpers (`readJsonFile`/`writeJsonFile`/`draftFile`/`resolveMountRoot`) are the lower-level fallback for non-catalog reads
-- Deploy is **agent-driven** via the `agentworkforce` CLI: the agent runs `deploy --dry-run` then `deploy <persona> --mode cloud --on-exists update` (default `--on-exists` is `cancel`, a silent no-op) and reports the live link; the human runs the interactive `login` (stores `~/.agentworkforce/active.json`) and finishes each integration-connect popup
+- Deploy is **agent-driven** via the `agentworkforce` CLI: the agent runs `deploy <persona> --mode cloud --dry-run` then `deploy <persona> --mode cloud --on-exists update` (default `--on-exists` is `cancel`, a silent no-op) and reports the live link; the human runs the interactive `login` (stores `~/.agentworkforce/active.json`) and finishes each integration-connect popup
 
 ## Good source files to inspect
 
