@@ -117,7 +117,7 @@ Use `defineAgent(...)` to declare **what can wake the agent**.
 Do not try to encode the workflow in `persona.json`.
 The actual routing and business logic belong in `agent.ts`.
 
-### 3. Only declare integrations the agent actually needs connected
+### 3. Only declare integrations the agent actually requires
 
 If `agent.ts` never uses Slack behavior or Slack-backed writes, do not declare Slack in `persona.json` just because it might be useful later.
 
@@ -263,7 +263,7 @@ The useful pieces on `ctx` are typically:
 - `ctx.workflow.*`
 - `ctx.log(...)`
 
-Prefer direct typed runtime helpers over custom shelling out.
+Prefer direct typed runtime helpers over invoking external commands.
 
 ## When to use `ctx.harness.run(...)`
 
@@ -351,7 +351,7 @@ Avoid these:
 - declaring `defineAgent(...).triggers`, `schedules`, or `watch` without implementing branches for them
 - using `systemPrompt` as a substitute for explicit code routing
 - giant unstructured handlers with no helper functions
-- shelling out for provider operations that already exist on `ctx`
+- invoking external commands for provider operations that already exist on `ctx`
 - assuming all provider payload fields exist without validation
 
 ## Validation checklist

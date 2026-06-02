@@ -18,14 +18,14 @@ Use these notes to ground the skill in the current repo shape.
 
 ## Good source files to inspect
 
-- `examples/review-agent/persona.json`
-- `examples/review-agent/agent.ts`
-- `examples/weekly-digest/persona.json`
-- `examples/weekly-digest/agent.ts`
-- `packages/persona-kit/src/types.ts`
-- `packages/runtime/src/types.ts`
-- `packages/persona-kit/schemas/persona.schema.json`
-- `packages/deploy/src/preflight.ts`
+- `workforce/examples/review-agent/persona.json`
+- `workforce/examples/review-agent/agent.ts`
+- `workforce/examples/weekly-digest/persona.json`
+- `workforce/examples/weekly-digest/agent.ts`
+- `workforce/packages/persona-kit/src/types.ts`
+- `workforce/packages/runtime/src/types.ts`
+- `workforce/packages/persona-kit/schemas/persona.schema.json`
+- `workforce/packages/deploy/src/preflight.ts`
 
 ## Important nuance
 
