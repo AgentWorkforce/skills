@@ -1,13 +1,13 @@
 ---
 name: workspace-layout
-description: Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/LAYOUT.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>` (ticket number / slug first so listings are scannable). NOT for activity-summary questions, which should use the `activity-summary` skill instead.
+description: Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/.layout.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>` (ticket number / slug first so listings are scannable). NOT for activity-summary questions, which should use the `activity-summary` skill instead.
 ---
 
 # Workspace Layout — Start With LAYOUT.md
 
 ## Overview
 
-A relayfile mount is **self-describing**. Every workspace has a `LAYOUT.md` at its root, and every provider has a `LAYOUT.md` at its provider root, that together describe the directory shape, the filename conventions, and the indexes available for fast lookup. Read these first. Do not guess paths from memory — provider layouts can be customized per workspace and the indexes available may differ.
+A relayfile mount is **self-describing**. Every workspace has a `LAYOUT.md` at its root, and every provider has a `.layout.md` at its provider root, that together describe the directory shape, the filename conventions, and the indexes available for fast lookup. Read these first. Do not guess paths from memory — provider layouts can be customized per workspace and the indexes available may differ.
 
 ## When to use this skill
 
@@ -29,7 +29,7 @@ The root `LAYOUT.md` lists the connected providers, the digests directory, the s
 ## Step 2: Read the provider layout
 
 ```bash
-$ cat $MOUNT/linear/LAYOUT.md
+$ cat $MOUNT/linear/.layout.md
 ```
 
 The per-provider layout covers:
@@ -86,9 +86,9 @@ We borrowed the `<identifier>__<uuid>` shape from [Mirage](https://github.com/st
 ### "Where does X live?"
 
 ```bash
-cat $MOUNT/LAYOUT.md           # provider list and cross-cutting layout
-cat $MOUNT/<provider>/LAYOUT.md   # provider-specific shape
-ls   $MOUNT/<provider>/         # top-level resource directories
+cat $MOUNT/LAYOUT.md              # provider list and cross-cutting layout
+cat $MOUNT/<provider>/.layout.md  # provider-specific shape
+ls   $MOUNT/<provider>/           # top-level resource directories
 ls   $MOUNT/<provider>/<resource>/by-*/   # available indexes
 ```
 
@@ -113,4 +113,5 @@ Use `by-title/` or `by-name/` rather than `find`. The index is sorted and bounde
 
 - **Don't `grep -r` over the mount** for a title or name. There's an index. Use it.
 - **Don't hardcode paths from a different workspace's LAYOUT.md.** Workspaces can customize which adapters and indexes are mounted.
-- **Don't ignore provider `LAYOUT.md`.** If you wrote a Notion-specific path from memory and it doesn't exist, the provider's `LAYOUT.md` will tell you the actual shape in one read.
+<<<<<<< HEAD
+- **Don't ignore `.layout.md`.** If you wrote a Notion-specific path from memory and it doesn't exist, the provider's `.layout.md` will tell you the actual shape in one read.

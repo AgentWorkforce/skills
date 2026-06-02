@@ -28,7 +28,7 @@ Bootstrap the agent-relay broker (if not already running) and spawn a worker on 
 4. **Ensure a coordination channel exists.** Default to `#orchestrator` unless the user specified one. Create it via `mcporter call relaycast create_channel` if missing, then join it.
 
 5. **Spawn the worker.** Construct the spawn command from parsed args:
-   ```
+   ```text
    agent-relay spawn <auto-name> $1 [--model <model>] [--team orchestrator] "<task>"
    ```
    - `<auto-name>` should be unique per run (e.g., `worker-<short-uuid>`) to avoid 409 conflicts.
