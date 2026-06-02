@@ -15,6 +15,8 @@ Use these notes to ground the skill in the current repo shape.
 - Runtime events are currently shaped around:
   - `source: 'cron'` plus `name`
   - provider events with `source`, `type`, `payload`
+- There are **no** per-provider clients on `ctx` (`ctx.github` / `ctx.linear` were removed). Provider reads/writes use the generic VFS helpers from `@agentworkforce/runtime` (`readJsonFile`, `listJsonFiles`, `writeJsonFile`, `draftFile`, `encodeSegment`, `resolveMountRoot`) against canonical Relayfile paths (`/<provider>/...`); writes are draft files the Relayfile writeback worker materializes into real provider calls
+- Deploy is via the `agentworkforce` CLI: `login` (stores `~/.agentworkforce/active.json`) then `deploy <persona> --mode cloud --on-exists update` (default `--on-exists` is `cancel`, a silent no-op)
 
 ## Good source files to inspect
 
@@ -26,6 +28,8 @@ Use these notes to ground the skill in the current repo shape.
 - `workforce/packages/runtime/src/types.ts`
 - `workforce/packages/persona-kit/schemas/persona.schema.json`
 - `workforce/packages/deploy/src/preflight.ts`
+- `workforce/packages/runtime/src/clients/request.ts` (the VFS read/write helpers)
+- `workforce/packages/cli/src/deploy-command.ts` (the `login` / `deploy` flow)
 
 ## Important nuance
 
