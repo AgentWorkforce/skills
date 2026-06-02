@@ -75,7 +75,7 @@ Do **not** author older `tiers` / `defaultTier` structures unless the repo expli
 - receives `ctx` and `event` in `handler`
 - inspects `event.source`
 - inspects `event.type` or `event.name`
-- reads and writes provider data through the generic VFS helpers imported from `@agentworkforce/runtime` (`readJsonFile`, `listJsonFiles`, `writeJsonFile`, plus `draftFile` / `encodeSegment` / `resolveMountRoot`) against canonical Relayfile paths like `/<provider>/...` — there are **no** per-provider clients on `ctx` (no `ctx.github` / `ctx.linear`)
+- reads and writes provider data through **`@relayfile/relay-helpers`** clients (`linearClient().comment(...)`, `slackClient().post(...)`, `githubClient().mergePullRequest(...)`, or the generic `relayClient(provider)` / `providerClient(provider)`) — catalog-backed, no hardcoded paths. The raw `@agentworkforce/runtime` VFS helpers (`readJsonFile` / `writeJsonFile`) stay the lower-level fallback. There are **no** per-provider clients on `ctx` (no `ctx.github` / `ctx.linear`)
 - optionally calls `ctx.harness.run(...)`
 - optionally uses `ctx.memory.*`
 - performs the actual workflow
@@ -264,47 +264,53 @@ The useful pieces on `ctx` are typically:
 
 Prefer direct typed runtime helpers over invoking external commands.
 
-### Provider reads and writes (no per-provider clients)
+### Provider reads and writes — use `@relayfile/relay-helpers`
 
-There are **no** `ctx.<provider>` clients. All provider IO goes through the
-generic VFS helpers exported from `@agentworkforce/runtime`, which read/write
-JSON files at canonical Relayfile mount paths (`/<provider>/...`). A read is a
-plain file read; a write is a draft file the Relayfile writeback worker turns
-into the real provider call (with retry/durability) — so handlers never hold a
-token or call a provider REST API directly.
+There are **no** `ctx.<provider>` clients. The ergonomic way to talk to a
+provider is **`@relayfile/relay-helpers`** — opt-in factory clients whose paths
+come from the adapter catalog (so they can't drift from the adapter). Add
+`@relayfile/relay-helpers` to the persona's `package.json`, then:
 
 ```ts
-import {
-  defineAgent,
-  draftFile,
-  encodeSegment,
-  readJsonFile,
-  resolveMountRoot,
-  writeJsonFile,
-  type IntegrationClientOptions
-} from '@agentworkforce/runtime';
+import { linearClient, slackClient, githubClient } from '@relayfile/relay-helpers';
 
-// Resolve the mount root once (defaults to the RELAYFILE_MOUNT_ROOT env).
-function vfsClient(): IntegrationClientOptions {
-  return { relayfileMountRoot: resolveMountRoot({}) };
-}
+const linear = linearClient();                   // binds the mount root once (RELAYFILE_MOUNT_ROOT)
+const issue = await linear.getIssue(issueId);    // read
+await linear.comment(issueId, ':rocket: done');  // write
 
-// READ: a provider record is JSON at a canonical path.
-const issue = await readJsonFile(
-  vfsClient(), 'linear', 'getIssue',
-  `/linear/issues/${encodeSegment(issueId)}.json`
-);
+await githubClient().comment({ owner, repo, number }, 'LGTM');
+await githubClient().mergePullRequest({ owner, repo, number, method: 'squash' });
+await slackClient().post('#eng', 'shipped');
+await slackClient().dm(userId, 'heads up');
+```
 
-// WRITE: drop a draft into the resource's collection path; the writeback
-// worker materializes it into the real comment.
-await writeJsonFile(
-  vfsClient(), 'linear', 'comment',
-  `/linear/issues/${encodeSegment(issueId)}/comments/${draftFile('comment')}`,
-  { body: ':rocket: done' }
+A write is a draft file the Relayfile writeback worker turns into the real
+provider call (with retry/durability) — handlers never hold a token or call a
+provider REST API directly.
+
+Every provider in the catalog has a named client (`notionClient`, `jiraClient`,
+`gitlabClient`, …). When a provider has no bespoke method for what you need, use
+the generic resource access — `providerClient('notion').pages.write({ databaseId }, {...})`
+— or `relayClient('linear').write('issues', {}, {...})` when you need the raw
+writeback **receipt** (e.g. the created issue's URL/id).
+
+**Lower-level escape hatch.** For reads that are *not* catalog writeback
+resources (e.g. github `pulls/<n>/meta.json`, a provider's `_index.json`), drop
+to the generic VFS helpers from `@agentworkforce/runtime`:
+
+```ts
+import { readJsonFile, resolveMountRoot } from '@agentworkforce/runtime';
+
+const meta = await readJsonFile(
+  { relayfileMountRoot: resolveMountRoot({}) },
+  'github', 'getPr',
+  `/github/repos/${owner}/${repo}/pulls/${prNumber}/meta.json`
 );
 ```
 
-Use each adapter's canonical path convention (e.g. `/github/repos/{owner}/{repo}/issues/{n}/comments`, `/slack/channels/{id}/messages`). When unsure of a path, check the adapter's `resources.ts` rather than guessing.
+When unsure of a resource or path, check the catalog
+(`@relayfile/adapter-core/writeback-paths`) or the adapter's `resources.ts`
+rather than guessing.
 
 ## When to use `ctx.harness.run(...)`
 
@@ -392,59 +398,75 @@ Avoid these:
 - declaring `defineAgent(...).triggers`, `schedules`, or `watch` without implementing branches for them
 - using `systemPrompt` as a substitute for explicit code routing
 - giant unstructured handlers with no helper functions
-- reaching for `ctx.github` / `ctx.linear` / etc. — those per-provider clients no longer exist; use the VFS helpers
-- invoking external commands (`curl`, `gh`, provider SDKs) for provider reads/writes the VFS helpers already cover via Relayfile draft writes
+- reaching for `ctx.github` / `ctx.linear` / etc. — those per-provider clients no longer exist; use `@relayfile/relay-helpers` (or the runtime VFS helpers)
+- hardcoding `/<provider>/...` mount paths in the handler when a `@relayfile/relay-helpers` client already resolves them from the catalog
+- invoking external commands (`curl`, `gh`, provider SDKs) for provider reads/writes that relay-helpers / the VFS helpers already cover via Relayfile draft writes
 - assuming all provider payload fields exist without validation
 
-## Deploying: local login → cloud
+## Deploying: lead the human from local login to a live cloud agent
 
-Authoring isn't done until the human can take it from a local machine to a
-running cloud agent. The full path uses the `agentworkforce` CLI:
+Authoring isn't finished at the files — **drive the deploy end to end** with the
+`agentworkforce` CLI. Run every non-interactive step yourself, hand the human
+only the steps that genuinely need a browser, and narrate what each command
+printed so they always know the state.
 
-1. **Log in.** Connects this machine to a Workforce workspace.
+**What you (the agent) can do vs. what the human must do**
 
-   ```bash
-   agentworkforce login
-   ```
+- **Human-only (interactive browser):** `agentworkforce login` (OAuth sign-in)
+  and the per-provider **connect** popups during deploy. You can't complete a
+  browser OAuth flow — ask the human to run the command / finish the popup, then
+  continue.
+- **You run:** the dry-run, the deploy itself (once the human is logged in),
+  `deployments list`, reading the printed deployment URL/status, and `destroy`.
+  (If your environment can't run the CLI at all, hand the human the exact
+  commands below in order and tell them what each should print.)
 
-   Opens the browser to sign in to the Agent Relay cloud (default
-   `https://agentrelay.com`), lists the workspaces the account can see, and
-   stores a small pointer at `~/.agentworkforce/active.json` recording the
-   chosen workspace. Flags: `--workspace <id-or-slug>` (skip the picker — useful
-   if `/api/v1/workspaces` 403s but you know the id), `--cloud-url <url>`.
+**Runbook**
 
-2. **Dry-run (optional but recommended).** Validate the persona before any side
-   effects:
+1. **Check auth.** If `~/.agentworkforce/active.json` is missing (or a CLI call
+   401s), the human isn't logged in. Ask them to run `agentworkforce login` — it
+   opens the browser to `https://agentrelay.com`, they pick a workspace, and it
+   writes the pointer — then wait for them to confirm before continuing.
+   `--workspace <id-or-slug>` skips the picker.
+
+2. **Dry-run — you run this.** Validate before any side effects:
 
    ```bash
    agentworkforce deploy ./path/to/persona --mode cloud --dry-run
    ```
 
-3. **Deploy.** Bundles `persona.json` + `agent.ts`, prompts to connect each
-   provider declared in `persona.json.integrations`, and launches in the active
-   workspace:
+   Fix any preflight error (missing `onEvent`, wrong shape, an integration the
+   `agent.ts` listens on but `persona.json` doesn't declare) and re-run until clean.
+
+3. **Deploy — you run this; the human completes any connect popups.**
 
    ```bash
    agentworkforce deploy ./path/to/persona --mode cloud --on-exists update
    ```
 
+   - It bundles `persona.json` + `agent.ts` and, for each provider in
+     `persona.json.integrations` that isn't connected yet, opens a connect flow —
+     relay that to the human and wait for them to finish before continuing.
    - `--on-exists update` redeploys over an existing persona of the same id.
-     **Gotcha:** the default is `cancel`, which is a silent no-op — if a deploy
-     "does nothing", you almost always wanted `--on-exists update`.
-   - `--no-connect` fails instead of prompting when an integration is missing
-     (good for CI); `--reconnect <provider>` forces a fresh connect.
-   - `--input key=value` overrides a declared persona input (repeatable).
-   - `--detach` backgrounds the runner instead of streaming logs.
+     **Gotcha:** the default is `cancel`, a silent no-op — if a deploy "did
+     nothing", you wanted `--on-exists update`.
+   - `--reconnect <provider>` forces a fresh connect; `--no-connect` fails
+     instead of prompting (use only when everything's already connected);
+     `--input key=value` overrides a declared input; `--detach` backgrounds the runner.
 
-4. **Verify / manage.**
+4. **Confirm it's live — you run this.** Capture the deployment URL/status the
+   deploy printed, then:
 
    ```bash
-   agentworkforce deployments list      # what's running in the workspace
-   agentworkforce destroy ./path/to/persona   # tear it down
+   agentworkforce deployments list       # what's running in the workspace
    ```
 
-Triggers/schedules/watch declared in `defineAgent(...)` are registered at
-deploy time, so connect every integration the agent listens on — an unconnected
+   Report back to the human: **the deployment link**, which triggers/schedules
+   registered, and which integrations are connected. Tear down with
+   `agentworkforce destroy ./path/to/persona` when needed.
+
+Triggers/schedules/watch declared in `defineAgent(...)` register at deploy time,
+so every integration the agent listens on must be connected — an unconnected
 provider means its triggers never fire.
 
 ## Validation checklist
@@ -475,6 +497,8 @@ When creating or editing a cloud persona, return:
    - why the chosen deploy/runtime config belongs in `persona.json`
    - why the chosen behavior belongs in `agent.ts`
    - which current Workforce example the shape most closely follows
-4. the deploy hand-off the human runs: `agentworkforce login`, then
-   `agentworkforce deploy <persona> --mode cloud --on-exists update`, calling
-   out which integrations they'll be prompted to connect
+4. then **drive the deploy** per "Deploying" above — don't stop at the files.
+   Run the dry-run and deploy yourself; ask the human to run `agentworkforce
+   login` and to finish each integration-connect popup; and finish by reporting
+   the live deployment link, the registered triggers/schedules, and the
+   connected integrations.
