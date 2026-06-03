@@ -13,17 +13,17 @@ $ARGUMENTS
 
 Workers are spawned using Claude Code's built-in **Agent tool**, not the relay MCP tools. The relay is only used for communication between agents.
 
-- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Relaycast MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
+- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Agent Relay MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
 - Run all workers in **background mode** (`run_in_background: true`) so they execute concurrently.
 - Each worker's prompt **must include the workspace key** so the worker can authenticate. See the spawn example below.
 - The `SubagentStart` hook automatically injects relay bootstrap instructions into every spawned worker.
-- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Relaycast MCP tools, and `relay-worker` agent definition only.
+- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Agent Relay MCP tools, and `relay-worker` agent definition only.
 - Use relay MCP tools (`send_dm`, `check_inbox`) to monitor worker progress.
 
 ## Protocol
 
 1. Pick a stable coordinator name such as `relay-lead`. On every relay tool call you make as the coordinator, include `as: "relay-lead"` so your messages, inbox checks, and reactions stay attributed to the lead.
-2. **Set up the workspace.** Try calling `register` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register`. Save the workspace key — you will pass it to every worker.
+2. **Set up the workspace.** Try calling `register_agent` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register_agent`. Save the workspace key — you will pass it to every worker.
 3. **Tell the user they can follow along with the conversation.** Print the full observer URL with the real key value: `https://agentrelay.com/observer?key=<the actual key>`. Do not print a placeholder — print the real URL the user can click. This is mandatory.
 4. Confirm the work is truly parallelizable. Every worker should be able to finish without waiting on another worker's output.
 5. Decide the worker count from the task shape. Prefer 2 to 8 workers, but keep the count low enough that you can still monitor ACKs and completions reliably.

@@ -16,7 +16,7 @@
   "permissionMode": "default",
   "maxTurns": 60,
   "mcpServers": [
-    "relaycast"
+    "agent-relay"
   ],
   "hooks": {
     "PreToolUse": [

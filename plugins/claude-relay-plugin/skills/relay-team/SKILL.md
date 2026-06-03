@@ -13,17 +13,17 @@ $ARGUMENTS
 
 Workers are spawned using Claude Code's built-in **Agent tool**, not the relay MCP tools. The relay is only used for communication between agents.
 
-- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Relaycast MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
+- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Agent Relay MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
 - Run workers in **background mode** (`run_in_background: true`) so they execute concurrently.
 - Each worker's prompt **must include the workspace key** so the worker can authenticate. See the spawn example below.
 - The `SubagentStart` hook automatically injects relay bootstrap instructions (register, check inbox, ACK, DONE protocol) into every spawned worker.
-- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Relaycast MCP tools, and `relay-worker` agent definition only.
+- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Agent Relay MCP tools, and `relay-worker` agent definition only.
 - Use relay MCP tools (`send_dm`, `post_message`, `check_inbox`) to communicate with workers after they're running.
 
 ## Protocol
 
 1. Pick a stable coordinator name such as `relay-lead`. On every relay tool call you make as the coordinator, include `as: "relay-lead"` so your messages, inbox checks, and reactions stay attributed to the lead.
-2. **Set up the workspace.** Try calling `register` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register`. Save the workspace key — you will pass it to every worker.
+2. **Set up the workspace.** Try calling `register_agent` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register_agent`. Save the workspace key — you will pass it to every worker.
 3. **Tell the user they can follow along with the conversation.** Print the full observer URL with the real key value: `https://agentrelay.com/observer?key=<the actual key>`. Do not print a placeholder — print the real URL the user can click. This is mandatory.
 4. Read the task, inspect the relevant code or files, and decide whether parallel work is justified. Prefer 1 worker for tightly coupled work and 2 to 5 workers for genuinely separable work.
 5. Break the task into clear, non-overlapping worker scopes. Each worker needs a concrete deliverable, the relevant files or directories, and an explicit success condition.
