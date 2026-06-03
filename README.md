@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.1`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.1`. Private autonomous-run collection metadata lives in [prpm.autonomous-run-private.json](prpm.autonomous-run-private.json).
 
 ## Published Skills
 
@@ -95,6 +95,7 @@ commands/                       # Slash commands
 plugins/claude-relay-plugin/    # Claude Code plugin, hooks, worker agent, and plugin skills
 workflows/                      # Maintenance and audit workflows
 prpm.json                       # Package manifest
+prpm.autonomous-run-private.json # Private autonomous-run collection manifest
 ```
 
 ## Links

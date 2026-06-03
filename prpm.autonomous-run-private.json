@@ -111,5 +111,59 @@
         "skills/instrument-dont-guess/SKILL.md"
       ]
     }
+  ],
+  "collections": [
+    {
+      "id": "autonomous-run-private",
+      "name": "Autonomous Run Private",
+      "description": "Private autonomous-run operating stack for Agent Relay cutovers: contract authority, merge safety, dormant flips, diagnostics, blocker swarms, and tiered acceptance.",
+      "version": "1.0.0",
+      "category": "development",
+      "tags": [
+        "autonomous-run",
+        "cutover",
+        "agent-relay",
+        "merge-safety",
+        "rollback"
+      ],
+      "packages": [
+        {
+          "packageId": "@agent-relay/autonomous-run-contract",
+          "version": "1.0.1",
+          "required": true,
+          "reason": "Binding authority contract for gates, merge/flip grants, rollback triggers, and escalation rules."
+        },
+        {
+          "packageId": "@agent-relay/auto-merge-and-composition-safety",
+          "version": "1.0.0",
+          "required": true,
+          "reason": "Per-PR live CI, review, bot-triage, and cross-PR composition safety before autonomous merges."
+        },
+        {
+          "packageId": "@agent-relay/dormant-flip-and-rollback",
+          "version": "1.0.0",
+          "required": true,
+          "reason": "Dark-launch and single-switch flip discipline with a pre-authorized rollback path."
+        },
+        {
+          "packageId": "@agent-relay/swarm-blockers-and-gate-scoreboard",
+          "version": "1.0.0",
+          "required": true,
+          "reason": "Support-agent dispatch and live RED/GREEN gate scoreboard for hard blockers."
+        },
+        {
+          "packageId": "@agent-relay/tiered-acceptance",
+          "version": "1.0.0",
+          "required": true,
+          "reason": "Tier-1 deep proof and tier-2 smoke proof for broad acceptance gates."
+        },
+        {
+          "packageId": "@agent-relay/instrument-dont-guess",
+          "version": "1.0.0",
+          "required": true,
+          "reason": "Diagnostic-first discipline after repeated failed fixes for the same symptom."
+        }
+      ]
+    }
   ]
 }
