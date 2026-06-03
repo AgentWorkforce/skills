@@ -308,66 +308,6 @@
       ]
     },
     {
-      "name": "auto-merge-and-composition-safety",
-      "version": "1.0.0",
-      "description": "Use before auto-merging any PR in an autonomous run, and between consecutive merges that touch overlapping code. Covers the per-PR auto-merge bar (live CI verification, substantive review by area, bot-finding stale-vs-actionable triage) and the cross-PR composition discipline (serialize through green main, rebase + re-CI between merges, dormant-safety audit, force-reset over half-merged commits).",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/auto-merge-and-composition-safety/SKILL.md"
-      ]
-    },
-    {
-      "name": "autonomous-run-contract",
-      "version": "1.0.1",
-      "description": "Use at the start of every autonomous, multi-PR, cutover-class delegated run. Authors the binding contract between operator and agent — the gates, the flip mechanism, the rollback triggers, the standing constraints, and the explicit escalate-to-human conditions — and surfaces it to the operator for explicit grant of (a) auto-merge authority, (b) flip-the-switch authority, (c) swarm-blockers authority. No autonomous work begins until the contract is acknowledged.",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/autonomous-run-contract/SKILL.md"
-      ]
-    },
-    {
-      "name": "dormant-flip-and-rollback",
-      "version": "1.0.0",
-      "description": "Use when designing or executing a cutover-class change (migration, ingestion path swap, provider relink, flag enablement). Encodes the dark-launch + single-switch flip pattern, the refusal to flip on amber, and the pre-authorized rollback procedure — the canonical way to make irreversible-feeling infra changes reversible-feeling.",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/dormant-flip-and-rollback/SKILL.md"
-      ]
-    },
-    {
-      "name": "instrument-dont-guess",
-      "version": "1.0.0",
-      "description": "Use when a fix has failed two consecutive times for the same symptom. Encodes the discipline that the third action must be a temporary diagnostic (a /_diag endpoint, an enriched structured log, a runtime-captured snapshot) rather than another fix attempt. Also covers the discipline for removing those diagnostics once the real root cause is in.",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/instrument-dont-guess/SKILL.md"
-      ]
-    },
-    {
-      "name": "swarm-blockers-and-gate-scoreboard",
-      "version": "1.0.0",
-      "description": "Use during an autonomous run to (a) dispatch supporting codex-impl + claude-review agent pairs against hard blockers when the orchestrator cannot make progress alone, and (b) maintain the live RED / GREEN gate scoreboard the orchestrator reads to authorize the flip. Encodes the file-based reporting convention that keeps the channel readable.",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/swarm-blockers-and-gate-scoreboard/SKILL.md"
-      ]
-    },
-    {
-      "name": "tiered-acceptance",
-      "version": "1.0.0",
-      "description": "Use when a single gate would require deep proof across a large set (44 models × 10 providers; 60+ resources; every region; every plan tier). Splits the acceptance into tier-1 (deep proof on high-volume / high-fidelity slice) and tier-2 (smoke proof on low-volume tail), documents the explicit accepted trade-off, and preserves safety through dormant-default + per-item enable + rollback.",
-      "format": "claude",
-      "subtype": "skill",
-      "files": [
-        "skills/tiered-acceptance/SKILL.md"
-      ]
-    },
-    {
       "name": "openclaw-orchestrator",
       "version": "1.0.0",
       "description": "Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.",
