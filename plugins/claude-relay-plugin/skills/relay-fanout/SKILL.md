@@ -13,11 +13,11 @@ $ARGUMENTS
 
 Workers are spawned using Claude Code's built-in **Agent tool**, not the relay MCP tools. The relay is only used for communication between agents.
 
-- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Relaycast MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
+- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Agent Relay MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
 - Run all workers in **background mode** (`run_in_background: true`) so they execute concurrently.
 - Each worker's prompt **must include the workspace key** so the worker can authenticate. See the spawn example below.
 - The `SubagentStart` hook automatically injects relay bootstrap instructions into every spawned worker.
-- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Relaycast MCP tools, and `relay-worker` agent definition only.
+- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Agent Relay MCP tools, and `relay-worker` agent definition only.
 - Use relay MCP tools (`send_dm`, `check_inbox`) to monitor worker progress.
 
 ## Protocol

@@ -1,12 +1,12 @@
 # Claude Relay Plugin
 
-Multi-agent coordination for Claude Code via Relaycast MCP and lifecycle hooks.
+Multi-agent coordination for Claude Code via Agent Relay MCP and lifecycle hooks.
 
 ## What it does
 
 This plugin connects Claude Code agents to [Agent Relay](https://agent-relay.com) so they can communicate, coordinate, and work as a team. It adds:
 
-- **Relaycast MCP server** — gives Claude tools for messaging, channels, webhooks, and more
+- **Agent Relay MCP server** — gives Claude tools for messaging, channels, webhooks, and more
 - **Inbox polling** — automatically checks for new messages after each tool call
 - **Stop guard** — prevents an agent from exiting while it has unread messages
 - **Subagent bootstrap** — spawned subagents automatically register with the relay
@@ -62,7 +62,7 @@ Background workers can't prompt for tool approval interactively — MCP calls si
 bash .claude-plugin/setup.sh
 ```
 
-This adds `mcp__plugin_agent-relay_relaycast` to your `.claude/settings.json` permissions, allowing background workers to use relay tools (register, send messages, check inbox) without being blocked.
+This adds `mcp__agent-relay` to your `.claude/settings.json` permissions, allowing background workers to use relay tools (register, send messages, check inbox) without being blocked.
 
 If you prefer to do it manually, add this to `.claude/settings.json`:
 
@@ -70,7 +70,7 @@ If you prefer to do it manually, add this to `.claude/settings.json`:
 {
   "permissions": {
     "allow": [
-      "mcp__plugin_agent-relay_relaycast"
+      "mcp__agent-relay"
     ]
   }
 }
@@ -78,7 +78,7 @@ If you prefer to do it manually, add this to `.claude/settings.json`:
 
 ### 4. Verify
 
-Start Claude Code in your project. You should see the Relaycast MCP tools available (e.g., `post_message`, `check_inbox`, `create_channel`). Run `/tools` to confirm.
+Start Claude Code in your project. You should see the Agent Relay MCP tools available (e.g., `post_message`, `check_inbox`, `create_channel`). Run `/tools` to confirm.
 
 ## Usage
 
@@ -86,7 +86,7 @@ Once the plugin is installed and your env vars are set, you can start coordinati
 
 ### Quick start: send a message
 
-Ask Claude to use the Relaycast MCP tools directly:
+Ask Claude to use the Agent Relay MCP tools directly:
 
 ```
 > Post a message to the #general channel saying "hello from my agent"
@@ -130,7 +130,7 @@ Claude recognizes these requests because the plugin's skills, hooks, and agent d
 
 The plugin uses two separate mechanisms — **Claude Code's Agent tool** for spawning processes, and **Relay** for communication between them:
 
-1. **Spawning**: When a skill like `/relay-team` runs, Claude uses its built-in Agent tool to spawn child Claude processes (subagents). Each worker is created with `subagent_type: "relay-worker"`, which gives it the Relaycast MCP server, inbox-polling hooks, and the worker protocol prompt.
+1. **Spawning**: When a skill like `/relay-team` runs, Claude uses its built-in Agent tool to spawn child Claude processes (subagents). Each worker is created with `subagent_type: "relay-worker"`, which gives it the Agent Relay MCP server, inbox-polling hooks, and the worker protocol prompt.
 
 2. **Bootstrap**: The `SubagentStart` hook automatically fires when a worker is spawned, injecting relay bootstrap instructions — register with the workspace, check inbox, ACK the lead, send DONE when finished.
 
@@ -207,7 +207,7 @@ Each agent registers with the relay and can message the others through channels 
 ```
 claude-relay-plugin/
   .claude-plugin/plugin.json   # Plugin manifest (Claude discovers this)
-  .mcp.json                    # Relaycast MCP server configuration
+  .mcp.json                    # Agent Relay MCP server configuration
   hooks/
     hooks.json                 # Hook definitions
     stop-inbox.js              # Stop guard (blocks exit if unread messages)
@@ -268,12 +268,12 @@ This happens when you try to use relay tools before the agent has registered. No
 
 ### Workers can't post messages / "permission issues"
 
-Background subagents can't get interactive approval for tool calls. You need to allowlist Relaycast MCP tools in `.claude/settings.json`:
+Background subagents can't get interactive approval for tool calls. You need to allowlist Agent Relay MCP tools in `.claude/settings.json`:
 
 ```json
 {
   "permissions": {
-    "allow": ["mcp__plugin_agent-relay_relaycast"]
+    "allow": ["mcp__agent-relay"]
   }
 }
 ```
@@ -287,7 +287,7 @@ If workers are being forced to register as the lead's identity instead of their 
 ### Hooks aren't firing
 
 - Confirm the plugin is installed at `.claude-plugin/plugin.json` in your project root
-- Run `/tools` in Claude Code to check that Relaycast MCP tools appear
+- Run `/tools` in Claude Code to check that Agent Relay MCP tools appear
 - Verify `bash`, `curl`, and `jq` are available on your PATH
 
 ### Subagents don't connect to relay

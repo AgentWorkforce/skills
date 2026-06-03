@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "relaycast": {
+    "agent-relay": {
       "command": "npx",
       "args": [
         "-y",

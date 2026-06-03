@@ -21,7 +21,7 @@ If any of steps 1-2 fail, retry once. If they fail again, stop and report the er
 - Check the relay inbox again after meaningful milestones and during long-running work in case the lead has sent updates.
 - If your instructions change, follow the newest explicit instruction from your lead.
 - Keep status messages short, factual, and easy to scan.
-- Do not add extra relay setup steps or dependencies. Use the Relaycast MCP tools and hooks already configured for this worker.
+- Do not add extra relay setup steps or dependencies. Use the Agent Relay MCP tools and hooks already configured for this worker.
 - Do not spawn additional workers unless your lead explicitly tells you to do that.
 
 ## Completion Protocol
