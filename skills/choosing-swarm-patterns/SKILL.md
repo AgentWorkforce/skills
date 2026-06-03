@@ -186,7 +186,7 @@ await workflow("api-build")
   .step("review",  { agent: "lead",       task: "Review everything",    dependsOn: ["routes"] })
   .run();
 ```
-Hub (picked via `role: lead` or first agent) stays on the channel and direct-messages interactive workers via `mcp__relaycast__message_dm_send`.
+Hub (picked via `role: lead` or first agent) stays on the channel and direct-messages interactive workers via `mcp__agent-relay__send_dm`.
 
 > **Don't set `interactive: false` on a hub-spoke worker** if you want it to receive coordination DMs — `resolveTopology` strips non-interactive agents from the message graph (`coordinator.ts:218-237`). Use `interactive: false` only when the worker is a one-shot subprocess whose stdout you collect via `{{steps.X.output}}` without any mid-run coordination.
 
@@ -333,21 +333,21 @@ Conventional signals baked into the adapter (`relay-adapter.ts:29-36`):
 
 The runner captures PTY chunks as step output and also records channel posts + file changes as `StepCompletionEvidence`. Legacy fallback: a file at `.relay/summaries/{stepName}.md` is read if PTY output is empty (`runner.ts:6607`).
 
-## Relaycast MCP — Correct Tool Names
+## Agent Relay MCP — Correct Tool Names
 
-The skill previously referenced `mcp__relaycast__send` / `mcp__relaycast__dm` — those names are wrong. The real tools (the first three are cited in the workflow convention-injection at `relay-adapter.ts:31-35`; the rest are exposed by the live `relaycast` MCP server):
+The skill previously referenced `mcp__agent-relay__send` / `mcp__agent-relay__dm` — those names are wrong. The real tools (the first three are cited in the workflow convention-injection at `relay-adapter.ts:31-35`; the rest are exposed by the live `agent-relay` MCP server):
 
 | Purpose | Tool | Source |
 |---------|------|--------|
-| Send DM to another agent | `mcp__relaycast__message_dm_send` | `relay-adapter.ts:31` |
-| Check inbox | `mcp__relaycast__message_inbox_check` | `relay-adapter.ts:35` |
-| List agents | `mcp__relaycast__agent_list` | `relay-adapter.ts:35` |
-| Post to a channel | `mcp__relaycast__message_post` | relaycast MCP server |
-| Reply in a thread | `mcp__relaycast__message_reply` | relaycast MCP server |
-| Spawn sub-agent | `mcp__relaycast__agent_add` | relaycast MCP server |
-| Remove sub-agent | `mcp__relaycast__agent_remove` | relaycast MCP server |
+| Send DM to another agent | `mcp__agent-relay__send_dm` | `relay-adapter.ts:31` |
+| Check inbox | `mcp__agent-relay__check_inbox` | `relay-adapter.ts:35` |
+| List agents | `mcp__agent-relay__list_agents` | `relay-adapter.ts:35` |
+| Post to a channel | `mcp__agent-relay__post_message` | agent-relay MCP server |
+| Reply in a thread | `mcp__agent-relay__reply_to_thread` | agent-relay MCP server |
+| Spawn sub-agent | `mcp__agent-relay__add_agent` | agent-relay MCP server |
+| Remove sub-agent | `mcp__agent-relay__remove_agent` | agent-relay MCP server |
 
-> `interactive: false` agents run as non-interactive subprocesses with no relay connection — they must NOT call any `mcp__relaycast__*` tool (validator warns on this at `validator.ts:138-150`, check `NONINTERACTIVE_RELAY`).
+> `interactive: false` agents run as non-interactive subprocesses with no relay connection — they must NOT call any `mcp__agent-relay__*` tool (validator warns on this at `validator.ts:138-150`, check `NONINTERACTIVE_RELAY`).
 
 ## Reflection (Trajectories)
 
@@ -383,7 +383,7 @@ For a first-class critic loop, use the `reflection` **pattern** (agents with `ro
 | Relying on `reflectOnBarriers` | Config flag exists but runner never calls it | Use `reflectOnConverge` for convergence reflection; use `reflection` pattern for critic loops |
 | `interactive: false` agent calling MCP | Non-interactive subprocess has no relay | Use `interactive: true` (default) or emit output on stdout |
 | Relying on multi-level `hierarchical` | Topology is single-level hub in current impl | Use pattern for naming; model levels via `dependsOn` graph |
-| Writing `mcp__relaycast__send(...)` | Wrong tool name | Use `mcp__relaycast__message_post` or `message_dm_send` |
+| Writing `mcp__agent-relay__send(...)` | Wrong tool name | Use `mcp__agent-relay__post_message` or `mcp__agent-relay__send_dm` |
 
 ## Resume & Re-run
 
@@ -397,7 +397,7 @@ await runWorkflow("feature-dev.yaml", {
   previousRunId: "<runId>",
 });
 ```
-Cached outputs live in `.agent-relay/step-outputs/`; runs in `.agent-relay/workflow-runs.jsonl`. Env vars `RESUME_RUN_ID`, `START_FROM`, `PREVIOUS_RUN_ID` are auto-detected.
+Cached outputs live in `.agentworkforce/relay/step-outputs/`; runs in `.agentworkforce/relay/workflow-runs.jsonl`. Env vars `RESUME_RUN_ID`, `START_FROM`, `PREVIOUS_RUN_ID` are auto-detected.
 
 ## Complete YAML Example
 

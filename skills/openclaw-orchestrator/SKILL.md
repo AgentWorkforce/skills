@@ -1,6 +1,6 @@
 ---
-name: agent-relay-orchestrator
-version: 1.0.0
+name: openclaw-orchestrator
+version: 1.1.0
 description: Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.
 homepage: https://agentrelay.com/openclaw
 metadata: { 'category': 'orchestration', 'requires': 'agent-relay' }
@@ -13,24 +13,29 @@ Run headless multi-agent sessions: start infrastructure, join a workspace, creat
 ## Prerequisites
 
 - `agent-relay` CLI installed (`npm i -g agent-relay`)
-- Relaycast workspace key (`rk_live_...`) — get one at https://agentrelay.com/openclaw or run `agent-relay up` to auto-create
+- Agent Relay workspace key (`rk_live_...`) — get one at https://agentrelay.com/openclaw or run `agent-relay local up` to auto-create
 - For Claude agents: `ANTHROPIC_API_KEY` or `claude auth login`
 
 ## Quick Reference
 
 | Action | Command |
 |--------|---------|
-| Start broker | `agent-relay up --workspace-key rk_live_KEY --no-spawn` |
-| Start broker (background) | `agent-relay up --workspace-key rk_live_KEY --background --no-spawn` |
-| Check status | `agent-relay status` |
-| Spawn agent | `agent-relay spawn NAME CLI "task"` |
-| Spawn with team | `agent-relay spawn NAME CLI --team TEAM "task"` |
-| List agents | `agent-relay agents` |
-| View logs | `agent-relay agents:logs NAME` |
-| Send to channel | `agent-relay send '#channel' 'message'` |
-| Send DM | `agent-relay send AGENT 'message'` |
-| Kill agent | `agent-relay agents:kill NAME` |
-| Stop broker | `agent-relay down` |
+| Start broker | `agent-relay local up --workspace-key rk_live_KEY --no-spawn` |
+| Start broker (background) | `agent-relay local up --workspace-key rk_live_KEY --background --no-spawn` |
+| Check status | `agent-relay local status` |
+| Spawn agent | `agent-relay local agent spawn CLI --name NAME --task "task"` |
+| Spawn into a shared channel | `agent-relay local agent spawn CLI --name NAME --channels TEAM --task "task"` |
+| List agents | `agent-relay local agent list` |
+| View logs (debug) | `agent-relay local tail --agent NAME` |
+| Send to channel (via relay) | `agent-relay message post channel 'message'` |
+| Send DM (via relay) | `agent-relay message dm send AGENT 'message'` |
+| Release agent | `agent-relay local agent release NAME` |
+| Stop broker | `agent-relay local down` |
+
+> Lifecycle (start/stop, spawn/release, list) is the `agent-relay local …` group.
+> Messaging always goes through relay — the `agent-relay message …` group (which
+> needs an agent token) or the `mcp__agent-relay__*` tools. Don't read worker
+> replies off `local tail`; that's raw broker output for debugging.
 
 ## Setup Flow
 
@@ -45,47 +50,49 @@ This registers you on the workspace and configures mcporter for channel/DM tools
 ### 2. Start broker with workspace key
 
 ```bash
-agent-relay up --workspace-key rk_live_YOUR_KEY --no-spawn
+agent-relay local up --workspace-key rk_live_YOUR_KEY --no-spawn
 ```
 
-**Critical**: Pass `--workspace-key` so spawned agents inherit the workspace connection. Without it, agents can't communicate via Relaycast channels.
+**Critical**: Pass `--workspace-key` so spawned agents inherit the workspace connection. Without it, agents can't communicate via Agent Relay channels.
 
 ### 3. Create channels for coordination
 
 ```bash
-mcporter call relaycast create_channel name=my-project topic="Project coordination"
-mcporter call relaycast join_channel channel=my-project
+mcporter call agent-relay create_channel name=my-project topic="Project coordination"
+mcporter call agent-relay join_channel channel=my-project
 ```
 
 ### 4. Spawn agents
 
 ```bash
-agent-relay spawn architect claude --team my-team "Your task..."
-agent-relay spawn developer claude --team my-team "Your task..."
-agent-relay spawn tester claude --team my-team "Your task..."
+agent-relay local agent spawn claude --name architect --channels my-project --task "Your task..."
+agent-relay local agent spawn claude --name developer --channels my-project --task "Your task..."
+agent-relay local agent spawn claude --name tester --channels my-project --task "Your task..."
 ```
+
+Agents that share a channel (`--channels my-project`) coordinate in it.
 
 ## Agent Communication
 
-Spawned agents communicate through the broker's workspace connection.
+Spawned agents are registered relay participants — they message through relay's MCP tools (see the **using-agent-relay** skill).
 
 ### From spawned agents (in their task prompt)
 ```
 # Post to channel
-agent-relay send '#channel-name' 'your message'
+mcp__agent-relay__post_message(channel: "channel-name", text: "your message")
 
-# DM another agent  
-agent-relay send agent-name 'your message'
+# DM another agent
+mcp__agent-relay__send_dm(to: "agent-name", text: "your message")
 
 # Check inbox
-agent-relay inbox
+mcp__agent-relay__check_inbox()
 ```
 
-### From orchestrator (via mcporter)
+### From the orchestrator (via mcporter)
 ```bash
-mcporter call relaycast post_message channel=my-project text="Status update"
-mcporter call relaycast get_messages channel=my-project limit=20
-mcporter call relaycast send_dm to=architect text="Review the design"
+mcporter call agent-relay post_message channel=my-project text="Status update"
+mcporter call agent-relay list_messages channel=my-project limit=20
+mcporter call agent-relay send_dm to=architect text="Review the design"
 ```
 
 ## Agent Types
@@ -105,9 +112,9 @@ Include communication instructions in every agent's task:
 You are ROLE on the TEAM team.
 
 ## Communication
-Post updates to #channel: agent-relay send '#channel' 'your message'
-Check for messages: agent-relay inbox
-DM a teammate: agent-relay send teammate-name 'message'
+Post updates to a channel: mcp__agent-relay__post_message(channel: "channel", text: "your message")
+Check for messages: mcp__agent-relay__check_inbox()
+DM a teammate: mcp__agent-relay__send_dm(to: "teammate-name", text: "message")
 
 ## Your Team
 - agent-a (role) — does X
@@ -115,42 +122,42 @@ DM a teammate: agent-relay send teammate-name 'message'
 
 ## Tasks
 1. ...
-2. Post progress to #channel
+2. Post progress to the channel
 3. When done: openclaw system event --text 'Done: description' --mode now
 ```
 
 ## Monitoring
 
 ```bash
-# Check all agents
-agent-relay agents
+# List all agents (JSON: pid, status, uptime)
+agent-relay local agent list
 
-# Tail an agent's output
-agent-relay agents:logs NAME -n 500
+# Tail an agent's raw output (debug only)
+agent-relay local tail --agent NAME
 
-# Check channel conversation
-mcporter call relaycast get_messages channel=my-project limit=20
+# Check channel conversation (via relay)
+mcporter call agent-relay list_messages channel=my-project limit=20
 
-# Check who's online
-mcporter call relaycast list_agents status=online
+# Check who's online (via relay)
+mcporter call agent-relay list_agents status=online
 ```
 
 ## Lifecycle Management
 
 ```bash
-# Kill a stuck agent
-agent-relay agents:kill NAME
+# Release a stuck agent (graceful stop)
+agent-relay local agent release NAME
 
-# Kill all agents in a team
-agent-relay agents | grep TEAM | awk '{print $1}' | xargs -I{} agent-relay agents:kill {}
+# Release several by name
+for a in architect developer tester; do agent-relay local agent release "$a"; done
 
 # Stop everything
-agent-relay down
+agent-relay local down
 ```
 
 ## Rate Limiting
 
-- Add 15s gaps between sequential spawns to avoid Relaycast 429 errors
+- Add 15s gaps between sequential spawns to avoid Agent Relay 429 errors
 - Use unique agent names per run (append UUID suffix) to avoid 409 conflicts
 - The SDK uses `registerOrRotate` pattern: on 409, rotates the agent token
 
@@ -179,7 +186,7 @@ All agents join same channel, post updates, read each other's work on a shared g
 | Agents can't message | Broker must have `--workspace-key` |
 | Droid stuck at approval | Don't use `--cwd` with droid agents |
 | Agent name conflict (409) | Use unique names or let SDK `registerOrRotate` handle it |
-| Channel not found | Create it first via `mcporter call relaycast create_channel` |
-| Agent idle but no output | Check `agent-relay agents:logs NAME` for errors |
+| Channel not found | Create it first via `mcporter call agent-relay create_channel` |
+| Agent idle but no output | Check `agent-relay local tail --agent NAME` for errors |
 | npx setup fails in spawned agent | Agents inherit broker's workspace — no setup needed |
-| `agent-relay send` fails for DM | Spawned agents can broadcast to channels but DMs may not work for non-Relaycast-registered agents |
+| DM fails for an agent | DMs require a registered identity; broadcast to a channel with `post_message` if the recipient isn't registered |

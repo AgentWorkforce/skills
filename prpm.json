@@ -10,7 +10,7 @@
   "packages": [
     {
       "name": "choosing-swarm-patterns",
-      "version": "1.1.3",
+      "version": "1.1.4",
       "description": "Use when coordinating multiple AI agents with Agent Relay's workflow engine and need to pick the right orchestration pattern - covers the 10 core patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) plus 14 specialized ones, with decision framework and accurate SDK/YAML examples.",
       "format": "claude",
       "subtype": "skill",
@@ -71,8 +71,8 @@
     },
     {
       "name": "using-agent-relay",
-      "version": "1.3.0",
-      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called agent_register) coordinating with peers in real time over Relaycast MCP tools - messaging, channels, threads, reactions, search, webhooks. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
+      "version": "1.4.0",
+      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called register_agent) coordinating with peers in real time over Agent Relay MCP tools - messaging, channels, threads, reactions, and search. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -89,8 +89,8 @@
     },
     {
       "name": "orchestrating-agent-relay",
-      "version": "2.1.2",
-      "description": "The canonical way to run agent-relay - self-bootstrap the broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, CLI-first reading, and team coordination.",
+      "version": "2.2.0",
+      "description": "The canonical way to run agent-relay - self-bootstrap the broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, relay-mediated messaging, and team coordination.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -249,7 +249,7 @@
     },
     {
       "name": "spawn",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Slash command for relay-orchestrator that bootstraps the agent-relay broker and spawns a worker on the chosen harness (claude, codex, opencode, droid, gemini, pi) with optional --model and --task - loads the orchestrator skill so infrastructure, channels, and lifecycle just work",
       "format": "claude",
       "subtype": "slash-command",
@@ -309,7 +309,7 @@
     },
     {
       "name": "openclaw-orchestrator",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.",
       "format": "claude",
       "subtype": "skill",
