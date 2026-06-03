@@ -23,7 +23,7 @@ Workers are spawned using Claude Code's built-in **Agent tool**, not the relay M
 ## Protocol
 
 1. Pick a stable coordinator name such as `relay-lead`. On every relay tool call you make as the coordinator, include `as: "relay-lead"` so your messages, inbox checks, and reactions stay attributed to the lead.
-2. **Set up the workspace.** Try calling `register` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register`. Save the workspace key — you will pass it to every worker.
+2. **Set up the workspace.** Try calling `register_agent` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register_agent`. Save the workspace key — you will pass it to every worker.
 3. **Tell the user they can follow along with the conversation.** Print the full observer URL with the real key value: `https://agentrelay.com/observer?key=<the actual key>`. Do not print a placeholder — print the real URL the user can click. This is mandatory.
 4. Confirm the work is truly parallelizable. Every worker should be able to finish without waiting on another worker's output.
 5. Decide the worker count from the task shape. Prefer 2 to 8 workers, but keep the count low enough that you can still monitor ACKs and completions reliably.

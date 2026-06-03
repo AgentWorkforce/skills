@@ -8,7 +8,7 @@ cat <<EOF
 MANDATORY relay setup — complete these steps IN ORDER before any other work:
 
 1. Your task prompt contains a workspace key. Call \`set_workspace_key\` with that key to authenticate. Do not print the key.
-2. Call \`register(name: "$AGENT_NAME", type: "agent")\` to register with the relay.
+2. Call \`register_agent(name: "$AGENT_NAME", type: "agent")\` to register with the relay.
 3. Call \`check_inbox(as: "$AGENT_NAME")\` to get your task assignment.
 4. Send an ACK to your lead via \`send_dm(as: "$AGENT_NAME")\` when you understand the task.
 5. When finished, send a DONE message with a concise completion summary via \`send_dm(as: "$AGENT_NAME")\` before stopping.

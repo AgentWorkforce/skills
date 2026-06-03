@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs';
 
-const DEFAULT_BASE_URL = 'https://api.relaycast.dev';
+const DEFAULT_BASE_URL = 'https://gateway.relaycast.dev';
 const MAX_RENDERED_MESSAGES = 20;
 
 function readInput() {

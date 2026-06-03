@@ -5,7 +5,7 @@ set -euo pipefail
 AGENT_NAME="${RELAY_AGENT_NAME:-unknown}"
 WORKSPACE_KEY="${RELAY_API_KEY:-${RELAY_WORKSPACE:-unknown}}"
 WORKERS_JSON="${RELAY_WORKERS_JSON:-}"
-WORKERS_FILE="${RELAY_WORKERS_FILE:-$PWD/.agent-relay/team/workers.json}"
+WORKERS_FILE="${RELAY_WORKERS_FILE:-$PWD/.agentworkforce/relay/team/workers.json}"
 
 short_workspace() {
   local value="$1"

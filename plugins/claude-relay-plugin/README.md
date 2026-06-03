@@ -50,7 +50,7 @@ Other optional variables:
 
 ```bash
 export RELAY_TOKEN="your-agent-token"              # Per-agent bearer token for inbox polling hooks
-export RELAY_BASE_URL="https://api.relaycast.dev"  # API base URL (this is the default)
+export RELAY_BASE_URL="https://gateway.relaycast.dev"  # API base URL (this is the default)
 export RELAY_AGENT_NAME="my-agent"                 # Fixed agent identity
 ```
 
@@ -197,10 +197,10 @@ Each agent registers with the relay and can message the others through channels 
 |----------|----------|---------|---------|
 | `RELAY_API_KEY` | No | auto-created via `create_workspace` | MCP server (workspace auth) |
 | `RELAY_TOKEN` | No | — | Hook scripts (inbox polling) |
-| `RELAY_BASE_URL` | No | `https://api.relaycast.dev` | MCP server + hooks |
+| `RELAY_BASE_URL` | No | `https://gateway.relaycast.dev` | MCP server + hooks |
 | `RELAY_AGENT_NAME` | No | `"unknown"` | MCP server + hooks (agent identity) |
 | `RELAY_WORKERS_JSON` | No | — | `pre-compact.sh` (inline worker list) |
-| `RELAY_WORKERS_FILE` | No | `.agent-relay/team/workers.json` | `pre-compact.sh` (worker file path) |
+| `RELAY_WORKERS_FILE` | No | `.agentworkforce/relay/team/workers.json` | `pre-compact.sh` (worker file path) |
 
 ## Plugin structure
 
@@ -262,7 +262,7 @@ The MCP server doesn't have a workspace key yet. This is normal if you haven't s
    claude
    ```
 
-### "Not registered. Call the register tool first."
+### "Not registered. Call the register_agent tool first."
 
 This happens when you try to use relay tools before the agent has registered. Normally the agent registers automatically, but if the workspace key is missing (see above), registration fails silently and all subsequent tool calls fail with this error. Fix the workspace key first.
 
