@@ -1,6 +1,6 @@
 ---
 name: orchestrating-agent-relay
-description: The canonical way to run agent-relay - self-bootstrap the broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, CLI-first reading, and team coordination.
+description: The canonical way to run agent-relay - self-bootstrap the broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, relay-mediated messaging, and team coordination.
 ---
 
 # Orchestrating Agent Relay
@@ -23,7 +23,7 @@ The CLI has two surfaces, and the split is the thing to memorize:
   local broker via `.agentworkforce/relay/connection.json`. **Never use it to
   read or send messages.**
 - **`agent-relay message … / channel … / agent …`** — **all messaging goes
-  through relay** (the Relaycast service at `gateway.relaycast.dev`). These are
+  through relay** (the Agent Relay service at `gateway.relaycast.dev`). These are
   **token-gated** (`--token` / `RELAY_AGENT_TOKEN`). Register once for an agent
   token (see Step 3), then send and read every coordination message here — or
   use the equivalent relay MCP tools (`mcp__agent-relay__*`).
@@ -101,7 +101,7 @@ agent-relay local status --wait-for=10
 
 The broker:
 
-- Provisions a Relaycast workspace when none is configured
+- Provisions an Agent Relay workspace when none is configured
 - Removes `CLAUDECODE` env var when spawning (fixes nested session error)
 - Persists state to `.agentworkforce/relay/` (connection files, etc.)
 
@@ -375,5 +375,5 @@ The broker emits these events (available via SDK subscriptions and
    - Run `agent-relay agent register <name>` and export `RELAY_AGENT_TOKEN`
      (or pass `--token` on each `message`/`channel` call)
 
-4. **For MCP tools** (optional): Relaycast MCP server configured in Claude's MCP
+4. **For MCP tools** (optional): Agent Relay MCP server configured in Claude's MCP
    settings (the message tools need the same registered identity as the CLI)

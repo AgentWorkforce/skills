@@ -1,5 +1,5 @@
 ---
-name: agent-relay-orchestrator
+name: openclaw-orchestrator
 version: 1.1.0
 description: Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.
 homepage: https://agentrelay.com/openclaw
@@ -13,7 +13,7 @@ Run headless multi-agent sessions: start infrastructure, join a workspace, creat
 ## Prerequisites
 
 - `agent-relay` CLI installed (`npm i -g agent-relay`)
-- Relaycast workspace key (`rk_live_...`) — get one at https://agentrelay.com/openclaw or run `agent-relay local up` to auto-create
+- Agent Relay workspace key (`rk_live_...`) — get one at https://agentrelay.com/openclaw or run `agent-relay local up` to auto-create
 - For Claude agents: `ANTHROPIC_API_KEY` or `claude auth login`
 
 ## Quick Reference
@@ -53,7 +53,7 @@ This registers you on the workspace and configures mcporter for channel/DM tools
 agent-relay local up --workspace-key rk_live_YOUR_KEY --no-spawn
 ```
 
-**Critical**: Pass `--workspace-key` so spawned agents inherit the workspace connection. Without it, agents can't communicate via Relaycast channels.
+**Critical**: Pass `--workspace-key` so spawned agents inherit the workspace connection. Without it, agents can't communicate via Agent Relay channels.
 
 ### 3. Create channels for coordination
 
@@ -157,7 +157,7 @@ agent-relay local down
 
 ## Rate Limiting
 
-- Add 15s gaps between sequential spawns to avoid Relaycast 429 errors
+- Add 15s gaps between sequential spawns to avoid Agent Relay 429 errors
 - Use unique agent names per run (append UUID suffix) to avoid 409 conflicts
 - The SDK uses `registerOrRotate` pattern: on 409, rotates the agent token
 
