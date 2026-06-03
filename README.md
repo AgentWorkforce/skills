@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.1`. Private autonomous-run collection metadata lives in [prpm.autonomous-run-private.json](prpm.autonomous-run-private.json).
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.1`.
 
 ## Published Skills
 
@@ -21,7 +21,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.0 | Navigate a relayfile mount via root and per-provider `LAYOUT.md` files plus `by-*` alias indexes instead of `find`/`grep -r`. |
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
 | [auto-merge-and-composition-safety](skills/auto-merge-and-composition-safety/SKILL.md) | 1.0.0 | Review and auto-merge discipline for autonomous PR runs, including live CI checks, bot-finding triage, and cross-PR composition safety. |
-| [autonomous-run-contract](skills/autonomous-run-contract/SKILL.md) | 1.0.1 | Author the binding contract for autonomous multi-PR cutover runs: grants, gates, flip mechanism, rollback triggers, constraints, and escalation rules. |
+| [autonomous-run-contract](skills/autonomous-run-contract/SKILL.md) | 1.0.0 | Author the binding contract for autonomous multi-PR cutover runs: grants, gates, flip mechanism, rollback triggers, constraints, and escalation rules. |
 | [dormant-flip-and-rollback](skills/dormant-flip-and-rollback/SKILL.md) | 1.0.0 | Design cutover-class changes with a dormant build, single-switch flip, and pre-authorized rollback path. |
 | [instrument-dont-guess](skills/instrument-dont-guess/SKILL.md) | 1.0.0 | Add temporary diagnostics after repeated failed fixes instead of continuing to guess at the same symptom. |
 | [swarm-blockers-and-gate-scoreboard](skills/swarm-blockers-and-gate-scoreboard/SKILL.md) | 1.0.0 | Dispatch paired worker/reviewer agents for hard blockers and maintain RED/GREEN gate scoreboards for autonomous runs. |
@@ -95,7 +95,6 @@ commands/                       # Slash commands
 plugins/claude-relay-plugin/    # Claude Code plugin, hooks, worker agent, and plugin skills
 workflows/                      # Maintenance and audit workflows
 prpm.json                       # Package manifest
-prpm.autonomous-run-private.json # Private autonomous-run collection manifest
 ```
 
 ## Links
