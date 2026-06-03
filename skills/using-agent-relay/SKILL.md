@@ -16,7 +16,7 @@ that **is a registered participant** in a relay team.
 >   `agent-relay local agent spawn` and are driving a worker team from outside) →
 >   you reach the team through relay too, but as a registered identity. The
 >   messaging / `list_agents` MCP tools reject unregistered callers with
->   `Not registered. Call agent.register first.` Use the
+>   `Not registered. Call register_agent first.` Use the
 >   **`orchestrating-agent-relay`** skill — it covers registering for a token and
 >   the `agent-relay local …` lifecycle commands.
 
@@ -219,6 +219,6 @@ agent-relay local tail --agent <name> # Stream an agent's raw output (debug)
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Messages not sending                         | Use `check_inbox` to verify your connection                                                                                            |
 | Agent not receiving                          | Use `list_agents` to confirm the agent is online                                                                                       |
-| `Not registered. Call agent.register first.` | Register first (`register_agent`) — or, if you are the orchestrator, see the `orchestrating-agent-relay` skill                          |
+| `Not registered. Call register_agent first.` | Register first (`register_agent`) — or, if you are the orchestrator, see the `orchestrating-agent-relay` skill                          |
 | Wrong tool prefix                            | Claude: `mcp__agent-relay__<tool>`; other CLIs: `agent-relay.<tool>`                                                                   |
 | DM vs channel confusion                      | Use `send_dm` for agents, `post_message` for channels                                                                                  |

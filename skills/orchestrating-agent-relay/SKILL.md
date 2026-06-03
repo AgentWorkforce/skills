@@ -57,7 +57,7 @@ are registered participants too; their peer-messaging reference is the
 | Spawn worker                      | `agent-relay local agent spawn claude --name Worker1 --task "…"` |
 | List workers                      | `agent-relay local agent list`                                |
 | Resource usage                    | `agent-relay local metrics`                                   |
-| Register for a messaging token    | `agent-relay agent register Lead` (sets up `RELAY_AGENT_TOKEN`) |
+| Register for a messaging token    | `agent-relay agent register Lead` (prints token; then `export RELAY_AGENT_TOKEN=<token>`) |
 | DM a worker (via relay)           | `agent-relay message dm send Worker1 "…"`                     |
 | Post to a channel (via relay)     | `agent-relay message post general "…"`                        |
 | Read a worker's replies (via relay) | `agent-relay message dm list <conversationId>`              |
@@ -150,6 +150,10 @@ agent-relay message dm list <conversationId>                 # read a worker's r
 agent-relay message inbox check                              # unread across conversations
 ```
 
+Use `--json` when sending or checking the inbox if you need to script follow-up
+reads: the DM send response includes the conversation ID, and inbox entries can
+also carry the conversation ID for the thread to pass to `message dm list`.
+
 Track which workers are alive with the lifecycle command (not a messaging
 channel):
 
@@ -164,7 +168,7 @@ agent-relay local agent list   # pid, status, uptime — JSON, ideal for polling
 >
 > **Messaging requires a registered agent identity.** The `message`, `channel`,
 > and `dm` groups (and the `mcp__agent-relay__*` tools) reject unregistered
-> callers with `Not registered. Call agent.register first.` Run
+> callers with `Not registered. Call register_agent first.` Run
 > `agent-relay agent register <name>` and set `RELAY_AGENT_TOKEN` (or pass
 > `--token <token>` per call).
 
@@ -217,7 +221,7 @@ agent-relay message post <channel> <text>             # channel broadcast (bare 
 agent-relay message list <channel> [--limit <n>]      # channel history
 agent-relay message dm send <agent> <text>            # DM a worker
 agent-relay message dm list <conversationId> [--limit <n>]   # read a DM thread
-agent-relay message dm send_group <text>              # group DM
+agent-relay message dm send_group --to <agent> --to <agent> <text>   # group DM
 agent-relay message reply <messageId> <text>          # threaded reply
 agent-relay message get_thread <messageId>            # full thread
 agent-relay message search <query> [--channel <c>] [--from <agent>] [--limit <n>]
@@ -326,6 +330,53 @@ Release when done:
 - Poll `agent-relay local agent list` for liveness; do all messaging through the `message`/`channel` groups
 ```
 
+## Multi-Round Review Loops
+
+The first DONE is not the end of a serious workflow. Plan for review, fixes,
+and re-review before you spawn implementers.
+
+### Keep workers alive for fixes
+
+Tell every implementer not to release itself after DONE:
+
+```text
+Do NOT call remove_agent or release yourself after DONE. Report DONE and stay
+alive and idle. The orchestrator will send review findings to fix, or release
+you when the work is fully accepted.
+```
+
+If a worker exits before review finishes, you cannot DM it. Spawn a replacement
+and give it the full continuation context:
+
+```bash
+agent-relay local agent spawn codex --name Implementer2 --task "Continuation of prior work.
+Branch: feature/auth. Last commit: <sha>.
+Reviewer returned NO-GO:
+<full verdict text>
+Address every finding, rerun tests, report DONE, and stay alive for re-review."
+```
+
+Always include the branch, commit SHA, and complete reviewer verdict. A fresh
+worker has none of the previous round's memory, and a summary often loses the
+specific failing assertion or file path it needs.
+
+### Monitor both messages and liveness
+
+Review loops can hang if you wait only for a relay message from a worker that
+has died. Poll both surfaces:
+
+- Relay messages for ACK, DONE, and review responses:
+  `agent-relay message inbox check` and `agent-relay message dm list <conversationId>`
+- Local lifecycle for process health:
+  `agent-relay local agent list`
+- Raw output only when debugging:
+  `agent-relay local tail --agent <name>`
+
+Set a wall-clock fallback for long loops so silence cannot block the
+orchestrator forever. In harnesses that reject a bare foreground `sleep`, run
+the polling loop in the background or use the harness's monitor/until-loop
+primitive.
+
 ## Lifecycle Events
 
 The broker emits these events (available via SDK subscriptions and
@@ -350,7 +401,8 @@ The broker emits these events (available via SDK subscriptions and
 | Broker stuck in STARTING after `status --wait-for`       | The process is alive but the broker API is not ready; inspect output via `local tail`, retry readiness, or `agent-relay local down --force` if wedged         |
 | Broker shows STOPPED immediately after start             | Check `ps aux \| grep agent-relay-broker` and `.agentworkforce/relay/connection.json`; rerun status from the project root or pass `--state-dir`               |
 | Worktree verification leaves git status dirty            | Run `agent-relay local down --force`, then remove generated `.agentworkforce/relay/` and `.mcp.json` from throwaway validation worktrees before committing    |
-| `Not registered. Call agent.register first.`             | `message`/`channel`/`dm` are token-gated. Run `agent-relay agent register <name>` and set `RELAY_AGENT_TOKEN` (or pass `--token`). The `local` group is exempt |
+| `Not registered. Call register_agent first.`             | `message`/`channel`/`dm` are token-gated. Run `agent-relay agent register <name>` and set `RELAY_AGENT_TOKEN` (or pass `--token`). The `local` group is exempt |
+| Missing `<conversationId>` for `message dm list`          | Send the DM with `--json` or inspect `message inbox check --json`; use the returned conversation ID for follow-up thread reads                                 |
 | Spawn fails with `internal reply dropped`                | Broker likely is not fully ready yet; wait for readiness, then spawn one worker first                                                                          |
 | Workers not connecting                                   | Ensure broker started; check `agent-relay local agent list`, then `agent-relay local tail --agent <name>` to debug raw output                                 |
 | Reading worker replies with `local tail` / broker output | Messages go through relay — read them with `agent-relay message inbox check` / `message dm list <conversationId>`. `local tail` is raw broker output, not relay |

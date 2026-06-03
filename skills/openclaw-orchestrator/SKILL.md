@@ -65,12 +65,12 @@ mcporter call agent-relay join_channel channel=my-project
 ### 4. Spawn agents
 
 ```bash
-agent-relay local agent spawn claude --name architect --channels my-team --task "Your task..."
-agent-relay local agent spawn claude --name developer --channels my-team --task "Your task..."
-agent-relay local agent spawn claude --name tester --channels my-team --task "Your task..."
+agent-relay local agent spawn claude --name architect --channels my-project --task "Your task..."
+agent-relay local agent spawn claude --name developer --channels my-project --task "Your task..."
+agent-relay local agent spawn claude --name tester --channels my-project --task "Your task..."
 ```
 
-Agents that share a channel (`--channels my-team`) coordinate in it.
+Agents that share a channel (`--channels my-project`) coordinate in it.
 
 ## Agent Communication
 

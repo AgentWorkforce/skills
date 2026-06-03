@@ -21,26 +21,26 @@ Bootstrap the agent-relay broker (if not already running) and spawn a worker on 
    - Optional `--task "<text>"` — the task prompt for the spawned worker. If omitted, prompt the user for the task before spawning.
 
 3. **Bootstrap the broker (idempotent).** Per the orchestrator skill:
-   - Run `agent-relay status` first. If broker is up, skip startup.
-   - If down, ensure a workspace key is available (`$RELAYCAST_WORKSPACE_KEY` or prompt the user). Then `agent-relay up --workspace-key $KEY --background --no-spawn`.
+   - Run `agent-relay local status` first. If broker is up, skip startup.
+   - If down, ensure a workspace key is available (`$RELAYCAST_WORKSPACE_KEY` or `$AGENT_RELAY_WORKSPACE_KEY`, or prompt the user). Then `agent-relay local up --workspace-key $KEY --background --no-spawn`.
    - Verify broker came up cleanly before spawning.
 
-4. **Ensure a coordination channel exists.** Default to `#orchestrator` unless the user specified one. Create it via `mcporter call relaycast create_channel` if missing, then join it.
+4. **Ensure a coordination channel exists.** Default to `orchestrator` unless the user specified one. Create it via `mcporter call agent-relay create_channel` if missing, then join it with `mcporter call agent-relay join_channel`.
 
 5. **Spawn the worker.** Construct the spawn command from parsed args:
    ```text
-   agent-relay spawn <auto-name> $1 [--model <model>] [--team orchestrator] "<task>"
+   agent-relay local agent spawn $1 --name <auto-name> [--model <model>] --channels orchestrator --task "<task>"
    ```
    - `<auto-name>` should be unique per run (e.g., `worker-<short-uuid>`) to avoid 409 conflicts.
    - Inject the standard task-prompt template from the orchestrator skill (channel posting, inbox checks, completion event) so the worker can communicate.
 
-6. **Report back.** Print the spawned agent name, the channel it joined, and the tail command (`agent-relay agents:logs <name>`) so the user can monitor it.
+6. **Report back.** Print the spawned agent name, the channel it joined, the relay message commands for coordination, and the debug tail command (`agent-relay local tail --agent <name>`).
 
 ## Output Contract
 
 - One-line confirmation: broker state, agent name, harness, model, channel.
-- Monitoring commands (logs, channel messages, kill).
-- If something failed (workspace key missing, harness unsupported, broker won't start), surface the exact error and the orchestrator-skill fix from its "Gotchas" table — do not silently continue.
+- Monitoring commands (relay messages, liveness, debug tail, release).
+- If something failed (workspace key missing, harness unsupported, broker won't start), surface the exact error and the orchestrator-skill fix from its "Common Mistakes" table — do not silently continue.
 
 ## Constraints
 

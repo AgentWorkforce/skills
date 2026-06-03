@@ -249,7 +249,7 @@
     },
     {
       "name": "spawn",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Slash command for relay-orchestrator that bootstraps the agent-relay broker and spawns a worker on the chosen harness (claude, codex, opencode, droid, gemini, pi) with optional --model and --task - loads the orchestrator skill so infrastructure, channels, and lifecycle just work",
       "format": "claude",
       "subtype": "slash-command",
