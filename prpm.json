@@ -89,7 +89,7 @@
     },
     {
       "name": "orchestrating-agent-relay",
-      "version": "2.1.2",
+      "version": "2.2.0",
       "description": "The canonical way to run agent-relay - self-bootstrap the broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, CLI-first reading, and team coordination.",
       "format": "claude",
       "subtype": "skill",
