@@ -319,7 +319,7 @@
     },
     {
       "name": "autonomous-run-contract",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use at the start of every autonomous, multi-PR, cutover-class delegated run. Authors the binding contract between operator and agent — the gates, the flip mechanism, the rollback triggers, the standing constraints, and the explicit escalate-to-human conditions — and surfaces it to the operator for explicit grant of (a) auto-merge authority, (b) flip-the-switch authority, (c) swarm-blockers authority. No autonomous work begins until the contract is acknowledged.",
       "format": "claude",
       "subtype": "skill",
