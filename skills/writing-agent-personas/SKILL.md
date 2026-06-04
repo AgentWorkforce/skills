@@ -43,7 +43,7 @@ Rules:
   non-empty `scope`.
 - **`scope: {}` does NOT work.** persona-kit's `parseIntegrationConfig`
   discards empty scope objects client-side before upload, so cloud's
-  `/​<provider>/**` provider-root fallback is unreachable from a persona.
+  `/<provider>/**` provider-root fallback is unreachable from a persona.
 - Scope values must be **strings** (persona-kit `parseStringMap` throws on
   arrays). A value starting with `/` is used verbatim as a mount glob; a bare
   value `v` under key `k` becomes `/<provider>/<k>/<v>/**`.
@@ -106,9 +106,9 @@ Resolution facts (verified against cloud delivery + runtime):
 
 ```ts
 function input(ctx: WorkforceCtx, name: string): string | undefined {
-  const spec = ctx.persona.inputSpecs?.[name];
-  const v = process.env[spec?.env ?? name] ?? ctx.persona.inputs?.[name] ?? spec?.default;
-  return v && v.trim() ? v : undefined;
+  const spec = ctx.persona?.inputSpecs?.[name];
+  const v = process.env[spec?.env ?? name] ?? ctx.persona?.inputs?.[name] ?? spec?.default;
+  return typeof v === 'string' && v.trim() ? v : undefined;
 }
 ```
 
@@ -200,7 +200,7 @@ when the code works and is approved. The bar:
 Declare wakeups in `defineAgent({...})` (triggers / schedules / watch);
 branch imperatively in the handler. Hard-won guard patterns:
 
-- **First line**: `if (event.source !== '<provider>') return;`
+- **First line** (single-provider personas): `if (event.source !== '<provider>') return;` — multi-provider handlers branch per `event.source` instead of returning early.
 - **Terminal-event guards before work**: approval → merge → return;
   green check_run → return; only then the expensive review path.
 - **Read materialized meta defensively.** Provider projections drift — accept
