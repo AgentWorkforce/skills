@@ -188,6 +188,15 @@ Use this shape unless there is a strong reason not to.
 }
 ```
 
+> **Scope warning:** `"slack": {}` only works in this example because `agent.ts`
+> below also declares a **slack trigger** — cloud mounts an integration's
+> relayfile paths from triggers and from `scope`, nothing else. An integration
+> the handler only **writes** through (e.g. Slack notifications with no slack
+> trigger) MUST declare a non-empty `scope`
+> (e.g. `"slack": { "scope": { "paths": "/slack/channels/**" } }`) or every
+> client write is a silent no-op. `scope: {}` is discarded by persona-kit, and
+> scope values must be strings. Full rules: the `writing-agent-personas` skill, §1.
+
 ### agent.ts
 
 ```ts
