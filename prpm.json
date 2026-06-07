@@ -177,8 +177,8 @@
     },
     {
       "name": "workspace-layout",
-      "version": "1.0.0",
-      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/.layout.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
+      "version": "1.0.1",
+      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/LAYOUT.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
       "format": "claude",
       "subtype": "skill",
       "tags": [

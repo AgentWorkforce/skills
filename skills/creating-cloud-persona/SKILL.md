@@ -324,7 +324,8 @@ import path from 'node:path';
 const root = resolveMountRoot({});
 // LAYOUT.md + _index.json are the source of truth — read them, don't hardcode.
 const pullsDir = path.join(root, 'github', 'repos', owner, repo, 'pulls');
-const entry = (await readdir(pullsDir)).find((d) => d === String(n) || d.startsWith(`${n}__`));
+const entry = (await readdir(pullsDir)).find((d) => d.startsWith(`${prNumber}__`));
+if (!entry) throw new Error(`PR #${prNumber} not found under ${pullsDir}`);
 const meta = await readJsonFile(
   { relayfileMountRoot: root }, 'github', 'getPr',
   `/github/repos/${owner}/${repo}/pulls/${entry}/meta.json`
