@@ -304,22 +304,41 @@ the generic resource access — `providerClient('notion').pages.write({ database
 writeback **receipt** (e.g. the created issue's URL/id).
 
 **Lower-level escape hatch.** For reads that are *not* catalog writeback
-resources (e.g. github `pulls/<n>/meta.json`, a provider's `_index.json`), drop
-to the generic VFS helpers from `@agentworkforce/runtime`:
+resources (e.g. a github PR's record JSON, a provider's `_index.json`), drop to
+the generic VFS helpers from `@agentworkforce/runtime`.
+
+**Never assume a record path — the mount self-describes its layout.** The
+relayfile adapter publishes a guide per provider at `/<provider>/LAYOUT.md`
+(e.g. `/github/LAYOUT.md`) and an `_index.json` at each level. Its first rule is
+literally *"always run `ls` before constructing a path"*, because record
+directory names are **not guessable**: a GitHub PR is
+`pulls/<number>__<slug>/meta.json` (number + sanitized title slug), **not**
+`pulls/<number>/meta.json`. Read `LAYOUT.md`, walk the `_index.json` files, and
+`ls`/inspect a directory before reading from it:
 
 ```ts
 import { readJsonFile, resolveMountRoot } from '@agentworkforce/runtime';
+import { readdir } from 'node:fs/promises';
+import path from 'node:path';
 
+const root = resolveMountRoot({});
+// LAYOUT.md + _index.json are the source of truth — read them, don't hardcode.
+const pullsDir = path.join(root, 'github', 'repos', owner, repo, 'pulls');
+const entry = (await readdir(pullsDir)).find((d) => d === String(n) || d.startsWith(`${n}__`));
 const meta = await readJsonFile(
-  { relayfileMountRoot: resolveMountRoot({}) },
-  'github', 'getPr',
-  `/github/repos/${owner}/${repo}/pulls/${prNumber}/meta.json`
+  { relayfileMountRoot: root }, 'github', 'getPr',
+  `/github/repos/${owner}/${repo}/pulls/${entry}/meta.json`
 );
 ```
 
-When unsure of a resource or path, check the catalog
-(`@relayfile/adapter-core/writeback-paths`) or the adapter's `resources.ts`
-rather than guessing.
+> **Scope it in.** `LAYOUT.md` lives at `/github/LAYOUT.md` — a sibling of
+> `repos/`, **not** under it. A scope like `/github/repos/<owner>/**` does NOT
+> mount the guide; use `/github/**` (or otherwise include `/github/LAYOUT.md`)
+> if the handler should read it.
+
+When unsure of a resource or path, prefer the in-mount `LAYOUT.md` / `_index.json`
+(runtime truth), then the catalog (`@relayfile/adapter-core/writeback-paths`) or
+the adapter's `resources.ts` — never guess a filename.
 
 ## When to use `ctx.harness.run(...)`
 

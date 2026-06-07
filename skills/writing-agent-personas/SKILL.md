@@ -56,6 +56,26 @@ slack: {
 }
 ```
 
+- **A scope root must be a concrete prefix — a mid-path `*` mounts NOTHING.**
+  Cloud reduces each scope to a remote root via `scopedRemoteRoot`
+  (`cloud/packages/core/src/relayfile/mount-script.ts`): it strips a trailing
+  `/**`, then **discards the path entirely if any `*` remains** (and
+  `relayfile-mount --remote-path` only accepts a concrete prefix, never a glob).
+  So a `*` is allowed *only* in the final `/**`:
+
+  ```ts
+  // ❌ silently dropped — the mid-path `*` survives the /** strip → mounts nothing
+  github: { scope: { paths: '/github/repos/AgentWorkforce/*/pulls/**' } }
+  // ✅ concrete root — mounts; filter to the repos/PRs you want in the handler
+  github: { scope: { paths: '/github/**' } }
+  ```
+
+  This is doubly silent: the deploy still mints a matching fs token and the path
+  passes string validation, so nothing errors — the handler just reads an empty
+  tree. It bit daily-ship (every digest said "No PRs merged"). Pick the broadest
+  concrete root and narrow in code. (Platform hardening tracked in
+  `AgentWorkforce/cloud#1986`.)
+
 - **Verify after compiling**: run `agentworkforce persona compile <dir>/persona.ts`
   and check the generated persona.json still carries `integrations.<p>.scope`.
   If persona-kit dropped it, the deployed persona is silently inert.
