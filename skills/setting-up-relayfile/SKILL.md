@@ -387,7 +387,7 @@ labeled with the `deploymentId` from the relaycron execution's response body:
 ```bash
 # 1. find the sandbox for the failed deployment
 daytona sandbox list --format json --limit 200 \
-  | jq -r '.items[] | select(.labels.deploymentId=="<deploymentId>") | .id'
+  | jq -r '.[] | select(.labels.deploymentId=="<deploymentId>") | .id'
 # 2. it auto-stops; start it, then read the run-tick + mount logs
 daytona sandbox start <sandbox-id>
 daytona sandbox exec <sandbox-id> -- bash -lc \
@@ -398,8 +398,8 @@ daytona sandbox stop <sandbox-id>
 ```
 
 The fix is **adapter-side** — the adapter must not emit a path as both a file
-and a directory (e.g. nest the reply's children under `replies/<ts>/` with the
-record at `replies/<ts>/meta.json` instead of colliding with `replies/<ts>.json`).
+and a directory (e.g. nest the reply's children under `replies/<ts2>/` with the
+record at `replies/<ts2>/meta.json` instead of colliding with `replies/<ts2>.json`).
 A handler can't work around it; a partial mirror is not something the persona can
 detect. As a stopgap, a run whose mounts are all read-only inputs (only one
 writeback message to drain) should not let an unreconciled-mirror flush fail the

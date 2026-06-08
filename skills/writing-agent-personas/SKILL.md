@@ -37,8 +37,8 @@ mount's read-side mirror never finished bootstrapping (e.g. a file/dir path
 collision aborts every sync cycle), so the writeback can't be acknowledged — and
 that one additionally marks the whole cloud run FAILED on the teardown flush. If
 you see `ts: ''`, rule out a stuck mirror, not just a missing scope (see
-`setting-up-relayfile` → "cloud run marked FAILED but the handler logged
-`runner.handler.ok`").
+[`setting-up-relayfile` → "cloud run marked FAILED but the handler logged
+`runner.handler.ok`"](../setting-up-relayfile/SKILL.md#symptom-cloud-run-marked-failed-but-the-handler-logged-runnerhandlerok)).
 
 Why github "just works" in most personas while slack doesn't: github usually
 appears in `triggers`, and trigger paths are mounted independently of scope.
