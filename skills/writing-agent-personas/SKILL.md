@@ -32,6 +32,14 @@ disk**, polls ~3s for a writeback receipt that can never arrive, and returns
 notification is a perfectly silent no-op — this shipped as the pr-reviewer
 Slack bug (agents#40).
 
+The same `ts: ''` signature also appears when the scope **is** set but the
+mount's read-side mirror never finished bootstrapping (e.g. a file/dir path
+collision aborts every sync cycle), so the writeback can't be acknowledged — and
+that one additionally marks the whole cloud run FAILED on the teardown flush. If
+you see `ts: ''`, rule out a stuck mirror, not just a missing scope (see
+`setting-up-relayfile` → "cloud run marked FAILED but the handler logged
+`runner.handler.ok`").
+
 Why github "just works" in most personas while slack doesn't: github usually
 appears in `triggers`, and trigger paths are mounted independently of scope.
 Any integration the handler only **writes** through (slack notifications,
