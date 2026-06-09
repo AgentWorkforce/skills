@@ -11,6 +11,8 @@ Use these notes to ground the skill in the current repo shape.
   - `harnessSettings`
 - `onEvent` points to the handler entrypoint, usually `./agent.ts`
 - Trigger, schedule, and watch declarations now live in `agent.ts` via `defineAgent(...)`
+- Team-member agents can intentionally have no trigger/schedule/watch and use
+  `launchedBy: 'team-dispatcher'` so only the lead subscribes to provider events
 - `persona.json.integrations` is for connection/setup requirements, not event trigger declaration
 - Runtime events are currently shaped around:
   - `source: 'cron'` plus `name`
@@ -20,27 +22,52 @@ Use these notes to ground the skill in the current repo shape.
 
 ## Good source files to inspect
 
-- `workforce/examples/review-agent/persona.json`
-- `workforce/examples/review-agent/agent.ts`
-- `workforce/examples/weekly-digest/persona.json`
-- `workforce/examples/weekly-digest/agent.ts`
-- `workforce/packages/persona-kit/src/types.ts`
-- `workforce/packages/runtime/src/types.ts`
-- `workforce/packages/persona-kit/schemas/persona.schema.json`
-- `workforce/packages/deploy/src/preflight.ts`
-- `@relayfile/relay-helpers` (npm; source in `relayfile-adapters/packages/relay-helpers`) — the ergonomic provider clients + the all-29-provider `relayClient`/`providerClient`
-- `workforce/packages/runtime/src/clients/index.ts` (the VFS helpers, re-exported from `@relayfile/adapter-core/vfs-client` — the lower-level fallback)
-- `workforce/packages/cli/src/deploy-command.ts` (the `login` / `deploy` flow)
-- `workforce/packages/deploy/src/extract-agent.ts` (why a bare `export default handler(...)` is rejected — `defineAgent` is required)
+The skill vendors the reference files it depends on. Inspect these local paths
+inside `skills/creating-cloud-persona/references/`:
+
+- `references/agents/review/persona.json`
+- `references/agents/review/agent.ts`
+- `references/agents/repo-hygiene/persona.json`
+- `references/agents/repo-hygiene/agent.ts`
+- `references/agents/linear/persona.json`
+- `references/agents/linear/agent.ts`
+- `references/agents/hn-monitor/persona.json`
+- `references/agents/hn-monitor/agent.ts`
+- `references/agents/cloud-team-implementer/persona.json`
+- `references/agents/cloud-team-implementer/agent.ts`
+- `references/agents/cloud-team-reviewer/persona.json`
+- `references/agents/cloud-team-reviewer/agent.ts`
+- `references/workforce/examples/review-agent/persona.json`
+- `references/workforce/examples/review-agent/agent.ts`
+- `references/workforce/examples/weekly-digest/persona.json`
+- `references/workforce/examples/weekly-digest/agent.ts`
+- `references/workforce/examples/linear-shipper/persona.json`
+- `references/workforce/examples/linear-shipper/agent.ts`
+- `references/workforce/examples/notion-essay-pr/persona.json`
+- `references/workforce/examples/notion-essay-pr/agent.ts`
+- `references/workforce/examples/proactive-issue-resolver/persona.json`
+- `references/workforce/examples/proactive-issue-resolver/agent.ts`
+- `references/workforce/packages/persona-kit/src/types.ts`
+- `references/workforce/packages/runtime/src/types.ts`
+- `references/workforce/packages/persona-kit/schemas/persona.schema.json`
+- `references/workforce/packages/deploy/src/preflight.ts`
+- `references/relayfile-adapters/packages/relay-helpers/README.md` — the ergonomic provider clients + the all-29-provider `relayClient`/`providerClient`
+- `references/workforce/packages/runtime/src/clients/index.ts` (the VFS helpers, re-exported from `@relayfile/adapter-core/vfs-client` — the lower-level fallback)
+- `references/workforce/packages/cli/src/deploy-command.ts` (the `login` / `deploy` flow)
+- `references/workforce/packages/deploy/src/extract-agent.ts` (why a bare `export default handler(...)` is rejected — `defineAgent` is required)
 
 ## Important nuance
 
-Older plan/docs may still mention `tiers`, old proactive shapes, or trigger declarations on the persona. Prefer the real example personas, `defineAgent(...)` examples, and current `persona-kit` / runtime types over older planning text when they conflict.
+Older plan/docs may still mention `tiers`, old proactive shapes, or trigger
+declarations on the persona. Prefer the vendored production agents, Workforce
+examples, `defineAgent(...)` examples, and current `persona-kit` / runtime types
+over older planning text when they conflict.
 
 ## Authoring heuristic
 
 - Put deploy/runtime config and integration connection requirements in `persona.json`
 - Put wakeup declarations in `defineAgent(...)` inside `agent.ts`
+- For team-member personas, omit wakeups and use `launchedBy: 'team-dispatcher'`
 - Put branch logic and side effects in the handler
 - Keep one persona/agent = one coherent job
 - Keep the handler imperative and readable

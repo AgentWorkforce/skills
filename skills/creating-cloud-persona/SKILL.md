@@ -1,6 +1,6 @@
 ---
 name: creating-cloud-persona
-description: Use when creating or updating a Workforce cloud persona (`persona.json` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, `integrations`, `memory`, `onEvent`, current top-level `harness`/`model`/`systemPrompt`/`harnessSettings`, and the latest `defineAgent(...)` pattern where triggers, schedules, and watch rules are declared in `agent.ts`, not in `persona.json`. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, or “author the agent.ts handler for a workforce persona”.
+description: Use when creating, updating, or reviewing a Workforce cloud persona (`persona.json`/`persona.ts` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, integrations and scope mounting, inputs, memory, sandbox modes, `onEvent`, top-level runtime fields, `defineAgent(...)` triggers/schedules/watch/team-dispatcher launch, provider IO via `@relayfile/relay-helpers`, production-correctness traps, vendored examples, and deploy flow. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, “review a workforce persona”, or “author the agent.ts handler for a workforce persona”.
 ---
 
 # Creating Cloud Persona
@@ -19,19 +19,47 @@ The handler branches on `event.source` and `event.type` or `event.name`.
 
 ## First read
 
-Before authoring, read these real repo examples and current types:
+Before authoring, read the vendored examples and current types in this skill's
+`references/` directory. They are copied from the current Workforce and agents
+repos so the skill is self-contained.
 
-- `workforce/examples/review-agent/persona.json`
-- `workforce/examples/review-agent/agent.ts`
-- `workforce/examples/weekly-digest/persona.json`
-- `workforce/examples/weekly-digest/agent.ts`
-- `workforce/packages/persona-kit/src/types.ts`
-- `workforce/packages/runtime/src/types.ts`
+Production agents:
 
-If you need exact field semantics, also inspect:
+- `references/agents/review/persona.json`
+- `references/agents/review/agent.ts`
+- `references/agents/repo-hygiene/persona.json`
+- `references/agents/repo-hygiene/agent.ts`
+- `references/agents/linear/persona.json`
+- `references/agents/linear/agent.ts`
+- `references/agents/hn-monitor/persona.json`
+- `references/agents/hn-monitor/agent.ts`
+- `references/agents/cloud-team-implementer/persona.json`
+- `references/agents/cloud-team-implementer/agent.ts`
+- `references/agents/cloud-team-reviewer/persona.json`
+- `references/agents/cloud-team-reviewer/agent.ts`
 
-- `workforce/packages/persona-kit/schemas/persona.schema.json`
-- `workforce/packages/deploy/src/preflight.ts`
+Workforce examples:
+
+- `references/workforce/examples/review-agent/persona.json`
+- `references/workforce/examples/review-agent/agent.ts`
+- `references/workforce/examples/weekly-digest/persona.json`
+- `references/workforce/examples/weekly-digest/agent.ts`
+- `references/workforce/examples/linear-shipper/persona.json`
+- `references/workforce/examples/linear-shipper/agent.ts`
+- `references/workforce/examples/notion-essay-pr/persona.json`
+- `references/workforce/examples/notion-essay-pr/agent.ts`
+- `references/workforce/examples/proactive-issue-resolver/persona.json`
+- `references/workforce/examples/proactive-issue-resolver/agent.ts`
+
+Current types and deploy checks:
+
+- `references/workforce/packages/persona-kit/src/types.ts`
+- `references/workforce/packages/runtime/src/types.ts`
+- `references/workforce/packages/persona-kit/schemas/persona.schema.json`
+- `references/workforce/packages/deploy/src/preflight.ts`
+- `references/workforce/packages/deploy/src/extract-agent.ts`
+- `references/workforce/packages/cli/src/deploy-command.ts`
+- `references/relayfile-adapters/packages/relay-helpers/README.md`
 
 ## Current persona shape to follow
 
@@ -46,14 +74,14 @@ For cloud personas, expect fields like:
 - `cloud: true`
 - `useSubscription` (optional)
 - `integrations` (optional, for provider connection requirements)
-- `memory` (optional)
+- `memory` (optional; production agents use both `true` and object form)
 - `onEvent`
-- top-level runtime fields:
+- top-level runtime fields, when the agent uses a harness:
   - `harness`
   - `model`
   - `systemPrompt`
   - `harnessSettings`
-- optional `inputs`, `env`, `skills`, `permissions`, `mount`, `mcpServers`, `capabilities`
+- optional `inputs`, `env`, `sandbox`, `skills`, `permissions`, `mount`, `mcpServers`, `capabilities`
 
 Do **not** author older `tiers` / `defaultTier` structures unless the repo explicitly still uses them. The latest Workforce examples use flat top-level runtime fields.
 
@@ -71,18 +99,23 @@ Do **not** author older `tiers` / `defaultTier` structures unless the repo expli
 ### `agent.ts` does
 
 - exports `defineAgent({...})`
-- declares `triggers`, `schedules`, and optionally `watch`
+- declares `triggers`, `schedules`, and optionally `watch`; team-member agents
+  can intentionally declare none and use `launchedBy: 'team-dispatcher'`
 - receives `ctx` and `event` in `handler`
 - inspects `event.source`
 - inspects `event.type` or `event.name`
 - reads and writes provider data through **`@relayfile/relay-helpers`** clients (`linearClient().comment(...)`, `slackClient().post(...)`, `githubClient().mergePullRequest(...)`, or the generic `relayClient(provider)` / `providerClient(provider)`) — catalog-backed, no hardcoded paths. The raw `@agentworkforce/runtime` VFS helpers (`readJsonFile` / `writeJsonFile`) stay the lower-level fallback. There are **no** per-provider clients on `ctx` (no `ctx.github` / `ctx.linear`)
 - optionally calls `ctx.harness.run(...)`
+- optionally calls `ctx.llm.complete(...)` for smaller synthesis
+- optionally delegates to `ctx.workflow.run(...)`
+- optionally uses `ctx.files.*` or `ctx.sandbox.*`
 - optionally uses `ctx.memory.*`
 - performs the actual workflow
 
 ## Trigger model
 
-Cloud agents currently have three practical wakeup shapes, and they are authored in `agent.ts`:
+Cloud agents currently have four practical shapes, and wakeups are authored in
+`agent.ts`:
 
 1. **Clock** via `defineAgent({ schedules: [...] })`
    - runtime event source: `cron`
@@ -97,6 +130,12 @@ Cloud agents currently have three practical wakeup shapes, and they are authored
 3. **Relayfile watch** via `defineAgent({ watch: [...] })`
    - for file/path-driven proactive behavior
    - keep this for cases that are truly about Relayfile path changes, not provider event hooks
+
+4. **Team member** via `defineAgent({ launchedBy: 'team-dispatcher', handler })`
+   - no direct triggers/schedules/watch
+   - launched by a lead/team dispatcher to avoid duplicate subscriptions
+   - see `references/agents/cloud-team-implementer/agent.ts` and
+     `references/agents/cloud-team-reviewer/agent.ts`
 
 `persona.json.integrations` still matters, but for **connection/setup**, not for declaring which events fire the handler.
 
@@ -169,7 +208,7 @@ Use this shape unless there is a strong reason not to.
   "useSubscription": true,
   "integrations": {
     "github": {},
-    "slack": {}
+    "slack": { "scope": { "paths": "/slack/channels/**" } }
   },
   "memory": {
     "enabled": true,
@@ -177,7 +216,7 @@ Use this shape unless there is a strong reason not to.
   },
   "onEvent": "./agent.ts",
   "harness": "codex",
-  "model": "gpt-5.4",
+  "model": "gpt-5.5",
   "systemPrompt": "Review pull requests for correctness, regression risk, security concerns, and missing tests. Be concise and concrete.",
   "harnessSettings": {
     "reasoning": "medium",
@@ -188,14 +227,19 @@ Use this shape unless there is a strong reason not to.
 }
 ```
 
-> **Scope warning:** `"slack": {}` only works in this example because `agent.ts`
-> below also declares a **slack trigger** — cloud mounts an integration's
-> relayfile paths from triggers and from `scope`, nothing else. An integration
-> that the handler only **writes** through (e.g. Slack notifications with no slack
-> trigger) MUST declare a non-empty `scope`
-> (e.g. `"slack": { "scope": { "paths": "/slack/channels/**" } }`) or every
-> client write is a silent no-op. `scope: {}` is discarded by persona-kit, and
-> scope values must be strings. Full rules: the `writing-agent-personas` skill, §1.
+> **Scope warning — a Slack trigger does NOT cover a Slack write.** Cloud mounts
+> an integration's relayfile paths from triggers and from `scope`, nothing else.
+> A trigger mounts a *read* mirror at the display-labelled path
+> `/slack/channels/{id}__{name}/...`, but `slackClient().post()` writes to the
+> canonical bare-id path `/slack/channels/{id}/messages` — the two never
+> coincide, so a slack trigger alone leaves every write a silent no-op. That is
+> why this example **scopes** `slack` rather than using `"slack": {}`, even
+> though `agent.ts` below declares a slack trigger. Any integration the handler
+> **writes** through needs a non-empty `scope`
+> (`"slack": { "scope": { "paths": "/slack/channels/**" } }`); github/linear are
+> the exception only because their trigger and writeback paths share one bare-id
+> form. `scope: {}` is discarded by persona-kit, and scope values must be
+> strings. Full rules are in the production-correctness checklist below (§1).
 
 ### agent.ts
 
@@ -263,6 +307,7 @@ The useful pieces on `ctx` are typically:
 
 - `ctx.persona`
 - `ctx.harness.run(...)`
+- `ctx.llm.complete(...)`
 - `ctx.memory.save(...)`
 - `ctx.memory.recall(...)`
 - `ctx.sandbox.*`
@@ -405,7 +450,8 @@ Agent:
 - extract target identifiers from payload
 - optionally load prior memory
 - call harness for judgment/output
-- write back with `writeJsonFile(...)` + `draftFile(...)` to the provider's canonical Relayfile path — a draft write the Relayfile writeback worker turns into the real provider call
+- write back with `@relayfile/relay-helpers`; use `writeJsonFile(...)` only
+  for lower-level VFS/resource cases that the helper catalog does not cover
 
 ### Mixed schedule + integrations agent
 
@@ -416,6 +462,354 @@ Examples:
 - reacts to GitHub events and runs a weekly scan
 
 Do not combine unrelated jobs into one agent just because the runtime allows it.
+
+### Team member agent
+
+Use when the persona is launched by a team dispatcher, not directly by provider
+events.
+
+Persona:
+
+- `cloud: true`
+- usually declares integrations needed by the member's sandbox/work
+- harness/model/systemPrompt/harnessSettings describe the member role
+- `onEvent: "./agent.ts"`
+
+Agent:
+
+- `defineAgent({ launchedBy: 'team-dispatcher', handler })`
+- no `triggers`, `schedules`, or `watch`
+- handler should usually log and return if invoked directly
+- do not subscribe team members to the same provider events as the lead, or the
+  lead and every member can fire for the same issue/PR
+
+## Production correctness checklist
+
+These rules came from shipped Workforce/agents defects. Apply them after the basic persona shape is in place and before deploy.
+
+## 1. THE INTEGRATION SCOPE TRAP — declared ≠ mounted
+
+**A persona integration without a `scope` mounts nothing.** Cloud derives the
+relayfile mount paths (and the relayfile token's path scope) from exactly two
+sources: the agent's **triggers** and each integration's **scope**
+(`cloud → packages/web/lib/proactive-runtime/persona-deploy.ts`,
+`relayfilePathsFromScope`). A bare declaration like:
+
+```ts
+integrations: {
+  github: {},
+  slack: {}     // ← INERT: no trigger, no scope → zero /slack paths mounted
+}
+```
+
+means `slackClient().post(...)` writes its draft JSON to **unmounted local
+disk**, polls ~3s for a writeback receipt that can never arrive, and returns
+`{channel, ts: ''}` **without throwing** (adapter-core `vfs-client`
+`writeJsonFile` → `waitForReceipt` returns `undefined` on timeout). The
+notification is a perfectly silent no-op — this shipped as the pr-reviewer
+Slack bug (agents#40).
+
+The same `ts: ''` signature also appears when the scope **is** set but the
+mount's read-side mirror never finished bootstrapping (e.g. a file/dir path
+collision aborts every sync cycle), so the writeback can't be acknowledged — and
+that one additionally marks the whole cloud run FAILED on the teardown flush. If
+you see `ts: ''`, rule out a stuck mirror, not just a missing scope (see
+[`setting-up-relayfile` → "cloud run marked FAILED but the handler logged
+`runner.handler.ok`"](../setting-up-relayfile/SKILL.md#symptom-cloud-run-marked-failed-but-the-handler-logged-runnerhandlerok)).
+
+Why github "just works" in most personas while slack doesn't: github usually
+appears in `triggers`, and trigger paths are mounted independently of scope.
+Any integration the handler only **writes** through (slack notifications,
+linear comments on non-trigger issues) has no trigger to save it.
+
+**The labelled-mirror sub-trap — a trigger that LOOKS like it covers the write
+but doesn't.** A trigger mounts the watched subtree as a *read* mirror, and for
+some providers the mirror path is **display-labelled** while the writeback path
+is **canonical bare-id**. Slack is the production case: the trigger mirrors the
+channel at `/slack/channels/{id}__{name}/messages` (channel id + `__` + name),
+but `slackClient().post()` writes to `/slack/channels/{id}/messages` (bare id).
+The two **never coincide**, so a Slack trigger does NOT cover a Slack write —
+the draft still lands on unmounted disk and the post is a silent no-op even
+though the run logs `handler.ok`. This shipped as the **linear-slack bug
+(2026-06)**: the agent had a `slack` trigger on its board channel and *still*
+posted into the void; the orphaned draft was recovered from the live sandbox.
+github/linear are immune because their trigger and writeback paths share one
+bare identifier form (`/github/repos/{owner}/{repo}/...`,
+`/linear/issues/{issueId}/...`).
+
+Rules:
+
+- Every integration the handler writes through needs a trigger **or** a
+  non-empty `scope` — **except Slack (and any display-labelled mirror): a Slack
+  WRITE always needs a `scope`; a trigger is never enough.** Safest default:
+  give every write-through integration an explicit `scope`.
+- **Make delivery loud.** `post()`/`reply()`/`dm()` resolve with `ts: ''`
+  instead of throwing when the writeback gets no receipt (the `ts: ''` signature
+  above), so a dropped post still logs `handler.ok`. Treat an empty `ts` as
+  failure (`if (!result.ts) throw …`) so the runtime surfaces `handler.error`
+  instead of a silent no-op.
+- **`scope: {}` does NOT work.** persona-kit's `parseIntegrationConfig`
+  discards empty scope objects client-side before upload, so cloud's
+  `/<provider>/**` provider-root fallback is unreachable from a persona.
+- Scope values must be **strings** (persona-kit `parseStringMap` throws on
+  arrays). A value starting with `/` is used verbatim as a mount glob; a bare
+  value `v` under key `k` becomes `/<provider>/<k>/<v>/**`.
+- When the target is picked at deploy time (e.g. a `SLACK_CHANNEL` input),
+  scope the subtree, not the instance:
+
+```ts
+slack: {
+  scope: { paths: '/slack/channels/**' }   // covers any picked channel, excludes DMs/users
+}
+```
+
+- **A scope root must be a concrete prefix — a mid-path `*` mounts NOTHING.**
+  Cloud reduces each scope to a remote root via `scopedRemoteRoot`
+  (`cloud/packages/core/src/relayfile/mount-script.ts`): it strips a trailing
+  `/**`, then **discards the path entirely if any `*` remains** (and
+  `relayfile-mount --remote-path` only accepts a concrete prefix, never a glob).
+  So a `*` is allowed *only* in the final `/**`:
+
+  ```ts
+  // ❌ silently dropped — the mid-path `*` survives the /** strip → mounts nothing
+  github: { scope: { paths: '/github/repos/AgentWorkforce/*/pulls/**' } }
+  // ✅ concrete root — mounts; filter to the repos/PRs you want in the handler
+  github: { scope: { paths: '/github/**' } }
+  ```
+
+  This is doubly silent: the deploy still mints a matching fs token and the path
+  passes string validation, so nothing errors — the handler just reads an empty
+  tree. It bit daily-ship (every digest said "No PRs merged"). Pick the broadest
+  concrete root and narrow in code. (Platform hardening tracked in
+  `AgentWorkforce/cloud#1986`.)
+
+- **Verify after compiling**: run `agentworkforce persona compile <dir>/persona.ts`
+  and check the generated persona.json still carries `integrations.<p>.scope`.
+  If persona-kit dropped it, the deployed persona is silently inert.
+- Pin a test (see §6): parse `persona.integrations` through persona-kit's
+  `parseIntegrations` and assert the scope survives as a non-empty map covering
+  the writeback subtree your client uses.
+
+## 2. `sandbox: true` vs `sandbox: false`
+
+`sandbox` is a top-level boolean on the persona spec
+(persona-kit `parse.js` `parseSandbox`; default **true** when omitted).
+
+| | `sandbox: true` (default) | `sandbox: false` |
+|---|---|---|
+| Daytona box | provisioned per fire (seconds of cold start) | **none** — handler runs in the persona runner (ms) |
+| `ctx.sandbox.exec()` | available | **rejects** (`SandboxNotAvailableError`) |
+| `ctx.files.read/write` | available | unavailable — use VFS helpers (`readJsonFile`/`writeJsonFile`) against provider paths |
+| `ctx.harness.run()` | available | **still works** |
+| Harness CLI credentials | mounted | not mounted |
+| PR-reviewer checkout / PR writeback / conflict-autofix / git workspace clone | available when capabilities declared | **disabled even if declared** (cloud gates them on `!lightweightSandbox`, `deployment-trigger-delivery.ts`) |
+
+Pick `sandbox: false` for chat-lead / read-classify-reply personas that touch
+provider data only through relayfile (e.g. the linear chat lead). Pick the
+default for anything that clones repos, runs shells, or uses PR capabilities.
+
+## 3. Inputs — declaration and resolution
+
+Declare inputs in the persona spec:
+
+```ts
+inputs: {
+  SLACK_CHANNEL: {
+    description: 'Channel for review pings.',
+    env: 'SLACK_CHANNEL',
+    optional: true,                                  // no default → unset means feature off
+    picker: { provider: 'slack', resource: 'channels' } // deploy-UI picker; stores channel ID
+  }
+}
+```
+
+Resolution facts (verified against cloud delivery + runtime):
+
+- Cloud does **not** export each input as a bare env var in the sandbox.
+  Input values travel inside `WORKFORCE_AGENT_CONTEXT` (JSON) and surface as
+  `ctx.persona.inputs` (the runtime merges the `inputValues` / `input_values`
+  aliases).
+- The conventional handler accessor checks env first (local dev), then ctx:
+
+```ts
+function input(ctx: WorkforceCtx, name: string): string | undefined {
+  const spec = ctx.persona?.inputSpecs?.[name];
+  const v = process.env[spec?.env ?? name] ?? ctx.persona?.inputs?.[name] ?? spec?.default;
+  return typeof v === 'string' && v.trim() ? v : undefined;
+}
+```
+
+- An **optional input with no default that gates a feature** means the feature
+  is off-by-config when undeployed — fine, but document it, and remember it
+  compounds with §1: the feature needs the input set **and** the path mounted.
+- Picker types observed in production: `{provider:'slack', resource:'channels'}`,
+  `{provider:'github', resource:'users'}`. Pickers store provider IDs
+  (e.g. `C…` channel IDs), not display names.
+
+## 4. Harness and model selection
+
+- `harness`: which CLI runs `ctx.harness.run()` prompts — `'codex'` or
+  `'claude'`. `model` must match the harness family (e.g. `gpt-5.x` for codex;
+  `claude-*` for claude).
+- `harnessSettings`: `reasoning`, `timeoutSeconds`, `sandboxMode`,
+  `workspaceWriteNetworkAccess`, and
+  `dangerouslyBypassApprovalsAndSandbox: true` — required for codex in cloud
+  fires because **Daytona is the trust boundary** and codex's nested bubblewrap
+  sandbox needs user namespaces Daytona doesn't allow. Say so in a comment when
+  you set it.
+- Version pinning: capabilities and spec fields are parsed **client-side by
+  persona-kit before upload**. A persona-kit older than the field you're using
+  silently strips it (this shipped as the teamSolve-capability strip). Exact-pin
+  `@agentworkforce/persona-kit` (and cli/runtime) in the repo and verify the
+  compiled artifact carries every field you depend on.
+
+## 5. Teams — `teamSolve` capability and `team.json`
+
+A lead persona opts into team orchestration via capabilities
+(`cloud → packages/core/src/proactive-runtime/capabilities.ts`):
+
+```json
+"capabilities": {
+  "teamSolve": {
+    "enabled": true,
+    "maxMembers": 1,          // default 4, hard-capped at 4
+    "roles": ["implementer"], // default ["lead","impl","reviewer","prober"]
+    "tokenBudget": 400000,    // default 400000
+    "timeBudgetSeconds": 1800 // default 1800
+  }
+}
+```
+
+Multi-member rosters bind through `team.json`
+(`cloud → packages/core/src/proactive-runtime/team-spec.ts`, loaded from the
+persona directory; bound via `PUT /api/v1/workspaces/{id}/teams`):
+
+```json
+{
+  "id": "my-team",                      // must match the team directory name
+  "lead": "alice",                      // must reference a member name
+  "members": [
+    { "name": "alice", "persona": "alice-persona-slug", "role": "lead" },
+    { "name": "bob",
+      "persona": { "slug": "bob-persona-slug", "version": 2 },
+      "role": "implementer",
+      "owns": [ { "issue.labels": ["bug"] } ] }
+  ],
+  "tokenBudget": 1000000,
+  "timeBudgetSeconds": 3600
+}
+```
+
+Validation: unique member names and persona refs, no duplicate `owns`
+ownership, `inline` persona refs rejected (Phase 1). Members resolve to
+already-deployed personas in the workspace — deploy members first, then bind.
+Spawning is cloud-side (`launchMember`); there is **no in-box
+`ctx.team.spawn`** — don't write handler code that assumes one.
+
+## 6. The showcase quality bar (AgentWorkforce/agents repo)
+
+The agents repo is a public showcase. Merges get blocked on brittleness even
+when the code works and is approved. The bar:
+
+- **No inline base64 blobs, no `node -e` one-liners, no hand-rolled shell
+  quoting** inside handlers or workflows. Extract checked-in helper scripts.
+- **Pass data as JSON arguments** (a JSON file or single JSON env/arg), never
+  as positional shell argv that needs quoting.
+- **Golden tests are a merge gate.** Exported pure helpers (`readPr`,
+  `labelNames`, allowlist deciders) get node:test coverage in `tests/`; persona
+  config invariants (like §1's scope) get pinned with a test proven **red**
+  against the broken shape before the fix lands.
+- persona.json is **generated** from persona.ts in the agents repo (untracked
+  since agents#24) — edit persona.ts, never the artifact.
+
+## 7. `onEvent` handler patterns
+
+Declare wakeups in `defineAgent({...})` (triggers / schedules / watch);
+branch imperatively in the handler. Hard-won guard patterns:
+
+- **First line** (single-provider personas): `if (event.source !== '<provider>') return;` — multi-provider handlers branch per `event.source` instead of returning early.
+- **Terminal-event guards before work**: approval → merge → return;
+  green check_run → return; only then the expensive review path.
+- **Read materialized meta defensively.** Provider projections drift — accept
+  both shapes when one has shipped (`author?: string | { login?: string }`),
+  and decide explicitly whether a gate **fails open or closed** when meta is
+  missing (author allowlist: fail closed; skip-label check on a payload that
+  lacks labels: fail open). Comment the choice.
+- **Cron**: discriminate with `event.name`, but never write a guard that
+  no-ops the whole persona when `event.name` is empty — cloud's cron payload
+  has shipped without the schedule name, turning `event.name !== 'daily'`
+  into a permanent silent no-op. Prefer "route by name when present, default
+  to the single schedule's behavior otherwise" for single-schedule personas.
+- **Sentinel contracts with the harness**: if the handler keys behavior off
+  harness output (e.g. a literal `READY` last line), spell the contract out in
+  the prompt and parse only the last line — and remember output-tail
+  truncation preserves the end, not the start.
+- Log skips with reasons (`ctx.log?.('info', 'skipped', { reason })`) — a
+  silent return is indistinguishable from a delivery failure during triage.
+
+## 8. Delegation — `ctx.workflow.run` vs `ctx.harness.run`
+
+Two ways to do heavy work; pick by shape:
+
+| | `ctx.harness.run(args)` | `ctx.workflow.run(name, args)` |
+|---|---|---|
+| What | one prompt through the persona's harness CLI | a multi-step agent-relay workflow (DAG of deterministic + agent steps) |
+| Returns | `{ output, exitCode, durationMs }` directly | `{ runId, completion() }`; `await completion()` → `{ output, status }` |
+| Use for | single coding/review task in the box | clone → implement → open-PR pipelines, multi-agent coordination |
+
+The **thin-lead pattern** (linear chat lead,
+`references/agents/linear/agent.ts`):
+classify intent with a cheap harness/LLM call → **reply to the user
+immediately** ("starting an implementation workflow…") → delegate via
+`ctx.workflow.run` → on completion, post the result (e.g. extract the PR URL
+from `completion.output`). The chat handler stays responsive; the workflow
+carries the long work. Keep workflow definitions as checked-in files under
+`workflows/` (see §6) rather than assembling source strings in the handler.
+
+## 9. Relayfile — how provider clients actually resolve
+
+`slackClient()` / `linearClient()` / `githubClient()` / `providerClient(p)`
+from `@relayfile/relay-helpers` are **not** HTTP clients. A `write` resolves a
+catalog path (`/slack/channels/{channelId}/messages`), drops a uniquely-named
+draft JSON under the **mount root**, and waits for the writeback worker to
+replace it with a receipt. Reads (`readJsonFile`, `.list()`) read materialized
+JSON from the same tree.
+
+Consequences:
+
+- **The path must be mounted** (token-scoped + daemon-watched) or the draft
+  sits on local disk forever and the call returns silently — see §1.
+- **Anchor the mount root explicitly.** The runner's CWD is not the mount
+  root (CWD `…/workforce-runtime` vs mount `…/workspace` shipped as a real
+  ENOENT bug). Pass `{ relayfileMountRoot: resolveMountRoot({}) }` or rely on
+  the `RELAYFILE_MOUNT_ROOT` env — never on relative paths from CWD.
+- **A returned receipt is the success signal.** `result.receipt?.created/id`
+  present → delivered; absent after the wait → not delivered (the call does
+  not throw for an unmounted path). If delivery is load-bearing, check the
+  receipt and surface the failure.
+- Item paths (ending `.json`) are direct read/write; collection paths take
+  drafts and `.list()`. Encode user-supplied path segments with
+  `encodeSegment(...)`.
+- Terminal provider states (closed/merged/archived) stay readable as records
+  with terminal status — never model them as deletions.
+
+## Production pre-merge checklist
+
+1. Every written-to integration has a trigger or a non-empty, string-valued
+   scope (§1) — and the **compiled** persona.json still carries it.
+2. `sandbox` matches the capability set (§2) — no `ctx.sandbox.exec` /
+   PR-capability reliance under `sandbox: false`.
+3. Feature-gating inputs documented; resolution goes through a `input(ctx, …)`
+   helper, not bare `process.env` (§3).
+4. Harness/model pair valid; persona-kit/cli/runtime pinned; compiled artifact
+   carries every capability you declared (§4, §5).
+5. Tests pin the config invariants and were proven red against the broken
+   shape (§6).
+6. Handler guards: source check first, terminal events early-returned,
+   defensive meta reads with explicit fail-open/closed choices, no
+   empty-`event.name` no-op gate (§7).
+7. Writeback receipts checked where delivery matters (§9).
+
 
 ## Anti-patterns
 
@@ -504,10 +898,11 @@ Before declaring the persona done:
 
 1. `persona.json` matches the current schema shape used in examples
 2. `cloud` personas include `onEvent`
-3. `agent.ts` uses `defineAgent(...)` with at least one listener source:
+3. `agent.ts` uses `defineAgent(...)` with either a listener source:
    - `triggers`, or
    - `schedules`, or
    - `watch`
+   or an intentional team-member shape like `launchedBy: 'team-dispatcher'`
 4. every declared trigger, schedule, or watch rule has a code path in `handler`
 5. every provider named in `agent.ts` listener config is also declared in `persona.json.integrations`
 6. `systemPrompt` describes the role clearly
