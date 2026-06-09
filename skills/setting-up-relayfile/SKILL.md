@@ -378,7 +378,8 @@ POSIX can't hold both, so every sync cycle aborts before bootstrap completes,
 the mount never reconciles, and the teardown flush hangs → 124 → FAILED. This
 also degrades the handler silently: the partially-synced mount means name/ID
 lookups miss (`*.unresolved` warnings) and Slack writebacks return `ts: ''` (see
-the `writing-agent-personas` integration-scope trap for that signature). It
+the `creating-cloud-persona` production-correctness checklist for that
+signature). It
 violates the `workspace-layout` invariant that a canonical path is a unique file.
 
 Diagnose a cloud (Daytona-sandboxed) run after the fact — the sandbox is
