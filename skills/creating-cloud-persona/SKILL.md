@@ -208,7 +208,7 @@ Use this shape unless there is a strong reason not to.
   "useSubscription": true,
   "integrations": {
     "github": {},
-    "slack": {}
+    "slack": { "scope": { "paths": "/slack/channels/**" } }
   },
   "memory": {
     "enabled": true,
@@ -227,14 +227,19 @@ Use this shape unless there is a strong reason not to.
 }
 ```
 
-> **Scope warning:** `"slack": {}` only works in this example because `agent.ts`
-> below also declares a **slack trigger** — cloud mounts an integration's
-> relayfile paths from triggers and from `scope`, nothing else. An integration
-> that the handler only **writes** through (e.g. Slack notifications with no slack
-> trigger) MUST declare a non-empty `scope`
-> (e.g. `"slack": { "scope": { "paths": "/slack/channels/**" } }`) or every
-> client write is a silent no-op. `scope: {}` is discarded by persona-kit, and
-> scope values must be strings. Full rules are in the production-correctness checklist below.
+> **Scope warning — a Slack trigger does NOT cover a Slack write.** Cloud mounts
+> an integration's relayfile paths from triggers and from `scope`, nothing else.
+> A trigger mounts a *read* mirror at the display-labelled path
+> `/slack/channels/{id}__{name}/...`, but `slackClient().post()` writes to the
+> canonical bare-id path `/slack/channels/{id}/messages` — the two never
+> coincide, so a slack trigger alone leaves every write a silent no-op. That is
+> why this example **scopes** `slack` rather than using `"slack": {}`, even
+> though `agent.ts` below declares a slack trigger. Any integration the handler
+> **writes** through needs a non-empty `scope`
+> (`"slack": { "scope": { "paths": "/slack/channels/**" } }`); github/linear are
+> the exception only because their trigger and writeback paths share one bare-id
+> form. `scope: {}` is discarded by persona-kit, and scope values must be
+> strings. Full rules are in the production-correctness checklist below (§1).
 
 ### agent.ts
 
@@ -517,10 +522,32 @@ appears in `triggers`, and trigger paths are mounted independently of scope.
 Any integration the handler only **writes** through (slack notifications,
 linear comments on non-trigger issues) has no trigger to save it.
 
+**The labelled-mirror sub-trap — a trigger that LOOKS like it covers the write
+but doesn't.** A trigger mounts the watched subtree as a *read* mirror, and for
+some providers the mirror path is **display-labelled** while the writeback path
+is **canonical bare-id**. Slack is the production case: the trigger mirrors the
+channel at `/slack/channels/{id}__{name}/messages` (channel id + `__` + name),
+but `slackClient().post()` writes to `/slack/channels/{id}/messages` (bare id).
+The two **never coincide**, so a Slack trigger does NOT cover a Slack write —
+the draft still lands on unmounted disk and the post is a silent no-op even
+though the run logs `handler.ok`. This shipped as the **linear-slack bug
+(2026-06)**: the agent had a `slack` trigger on its board channel and *still*
+posted into the void; the orphaned draft was recovered from the live sandbox.
+github/linear are immune because their trigger and writeback paths share one
+bare identifier form (`/github/repos/{owner}/{repo}/...`,
+`/linear/issues/{issueId}/...`).
+
 Rules:
 
 - Every integration the handler writes through needs a trigger **or** a
-  non-empty `scope`.
+  non-empty `scope` — **except Slack (and any display-labelled mirror): a Slack
+  WRITE always needs a `scope`; a trigger is never enough.** Safest default:
+  give every write-through integration an explicit `scope`.
+- **Make delivery loud.** `post()`/`reply()`/`dm()` resolve with `ts: ''`
+  instead of throwing when the writeback gets no receipt (the `ts: ''` signature
+  above), so a dropped post still logs `handler.ok`. Treat an empty `ts` as
+  failure (`if (!result.ts) throw …`) so the runtime surfaces `handler.error`
+  instead of a silent no-op.
 - **`scope: {}` does NOT work.** persona-kit's `parseIntegrationConfig`
   discards empty scope objects client-side before upload, so cloud's
   `/<provider>/**` provider-root fallback is unreachable from a persona.
