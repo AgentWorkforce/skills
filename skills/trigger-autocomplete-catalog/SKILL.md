@@ -20,6 +20,8 @@ that's a different package.
   provider (the relayfile-adapters checkout from the persona's adapter-package
   steps). Declaring events is one more edit in that package - no separate
   location to track.
+- Nango integrations are one common consumer of this skill, but the catalog
+  requirements apply to any provider that emits webhook/event triggers.
 
 ## Goal
 
@@ -63,16 +65,20 @@ npm run build --workspace=packages/core
 node --import tsx --test packages/core/tests/triggers/catalog-generator.test.ts
 ```
 
+The `node --import tsx` commands require a Node.js version that supports
+`--import` (Node 18.18.0+ or 19.0.0+).
+
 After the change merges, publish `@relayfile/adapter-core` (the `Publish Package`
-workflow, e.g. `package=core`, `version=patch`). Publishing is what makes the
-catalog change take effect - the trigger-autocomplete / deploy-time lint tooling
-reads it via its `@relayfile/adapter-core` dependency. Cloud's
-`packages/core` also depends on `@relayfile/adapter-core` and has tests that
-import `KNOWN_TRIGGER_CATALOG`; normally no cloud `package.json` edit is
-required because the dependency is a caret range that accepts new patch
-releases. Bump Cloud's dependency only when the catalog fix requires a new
-minor/major adapter-core version or Cloud needs to pin a specific published
-version for CI.
+workflow in `relayfile-adapters/.github/workflows/publish.yml`, e.g.
+`package=core`, `version=patch`, via workflow_dispatch in the repository Actions
+tab). Publishing is what makes the catalog change take effect - the
+trigger-autocomplete / deploy-time lint tooling reads it via its
+`@relayfile/adapter-core` dependency. Cloud's `packages/core` also depends on
+`@relayfile/adapter-core` and has tests that import `KNOWN_TRIGGER_CATALOG`;
+normally no cloud `package.json` edit is required because the dependency is a
+caret range that accepts new patch releases. Bump Cloud's dependency only when
+the catalog fix requires a new minor/major adapter-core version or Cloud needs
+to pin a specific published version for CI.
 
 ## Notes
 
