@@ -357,6 +357,23 @@
       ]
     },
     {
+      "name": "agentworkforce-repo-map",
+      "version": "1.0.0",
+      "description": "Use before routing an AgentWorkforce issue, spawning an agent, or opening a PR. Maps AgentWorkforce GitHub org repos to their roles, responsibilities, issue signals, and multi-repo routing rules, with live-org verification commands.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agentworkforce",
+        "repo-routing",
+        "triage",
+        "github",
+        "skills"
+      ],
+      "files": [
+        "skills/agentworkforce-repo-map/SKILL.md"
+      ]
+    },
+    {
       "name": "openclaw-orchestrator",
       "version": "1.0.0",
       "description": "Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.",
