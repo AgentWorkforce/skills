@@ -56,6 +56,7 @@ fabricate events for them.
 # build is NOT enough.
 npm ci
 npm run build
+# `node --import` requires Node.js 18.18.0 or newer.
 node --import tsx packages/core/src/cli.ts triggers generate --repo-root .
 node --import tsx packages/core/src/cli.ts triggers check --repo-root .
 npm run build --workspace=packages/core
