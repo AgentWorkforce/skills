@@ -15,6 +15,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.1.2 | The canonical way to run agent-relay: self-bootstrap the broker and autonomously spawn, monitor, and coordinate a worker team without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.8 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, review-depth review/fix with test hardening, and commit gates. |
 | [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.2 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
+| [trigger-autocomplete-catalog](skills/trigger-autocomplete-catalog/SKILL.md) | 1.0.0 | Enforce webhook/event trigger autocomplete coverage through KNOWN_TRIGGER_CATALOG in @relayfile/adapter-core. |
 | [activity-summary](skills/activity-summary/SKILL.md) | 1.0.0 | Answer "what did I work on yesterday" questions by reading `digests/yesterday.md` first instead of crawling provider directories. |
 | [daily-digest](skills/daily-digest/SKILL.md) | 1.0.0 | Authoring contract for `<mount>/digests/` files — windows, per-provider sections, adapter `digest()` exports, regeneration rules. |
 | [writeback-as-files](skills/writeback-as-files/SKILL.md) | 1.0.0 | File-creation writeback contract — drop a JSON file at the canonical path and relayfile delivers the mutation, with dead-letter recovery. |
