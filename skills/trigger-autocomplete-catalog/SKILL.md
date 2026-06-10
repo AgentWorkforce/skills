@@ -11,10 +11,10 @@ The trigger catalog is owned by `@relayfile/adapter-core` and generated from
 adapter sources. It does **not** live in this (cloud) repo's `packages/core` -
 that's a different package.
 
-- **To check coverage** (is a provider already in the catalog?), read it from
+- **To check coverage** (is a provider already in the catalog?), import it from
   the installed package - no checkout needed:
-  `require.resolve("@relayfile/adapter-core")` -> its
-  `triggers/catalog.generated.js` (`KNOWN_TRIGGER_CATALOG`).
+  `import("@relayfile/adapter-core/triggers")` exposes
+  `KNOWN_TRIGGER_CATALOG` and `ADAPTERS_WITHOUT_KNOWN_TRIGGERS`.
 - **To add events**, edit the provider's adapter source. That's the same
   `@relayfile/adapter-<provider>` package you already work in when wiring a
   provider (the relayfile-adapters checkout from the persona's adapter-package
