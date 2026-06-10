@@ -359,7 +359,7 @@
     {
       "name": "agentworkforce-repo-map",
       "version": "1.0.0",
-      "description": "Use before routing an AgentWorkforce issue, spawning an agent, or opening a PR. Maps AgentWorkforce GitHub org repos to their roles, responsibilities, issue signals, and multi-repo routing rules, with live-org verification commands.",
+      "description": "Use before routing an AgentWorkforce issue, spawning an agent, or opening a PR. Maps core AgentWorkforce GitHub repos to their roles, responsibilities, issue signals, and multi-repo routing rules, with live-org verification commands.",
       "format": "claude",
       "subtype": "skill",
       "tags": [

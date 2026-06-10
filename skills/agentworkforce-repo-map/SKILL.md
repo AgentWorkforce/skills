@@ -1,11 +1,11 @@
 ---
 name: agentworkforce-repo-map
-description: Canonical map of all AgentWorkforce GitHub org repos, their roles, responsibilities, and key signals. Read this before routing any issue or deciding which repo to open a PR in. Use as a seed index — always verify against the live org with `gh repo list AgentWorkforce` since new repos are created frequently.
+description: Core routing map for AgentWorkforce GitHub repos, their roles, responsibilities, and key signals. Read this before routing any issue or deciding which repo to open a PR in. Use as a seed index — always verify against the live org with `gh repo list AgentWorkforce` since new repos are created frequently.
 ---
 
 # AgentWorkforce Repo Map
 
-This skill is the canonical reference for which repo owns what in the AgentWorkforce GitHub organization. Read it before routing an issue, spawning an agent, or opening a PR.
+This skill is the core routing reference for which AgentWorkforce repo owns common product and platform surfaces. It is not an exhaustive inventory of every org repo; read it before routing an issue, spawning an agent, or opening a PR, then verify candidates against the live org.
 
 ## How to verify against the live org
 
