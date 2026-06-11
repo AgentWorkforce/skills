@@ -166,9 +166,10 @@ persona-kit type is
 where `scope` maps a resource name to an absolute relayfile glob. An **unscoped
 provider mirror is dropped** — `slack: {}` (and `scope: {}`) mounts no provider
 data, so reads come back empty and writes land on unmounted disk as silent
-no-ops. Scope the **concrete subpaths** the handler actually reads and writes
-back to, and nothing more (a bare `/provider/**` is dropped from the mirror, same
-as no scope):
+no-ops. Prefer the concrete subpaths the handler actually reads and writes back
+to (least privilege — the relayfile token's path scope derives from the mount);
+a broad `/provider/**` is valid but mounts the whole provider, and a mid-path
+`*` mounts nothing (see §1):
 
 ```ts
 integrations: {
