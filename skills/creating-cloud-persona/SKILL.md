@@ -73,7 +73,7 @@ For cloud personas, expect fields like:
 - `description`
 - `cloud: true`
 - `useSubscription` (optional)
-- `integrations` (optional, for provider connection requirements)
+- `integrations` (optional, for provider connection requirements **and mount scope** — each integration declares both the connection and the relayfile paths it mounts; see Authoring rule 3)
 - `memory` (optional; production agents use both `true` and object form)
 - `onEvent`
 - top-level runtime fields, when the agent uses a harness:
@@ -156,9 +156,32 @@ Use `defineAgent(...)` to declare **what can wake the agent**.
 Do not try to encode the workflow in `persona.json`.
 The actual routing and business logic belong in `agent.ts`.
 
-### 3. Only declare integrations the agent actually requires
+### 3. Only declare integrations the agent actually requires — with a `scope`
 
 If `agent.ts` never uses Slack behavior or Slack-backed writes, do not declare Slack in `persona.json` just because it might be useful later.
+
+And for the integrations you *do* declare, **also declare a mount `scope`**. The
+persona-kit type is
+`PersonaIntegrationConfig { source?: IntegrationSource; scope?: Record<string, string> }`,
+where `scope` maps a resource name to an absolute relayfile glob. An **unscoped
+provider mirror is dropped** — `slack: {}` (and `scope: {}`) mounts no provider
+data, so reads come back empty and writes land on unmounted disk as silent
+no-ops. Prefer the concrete subpaths the handler actually reads and writes back
+to (least privilege — the relayfile token's path scope derives from the mount);
+a broad `/provider/**` is valid but mounts the whole provider, and a mid-path
+`*` mounts nothing (see §1):
+
+```ts
+integrations: {
+  // Replies in-thread (writeback to /slack/channels/{id}/messages), so scope channels.
+  slack: { scope: { channels: '/slack/channels/**' } },
+  // Read-only Linear context — scope the concrete subpaths the handler reads.
+  linear: { scope: { projects: '/linear/projects/**', issues: '/linear/issues/**' } }
+}
+```
+
+The full mechanics and the labelled-mirror sub-trap are in the
+production-correctness checklist below (§1).
 
 ### 4. Schedules are named APIs
 
@@ -207,7 +230,7 @@ Use this shape unless there is a strong reason not to.
   "cloud": true,
   "useSubscription": true,
   "integrations": {
-    "github": {},
+    "github": { "scope": { "paths": "/github/**" } },
     "slack": { "scope": { "paths": "/slack/channels/**" } }
   },
   "memory": {
@@ -236,10 +259,13 @@ Use this shape unless there is a strong reason not to.
 > why this example **scopes** `slack` rather than using `"slack": {}`, even
 > though `agent.ts` below declares a slack trigger. Any integration the handler
 > **writes** through needs a non-empty `scope`
-> (`"slack": { "scope": { "paths": "/slack/channels/**" } }`); github/linear are
-> the exception only because their trigger and writeback paths share one bare-id
-> form. `scope: {}` is discarded by persona-kit, and scope values must be
-> strings. Full rules are in the production-correctness checklist below (§1).
+> (`"slack": { "scope": { "paths": "/slack/channels/**" } }`); github/linear
+> writes are the exception only because their trigger and writeback paths share
+> one bare-id form. `github` is still scoped here so the reviewer's **reads**
+> (the PR records and `/github/LAYOUT.md` it walks beyond its trigger subtree)
+> are mounted — an unscoped `"github": {}` mirror is dropped. `scope: {}` is
+> discarded by persona-kit, and scope values must be strings. Full rules are in
+> the production-correctness checklist below (§1).
 
 ### agent.ts
 
