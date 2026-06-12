@@ -22,6 +22,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.1 | Navigate a relayfile mount via root and per-provider `LAYOUT.md` files plus `by-*` alias indexes instead of `find`/`grep -r`. |
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.4 | Create or update a Workforce cloud persona with `persona.json`, `agent.ts`, vendored examples, and production-correctness checks. |
+| [agentworkforce-repo-map](skills/agentworkforce-repo-map/SKILL.md) | 1.0.0 | Route AgentWorkforce issues to the right owning repo using repo roles, key signals, and multi-repo routing rules. |
 | [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 1.0.0 | Run headless multi-agent orchestration sessions via Agent Relay — spawn teams across Claude/Codex/Gemini/Pi/Droid, create channels, and manage agent lifecycle. |
 
 ## Slash Commands
