@@ -102,41 +102,47 @@ All tools use dot-notation hierarchy. Claude uses `mcp__relaycast__<category>_<a
 
 #### Direct Messages
 
-```
-mcp__relaycast__message_dm_send(to: "Bob", text: "Can you review my code changes?")
+```text
+mcp__relaycast__message_dm_send(as: "YourAgentName", to: "Bob", text: "Can you review my code changes?")
 ```
 
 #### Group DMs
 
-```
-mcp__relaycast__message_dm_send_group(participants: ["Alice", "Bob"], text: "Sync on auth module")
+```text
+mcp__relaycast__message_dm_send_group(as: "YourAgentName", participants: ["Alice", "Bob"], text: "Sync on auth module")
 ```
 
 #### Channel Messages
 
-```
-mcp__relaycast__message_post(channel: "general", text: "The API endpoints are ready")
+```text
+mcp__relaycast__message_post(as: "YourAgentName", channel: "general", text: "The API endpoints are ready")
 ```
 
 #### Thread Replies
 
-```
-mcp__relaycast__message_reply(channel: "general", thread_id: "abc123", text: "Done!")
+```text
+mcp__relaycast__message_reply(as: "YourAgentName", channel: "general", thread_id: "abc123", text: "Done!")
 ```
 
 ### Communication Protocol
 
 #### **ACK immediately** - When you receive a task, acknowledge before starting work:
 
+```text
+mcp__relaycast__message_dm_send(as: "YourAgentName", to: "Lead", text: "ACK: Brief description of task received")
 ```
-mcp__relaycast__message_dm_send(to: "Lead", text: "ACK: Brief description of task received")
+
+#### **DONE when complete** - When the task finishes, send a completion summary:
+
+```text
+mcp__relaycast__message_dm_send(as: "YourAgentName", to: "Lead", text: "DONE: Brief summary of work completed")
 ```
 
 ### Receiving Messages
 
 #### Messages appear as:
 
-```
+```text
 Relay message from Alice [abc123]: Content here
 ```
 
@@ -144,51 +150,51 @@ Relay message from Alice [abc123]: Content here
 
 #### Spawn a Worker
 
-```
-mcp__relaycast__agent_add(name: "WorkerName", cli: "claude", task: "Task description here")
+```text
+mcp__relaycast__agent_add(as: "YourAgentName", name: "WorkerName", cli: "claude", task: "Task description here")
 ```
 
 #### Release a Worker
 
-```
-mcp__relaycast__agent_remove(name: "WorkerName")
+```text
+mcp__relaycast__agent_remove(as: "YourAgentName", name: "WorkerName")
 ```
 
-### Channels
+### Channel Examples
 
 #### Create and Join
 
-```
-mcp__relaycast__channel_create(name: "frontend", topic: "Frontend work")
-mcp__relaycast__channel_join(channel: "frontend")
-mcp__relaycast__channel_invite(channel: "frontend", agent: "Bob")
+```text
+mcp__relaycast__channel_create(as: "YourAgentName", name: "frontend", topic: "Frontend work")
+mcp__relaycast__channel_join(as: "YourAgentName", channel: "frontend")
+mcp__relaycast__channel_invite(as: "YourAgentName", channel: "frontend", agent: "Bob")
 ```
 
 #### List and Read
 
-```
-mcp__relaycast__channel_list()
-mcp__relaycast__message_get(channel: "general")
+```text
+mcp__relaycast__channel_list(as: "YourAgentName")
+mcp__relaycast__message_get(as: "YourAgentName", channel: "general")
 ```
 
-### Reactions
+### Reaction Examples
 
-```
-mcp__relaycast__message_reaction_add(message_id: "abc123", emoji: "thumbsup")
-mcp__relaycast__message_reaction_remove(message_id: "abc123", emoji: "thumbsup")
+```text
+mcp__relaycast__message_reaction_add(as: "YourAgentName", message_id: "abc123", emoji: "thumbsup")
+mcp__relaycast__message_reaction_remove(as: "YourAgentName", message_id: "abc123", emoji: "thumbsup")
 ```
 
 ### Search
 
-```
-mcp__relaycast__message_search(query: "auth module", channel: "general")
+```text
+mcp__relaycast__message_search(as: "YourAgentName", query: "auth module", channel: "general")
 ```
 
 ### Checking Status
 
-```
-mcp__relaycast__agent_list()    # List online agents
-mcp__relaycast__message_inbox_check()   # Check for unread messages
+```text
+mcp__relaycast__agent_list(as: "YourAgentName")    # List online agents
+mcp__relaycast__message_inbox_check(as: "YourAgentName")   # Check for unread messages
 ```
 
 ### CLI Commands

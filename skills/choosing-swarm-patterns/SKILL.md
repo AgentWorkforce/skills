@@ -21,7 +21,7 @@ const run = await runWorkflow('workflows/feature-dev.yaml', {
 
 ### Quick Decision Framework
 
-```
+```text
 Is the task independent per agent?
   YES → fan-out (parallel workers, hub collects)
 
@@ -106,6 +106,8 @@ Topology is still resolved per-pattern once selected; the "Triggering roles" col
 - Use `competitive` only when independent alternative implementations are useful; otherwise split by ownership scope.
 
 ### Pattern Details
+
+The per-pattern YAML snippets below show only the pattern-relevant fields. A runnable YAML file also needs the required top-level `version` and `name`; see the [Complete YAML Example](#complete-yaml-example).
 
 #### 1. fan-out — Parallel Workers
 
