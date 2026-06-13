@@ -3,7 +3,24 @@ name: using-agent-relay
 description: Use when you are a registered relay agent (a spawned worker, or a lead that called agent_register) coordinating with peers in real time over Relaycast MCP tools - messaging, channels, threads, reactions, search, webhooks. This is the participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.
 ---
 
-### MCP Tools Overview
+# Using Agent Relay (registered participant)
+
+Real-time agent-to-agent messaging via Relaycast MCP tools, for an agent
+that **is a registered participant** in a relay team.
+
+> **Which skill do you want?**
+>
+> - **You were spawned into a team, or you called `agent_register`** → you
+>   are a registered agent. This skill (MCP tools below) is for you.
+> - **You are the spawning orchestrator** (you ran `agent-relay up` /
+>   `spawn` and are driving a worker team from outside) → you are **not** a
+>   registered agent. The `mcp__relaycast__message_*` / `agent_list` tools
+>   below fail for you with the error
+>   `Not registered. Call agent.register first.` Use the
+>   **`orchestrating-agent-relay`** skill instead — it is CLI-first by
+>   design.
+
+## MCP Tools Overview
 
 All tools use dot-notation hierarchy. Claude uses `mcp__relaycast__<category>_<action>`, other CLIs use `relaycast.<category>.<action>`.
 
@@ -81,65 +98,92 @@ All tools use dot-notation hierarchy. Claude uses `mcp__relaycast__<category>_<a
 | `mcp__relaycast__file_upload` / `relaycast.file.upload`                             | Upload a file to share     |
 | `mcp__relaycast__message_inbox_get_readers` / `relaycast.message.inbox.get_readers` | See who has read a message |
 
-### Sending Messages
+## Sending Messages
 
-#### Direct Messages
+### Direct Messages
 
 ```
 mcp__relaycast__message_dm_send(to: "Bob", text: "Can you review my code changes?")
 ```
 
-#### Group DMs
+### Group DMs
 
 ```
 mcp__relaycast__message_dm_send_group(participants: ["Alice", "Bob"], text: "Sync on auth module")
 ```
 
-#### Channel Messages
+### Channel Messages
 
 ```
 mcp__relaycast__message_post(channel: "general", text: "The API endpoints are ready")
 ```
 
-#### Thread Replies
+### Thread Replies
 
 ```
 mcp__relaycast__message_reply(channel: "general", thread_id: "abc123", text: "Done!")
 ```
 
-### Communication Protocol
+## Communication Protocol
 
-#### **ACK immediately** - When you receive a task, acknowledge before starting work:
+**ACK immediately** - When you receive a task, acknowledge before starting work:
 
 ```
 mcp__relaycast__message_dm_send(to: "Lead", text: "ACK: Brief description of task received")
 ```
 
-### Receiving Messages
+**Report completion** - When done, send a completion message:
 
-#### Messages appear as:
+```
+mcp__relaycast__message_dm_send(to: "Lead", text: "DONE: Brief summary of what was completed")
+```
+
+**Send status to your lead, NOT broadcast.**
+
+## Receiving Messages
+
+Messages appear as:
 
 ```
 Relay message from Alice [abc123]: Content here
 ```
 
-### Spawning & Releasing Agents
+Channel messages include `[#channel]`:
 
-#### Spawn a Worker
+```
+Relay message from Alice [abc123] [#general]: Hello!
+```
+
+Reply to the channel shown, not the sender.
+
+## Spawning & Releasing Agents
+
+### Spawn a Worker
 
 ```
 mcp__relaycast__agent_add(name: "WorkerName", cli: "claude", task: "Task description here")
 ```
 
-#### Release a Worker
+### CLI Options
+
+| CLI Value  | Description                |
+| ---------- | -------------------------- |
+| `claude`   | Claude Code (Anthropic)    |
+| `codex`    | Codex CLI (OpenAI)         |
+| `gemini`   | Gemini CLI (Google)        |
+| `opencode` | OpenCode CLI (multi-model) |
+| `aider`    | Aider coding assistant     |
+| `goose`    | Goose AI assistant         |
+
+### Release a Worker
 
 ```
 mcp__relaycast__agent_remove(name: "WorkerName")
 ```
 
-### Channels
+## Channels
 
-#### Create and Join
+### Create and Join
 
 ```
 mcp__relaycast__channel_create(name: "frontend", topic: "Frontend work")
@@ -147,42 +191,34 @@ mcp__relaycast__channel_join(channel: "frontend")
 mcp__relaycast__channel_invite(channel: "frontend", agent: "Bob")
 ```
 
-#### List and Read
+### List and Read
 
 ```
 mcp__relaycast__channel_list()
 mcp__relaycast__message_get(channel: "general")
 ```
 
-### Reactions
-
-#### ```
+## Reactions
 
 ```
 mcp__relaycast__message_reaction_add(message_id: "abc123", emoji: "thumbsup")
 mcp__relaycast__message_reaction_remove(message_id: "abc123", emoji: "thumbsup")
 ```
 
-### Search
-
-#### ```
+## Search
 
 ```
 mcp__relaycast__message_search(query: "auth module", channel: "general")
 ```
 
-### Checking Status
-
-#### ```
+## Checking Status
 
 ```
 mcp__relaycast__agent_list()    # List online agents
 mcp__relaycast__message_inbox_check()   # Check for unread messages
 ```
 
-### CLI Commands
-
-#### ```bash
+## CLI Commands
 
 ```bash
 agent-relay status              # Check daemon status
@@ -194,24 +230,7 @@ agent-relay history             # Recent message history (full text, chronologic
 agent-relay replies <agent>     # Inbound DM replies from <agent> (add --json to parse)
 ```
 
-### Overview
-
-Real-time agent-to-agent messaging via Relaycast MCP tools, for an agent
-that **is a registered participant** in a relay team.
-
-> **Which skill do you want?**
->
-> - **You were spawned into a team, or you called `agent_register`** → you
->   are a registered agent. This skill (MCP tools below) is for you.
-> - **You are the spawning orchestrator** (you ran `agent-relay up` /
->   `spawn` and are driving a worker team from outside) → you are **not** a
->   registered agent. The `mcp__relaycast__message_*` / `agent_list` tools
->   below fail for you with the error
->   `Not registered. Call agent.register first.` Use the
->   **`orchestrating-agent-relay`** skill instead — it is CLI-first by
->   design.
-
-### Common Mistakes
+## Common Mistakes
 
 | Mistake                                      | Fix                                                                                                                                    |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
