@@ -5,11 +5,11 @@ description: Use when coordinating multiple AI agents with Agent Relay's workflo
 
 ### Overview
 
-The Agent Relay SDK (`@agent-relay/sdk`) supports 24 swarm patterns via a single `swarm.pattern` field. Patterns are configured declaratively in YAML or programmatically via the `workflow()` fluent builder — there are no standalone `fanOut(...)` / `hubAndSpoke(...)` helpers. Pick the simplest pattern that solves the problem; add complexity only when the system proves it's insufficient.
+The Agent Relay SDK (`@agent-relay/sdk`) supports 24 swarm patterns via a single `swarm.pattern` field. Patterns are configured declaratively in YAML — there are no standalone `fanOut(...)` / `hubAndSpoke(...)` helpers. Pick the simplest pattern that solves the problem; add complexity only when the system proves it's insufficient.
 
-### Two ways to run a pattern
+### Run a pattern
 
-#### **1. YAML (portable):**
+#### YAML (portable)
 
 ```ts
 import { runWorkflow } from '@agent-relay/sdk/workflows';
@@ -20,8 +20,6 @@ const run = await runWorkflow('workflows/feature-dev.yaml', {
 ```
 
 ### Quick Decision Framework
-
-#### ```
 
 ```
 Is the task independent per agent?
@@ -57,7 +55,7 @@ Is cost the primary concern?
 | #   | Pattern          | Topology (actual edges)                                                                                             | Best For                                                                    |
 | --- | ---------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | 1   | **fan-out**      | Hub broadcasts to N workers; workers reply to hub only                                                              | Independent subtasks (reviews, research, tests)                             |
-| 2   | **pipeline**     | Linear chain (agent*i → agent*{i+1})                                                                                | Ordered stages (design → implement → test)                                  |
+| 2   | **pipeline**     | Linear chain (`agent_i` → `agent_{i+1}`)                                                                            | Ordered stages (design → implement → test)                                  |
 | 3   | **hub-spoke**    | Hub ↔ spokes (bidirectional); no spoke-to-spoke                                                                     | Dynamic coordination, lead reviews/adjusts                                  |
 | 4   | **consensus**    | Full mesh; decision via `coordination.consensusStrategy`                                                            | Architecture decisions, approval gates                                      |
 | 5   | **mesh**         | Full mesh (every agent ↔ every other)                                                                               | Brainstorming, collaborative debugging                                      |
@@ -111,15 +109,17 @@ Topology is still resolved per-pattern once selected; the "Triggering roles" col
 
 #### 1. fan-out — Parallel Workers
 
-```ts
-await workflow('review')
-  .pattern('fan-out')
-  .agent('lead', { cli: 'claude', role: 'lead' })
-  .agent('auth-rev', { cli: 'claude', role: 'worker', interactive: false })
-  .agent('db-rev', { cli: 'claude', role: 'worker', interactive: false })
-  .step('review-auth', { agent: 'auth-rev', task: 'Review auth.ts' })
-  .step('review-db', { agent: 'db-rev', task: 'Review db.ts' })
-  .run();
+```yaml
+swarm: { pattern: fan-out }
+agents:
+  - { name: lead, cli: claude, role: lead }
+  - { name: auth-rev, cli: claude, role: worker, interactive: false }
+  - { name: db-rev, cli: claude, role: worker, interactive: false }
+workflows:
+  - name: review
+    steps:
+      - { name: review-auth, agent: auth-rev, task: 'Review auth.ts' }
+      - { name: review-db, agent: db-rev, task: 'Review db.ts' }
 ```
 
 #### 2. pipeline — Sequential Stages
@@ -150,17 +150,20 @@ workflows:
 
 #### 3. hub-spoke — Persistent Coordinator
 
-```ts
-await workflow('api-build')
-  .pattern('hub-spoke')
-  .channel('swarm-api')
-  .agent('lead', { cli: 'claude', role: 'lead' })
-  .agent('db-worker', { cli: 'claude', role: 'worker' }) // interactive by default — hub DMs it
-  .agent('api-worker', { cli: 'claude', role: 'worker' }) // interactive by default — hub DMs it
-  .step('models', { agent: 'db-worker', task: 'Build database models' })
-  .step('routes', { agent: 'api-worker', task: 'Build route handlers', dependsOn: ['models'] })
-  .step('review', { agent: 'lead', task: 'Review everything', dependsOn: ['routes'] })
-  .run();
+```yaml
+swarm:
+  pattern: hub-spoke
+  channel: swarm-api
+agents:
+  - { name: lead, cli: claude, role: lead }
+  - { name: db-worker, cli: claude, role: worker }
+  - { name: api-worker, cli: claude, role: worker }
+workflows:
+  - name: api-build
+    steps:
+      - { name: models, agent: db-worker, task: 'Build database models' }
+      - { name: routes, agent: api-worker, task: 'Build route handlers', dependsOn: [models] }
+      - { name: review, agent: lead, task: 'Review everything', dependsOn: [routes] }
 ```
 
 #### 4. consensus — Cooperative Voting
@@ -184,17 +187,20 @@ workflows:
 
 #### 5. mesh — Peer Collaboration
 
-```ts
-await workflow('debug-auth')
-  .pattern('mesh')
-  .channel('swarm-debug')
-  .agent('logs', { cli: 'claude' })
-  .agent('code', { cli: 'claude' })
-  .agent('repro', { cli: 'claude' })
-  .step('logs', { agent: 'logs', task: 'Check server logs' })
-  .step('code', { agent: 'code', task: 'Review auth code' })
-  .step('repro', { agent: 'repro', task: 'Write repro test' })
-  .run();
+```yaml
+swarm:
+  pattern: mesh
+  channel: swarm-debug
+agents:
+  - { name: logs, cli: claude }
+  - { name: code, cli: claude }
+  - { name: repro, cli: claude }
+workflows:
+  - name: debug-auth
+    steps:
+      - { name: logs, agent: logs, task: 'Check server logs' }
+      - { name: code, agent: code, task: 'Review auth code' }
+      - { name: repro, agent: repro, task: 'Write repro test' }
 ```
 
 #### 6. handoff — Dynamic Routing
@@ -215,38 +221,41 @@ workflows:
 
 #### 7. cascade — Cost-Aware Fallthrough
 
-```ts
-await workflow('answer')
-  .pattern('cascade')
-  .agent('haiku', { cli: 'claude', model: 'claude-haiku-4-5-20251001' })
-  .agent('sonnet', { cli: 'claude', model: 'claude-sonnet-4-6' })
-  .agent('opus', { cli: 'claude', model: 'claude-opus-4-7' })
-  .step('try-haiku', { agent: 'haiku', task: '{{question}}' })
-  .step('try-sonnet', {
-    agent: 'sonnet',
-    task: 'If this is a complete answer, echo it verbatim. Otherwise answer anew:\n{{steps.try-haiku.output}}',
-    dependsOn: ['try-haiku'],
-  })
-  .step('try-opus', {
-    agent: 'opus',
-    task: 'Final-tier answer, using prior attempts for context:\n{{steps.try-sonnet.output}}',
-    dependsOn: ['try-sonnet'],
-  })
-  .run();
+```yaml
+swarm: { pattern: cascade }
+agents:
+  - { name: haiku, cli: claude, model: claude-haiku-4-5-20251001 }
+  - { name: sonnet, cli: claude, model: claude-sonnet-4-6 }
+  - { name: opus, cli: claude, model: claude-opus-4-7 }
+workflows:
+  - name: answer
+    steps:
+      - { name: try-haiku, agent: haiku, task: '{{question}}' }
+      - name: try-sonnet
+        agent: sonnet
+        dependsOn: [try-haiku]
+        task: "If this is a complete answer, echo it verbatim. Otherwise answer anew:\n{{steps.try-haiku.output}}"
+      - name: try-opus
+        agent: opus
+        dependsOn: [try-sonnet]
+        task: "Final-tier answer, using prior attempts for context:\n{{steps.try-sonnet.output}}"
 ```
 
 #### 8. dag — Directed Acyclic Graph
 
-```ts
-await workflow('fullstack')
-  .pattern('dag')
-  .maxConcurrency(3)
-  .agent('dev', { cli: 'codex', role: 'worker' })
-  .step('scaffold', { agent: 'dev', task: 'Create project scaffold' })
-  .step('frontend', { agent: 'dev', task: 'Build React UI', dependsOn: ['scaffold'] })
-  .step('backend', { agent: 'dev', task: 'Build API', dependsOn: ['scaffold'] })
-  .step('integrate', { agent: 'dev', task: 'Wire together', dependsOn: ['frontend', 'backend'] })
-  .run();
+```yaml
+swarm:
+  pattern: dag
+  maxConcurrency: 3
+agents:
+  - { name: dev, cli: codex, role: worker }
+workflows:
+  - name: fullstack
+    steps:
+      - { name: scaffold, agent: dev, task: 'Create project scaffold' }
+      - { name: frontend, agent: dev, task: 'Build React UI', dependsOn: [scaffold] }
+      - { name: backend, agent: dev, task: 'Build API', dependsOn: [scaffold] }
+      - { name: integrate, agent: dev, task: 'Wire together', dependsOn: [frontend, backend] }
 ```
 
 #### 9. debate — Adversarial Refinement
@@ -264,20 +273,22 @@ coordination:
 
 #### 10. hierarchical — Multi-Level (structurally hub-spoke today)
 
-```ts
-await workflow('large-team')
-  .pattern('hierarchical')
-  .agent('lead', { cli: 'claude', role: 'lead' })
-  .agent('fe-coord', { cli: 'claude', role: 'coordinator' })
-  .agent('be-coord', { cli: 'claude', role: 'coordinator' })
-  .agent('fe-dev', { cli: 'codex', role: 'worker', interactive: false })
-  .agent('be-dev', { cli: 'codex', role: 'worker', interactive: false })
-  .step('plan', { agent: 'lead', task: 'Coordinate full-stack app' })
-  .step('fe-plan', { agent: 'fe-coord', task: 'Manage frontend', dependsOn: ['plan'] })
-  .step('be-plan', { agent: 'be-coord', task: 'Manage backend', dependsOn: ['plan'] })
-  .step('fe-impl', { agent: 'fe-dev', task: 'Build components', dependsOn: ['fe-plan'] })
-  .step('be-impl', { agent: 'be-dev', task: 'Build API', dependsOn: ['be-plan'] })
-  .run();
+```yaml
+swarm: { pattern: hierarchical }
+agents:
+  - { name: lead, cli: claude, role: lead }
+  - { name: fe-coord, cli: claude, role: coordinator }
+  - { name: be-coord, cli: claude, role: coordinator }
+  - { name: fe-dev, cli: codex, role: worker, interactive: false }
+  - { name: be-dev, cli: codex, role: worker, interactive: false }
+workflows:
+  - name: large-team
+    steps:
+      - { name: plan, agent: lead, task: 'Coordinate full-stack app' }
+      - { name: fe-plan, agent: fe-coord, task: 'Manage frontend', dependsOn: [plan] }
+      - { name: be-plan, agent: be-coord, task: 'Manage backend', dependsOn: [plan] }
+      - { name: fe-impl, agent: fe-dev, task: 'Build components', dependsOn: [fe-plan] }
+      - { name: be-impl, agent: be-dev, task: 'Build API', dependsOn: [be-plan] }
 ```
 
 ### Verification & Completion Signals
@@ -335,8 +346,6 @@ trajectories:
 
 ### Resume & Re-run
 
-#### ```ts
-
 ```ts
 // Resume a failed run:
 await runWorkflow('feature-dev.yaml', { resume: '<runId>' });
@@ -349,8 +358,6 @@ await runWorkflow('feature-dev.yaml', {
 ```
 
 ### Complete YAML Example
-
-#### ```yaml
 
 ```yaml
 version: '1.0'
@@ -412,7 +419,6 @@ errorHandling:
 | Topology resolution per pattern                                   | `packages/sdk/src/workflows/coordinator.ts:240-450`                          |
 | Interactive-only topology edges                                   | `packages/sdk/src/workflows/coordinator.ts:218-237`                          |
 | Pattern auto-selection heuristics (programmatic API only)         | `packages/sdk/src/workflows/coordinator.ts:51-165`                           |
-| `WorkflowBuilder` fluent API                                      | `packages/sdk/src/workflows/builder.ts`                                      |
 | `runWorkflow(yamlPath, options)`                                  | `packages/sdk/src/workflows/run.ts`                                          |
 | YAML validation requires `version` + `name` + `swarm.pattern`     | `packages/sdk/src/workflows/runner.ts:2105-2117`                             |
 | MCP tool names cited in convention-injection                      | `packages/sdk/src/relay-adapter.ts:29-36`                                    |

@@ -3,6 +3,23 @@ name: using-agent-relay
 description: Use when you are a registered relay agent (a spawned worker, or a lead that called agent_register) coordinating with peers in real time over Relaycast MCP tools - messaging, channels, threads, reactions, search, webhooks. This is the participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.
 ---
 
+### Overview
+
+Real-time agent-to-agent messaging via Relaycast MCP tools, for an agent
+that **is a registered participant** in a relay team.
+
+> **Which skill do you want?**
+>
+> - **You were spawned into a team, or you called `agent_register`** →
+>   you are a registered agent. This skill (MCP tools below) is for you.
+> - **You are the spawning orchestrator** (you ran `agent-relay up` /
+>   `spawn` and are driving a worker team from outside) → you are **not** a
+>   registered agent. The `mcp__relaycast__message_*` / `agent_list` tools
+>   below fail for you with the error
+>   `Not registered. Call agent.register first.` Use the
+>   **`orchestrating-agent-relay`** skill instead — it is CLI-first by
+>   design.
+
 ### MCP Tools Overview
 
 All tools use dot-notation hierarchy. Claude uses `mcp__relaycast__<category>_<action>`, other CLIs use `relaycast.<category>.<action>`.
@@ -156,8 +173,6 @@ mcp__relaycast__message_get(channel: "general")
 
 ### Reactions
 
-#### ```
-
 ```
 mcp__relaycast__message_reaction_add(message_id: "abc123", emoji: "thumbsup")
 mcp__relaycast__message_reaction_remove(message_id: "abc123", emoji: "thumbsup")
@@ -165,15 +180,11 @@ mcp__relaycast__message_reaction_remove(message_id: "abc123", emoji: "thumbsup")
 
 ### Search
 
-#### ```
-
 ```
 mcp__relaycast__message_search(query: "auth module", channel: "general")
 ```
 
 ### Checking Status
-
-#### ```
 
 ```
 mcp__relaycast__agent_list()    # List online agents
@@ -181,8 +192,6 @@ mcp__relaycast__message_inbox_check()   # Check for unread messages
 ```
 
 ### CLI Commands
-
-#### ```bash
 
 ```bash
 agent-relay status              # Check daemon status
@@ -193,23 +202,6 @@ agent-relay read <id>           # Read a single message by id, full text
 agent-relay history             # Recent message history (full text, chronological)
 agent-relay replies <agent>     # Inbound DM replies from <agent> (add --json to parse)
 ```
-
-### Overview
-
-Real-time agent-to-agent messaging via Relaycast MCP tools, for an agent
-that **is a registered participant** in a relay team.
-
-> **Which skill do you want?**
->
-> - **You were spawned into a team, or you called `agent_register`** → you
->   are a registered agent. This skill (MCP tools below) is for you.
-> - **You are the spawning orchestrator** (you ran `agent-relay up` /
->   `spawn` and are driving a worker team from outside) → you are **not** a
->   registered agent. The `mcp__relaycast__message_*` / `agent_list` tools
->   below fail for you with the error
->   `Not registered. Call agent.register first.` Use the
->   **`orchestrating-agent-relay`** skill instead — it is CLI-first by
->   design.
 
 ### Common Mistakes
 
