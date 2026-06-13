@@ -9,7 +9,7 @@ The Agent Relay SDK (`@agent-relay/sdk`) supports 24 swarm patterns via a single
 
 ### Run a pattern
 
-#### YAML (portable)
+#### TypeScript SDK runner
 
 ```ts
 import { runWorkflow } from '@agent-relay/sdk/workflows';
