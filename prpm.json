@@ -10,7 +10,7 @@
   "packages": [
     {
       "name": "choosing-swarm-patterns",
-      "version": "1.1.3",
+      "version": "1.1.4",
       "description": "Use when coordinating multiple AI agents with Agent Relay's workflow engine and need to pick the right orchestration pattern - covers the 10 core patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) plus 14 specialized ones, with decision framework and accurate SDK/YAML examples.",
       "format": "claude",
       "subtype": "skill",
@@ -71,8 +71,8 @@
     },
     {
       "name": "using-agent-relay",
-      "version": "1.3.0",
-      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called agent_register) coordinating with peers in real time over Relaycast MCP tools - messaging, channels, threads, reactions, search, webhooks. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
+      "version": "1.3.2",
+      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called register_agent) coordinating with peers in real time over current Agent Relay MCP tools - messaging, channels, threads, reactions, search, inbox, actions, and worker spawn/release. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
