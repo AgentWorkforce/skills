@@ -303,21 +303,25 @@ verification:
   value: DONE # or: PLAN_COMPLETE, IMPLEMENTATION_COMPLETE, REVIEW_COMPLETE
 ```
 
-### Relaycast MCP — Correct Tool Names
+### Agent Relay MCP — Correct Tool Names
 
-The skill previously referenced `mcp__relaycast__send` / `mcp__relaycast__dm` — those names are wrong. The real tools (the first three are cited in the workflow convention-injection at `relay-adapter.ts:31-35`; the rest are exposed by the live `relaycast` MCP server):
+The old category-expanded names are wrong. Current Agent Relay MCP tools are
+flat names. In a client that decorates MCP tools, the prefix comes from the
+configured server key. With the relay broker's `agent-relay` server key, Claude
+Code users commonly see `mcp__agent-relay__send_dm`; Codex and opencode users
+see the bare canonical name `send_dm`.
 
-| Purpose                  | Tool                                  | Source                |
-| ------------------------ | ------------------------------------- | --------------------- |
-| Send DM to another agent | `mcp__relaycast__message_dm_send`     | `relay-adapter.ts:31` |
-| Check inbox              | `mcp__relaycast__message_inbox_check` | `relay-adapter.ts:35` |
-| List agents              | `mcp__relaycast__agent_list`          | `relay-adapter.ts:35` |
-| Post to a channel        | `mcp__relaycast__message_post`        | relaycast MCP server  |
-| Reply in a thread        | `mcp__relaycast__message_reply`       | relaycast MCP server  |
-| Spawn sub-agent          | `mcp__relaycast__agent_add`           | relaycast MCP server  |
-| Remove sub-agent         | `mcp__relaycast__agent_remove`        | relaycast MCP server  |
+| Purpose                  | Canonical tool    | Claude Code form with `agent-relay` key |
+| ------------------------ | ----------------- | --------------------------------------- |
+| Send DM to another agent | `send_dm`         | `mcp__agent-relay__send_dm`             |
+| Check inbox              | `check_inbox`     | `mcp__agent-relay__check_inbox`         |
+| List agents              | `list_agents`     | `mcp__agent-relay__list_agents`         |
+| Post to a channel        | `post_message`    | `mcp__agent-relay__post_message`        |
+| Reply in a thread        | `reply_to_thread` | `mcp__agent-relay__reply_to_thread`     |
+| Spawn sub-agent          | `add_agent`       | `mcp__agent-relay__add_agent`           |
+| Remove sub-agent         | `remove_agent`    | `mcp__agent-relay__remove_agent`        |
 
-> `interactive: false` agents run as non-interactive subprocesses with no relay connection — they must NOT call any `mcp__relaycast__*` tool (validator warns on this at `validator.ts:138-150`, check `NONINTERACTIVE_RELAY`).
+> `interactive: false` agents run as non-interactive subprocesses with no relay connection. They must not call Relay MCP tools.
 
 ### Reflection (Trajectories)
 
@@ -344,7 +348,7 @@ trajectories:
 | Relying on `reflectOnBarriers`               | Config flag exists but runner never calls it                                  | Use `reflectOnConverge` for convergence reflection; use `reflection` pattern for critic loops |
 | `interactive: false` agent calling MCP       | Non-interactive subprocess has no relay                                       | Use `interactive: true` (default) or emit output on stdout                                    |
 | Relying on multi-level `hierarchical`        | Topology is single-level hub in current impl                                  | Use pattern for naming; model levels via `dependsOn` graph                                    |
-| Writing `mcp__relaycast__send(...)`          | Wrong tool name                                                               | Use `mcp__relaycast__message_post` or `message_dm_send`                                       |
+| Writing `mcp__relaycast__send(...)`          | Wrong tool name                                                               | Use `post_message` / `mcp__agent-relay__post_message` or `send_dm` / `mcp__agent-relay__send_dm` |
 
 ### Resume & Re-run
 
