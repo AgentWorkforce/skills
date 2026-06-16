@@ -191,10 +191,11 @@ Persona-kit validates only that it is a plain object and preserves it for the
 cloud adapter. It does **not** mount files, grant writeback path scope, or wake
 the handler. Keep using `scope` and `defineAgent(...)` triggers for those.
 
-Use `config` when a provider needs adapter-side sync/write behavior that belongs
-with the persona's connection. The current production case is GitHub
-materialization from `relayfile-adapters#193`: a persona can keep GitHub lazy by
-default while eagerly materializing issues or pulls for selected repositories.
+Use `config` only for adapter settings that the provider explicitly documents.
+It is not a portable cross-provider materialization API. The current production
+case is **GitHub-only** materialization from `relayfile-adapters#193`: a persona
+can keep GitHub lazy by default while eagerly materializing issues or pulls for
+selected repositories.
 
 ```ts
 integrations: {
@@ -225,6 +226,10 @@ Authoring rules:
 - Use canonical GitHub materialization modes: `'lazy'` and `'eager'`. Adapter
   runtime aliases like `'all'` / `'none'` are not typed persona authoring
   values.
+- Do not copy `config.materialization` to Slack, Linear, Notion, Jira, or other
+  providers unless that adapter has shipped and documented the same setting.
+  For unsupported providers, use `scope` plus handler-side filtering, or open an
+  adapter follow-up instead of inventing persona config.
 - Pair materialization with a concrete `scope` for any files the handler reads
   beyond the triggering subtree. `config.materialization` decides what the
   adapter syncs; `scope` decides what the persona mount can see.
@@ -667,7 +672,8 @@ slack: {
 - Pin a test (see §6): parse `persona.integrations` through persona-kit's
   `parseIntegrations` and assert the scope survives as a non-empty map covering
   the writeback subtree your client uses; assert adapter `config` survives when
-  the persona depends on materialization or other provider-owned settings.
+  a GitHub persona depends on materialization or a provider documents another
+  provider-owned setting.
 
 ## 2. `sandbox: true` vs `sandbox: false`
 
