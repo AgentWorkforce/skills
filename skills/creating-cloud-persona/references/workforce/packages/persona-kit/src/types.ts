@@ -376,8 +376,8 @@ export interface PersonaAiMemoryConfig {
 export type PersonaMemory = boolean | PersonaMemoryConfig;
 
 /**
- * Relay (agent-relay / relaycast) participation config. Like {@link
- * PersonaMemoryConfig}, the persona declares **intent** only — the API key and
+ * Relay (agent-relay / relaycast) participation config. Like {@link PersonaMemoryConfig},
+ * the persona declares **intent** only — the API key and
  * base URL are secrets that come from workforce env (`RELAY_API_KEY`,
  * `RELAY_BASE_URL`). When enabled, launchers inject the relaycast MCP server
  * (see `buildRelaycastMcpServer`) so the persona is a first-class chat

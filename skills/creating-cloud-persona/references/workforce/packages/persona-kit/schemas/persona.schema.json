@@ -661,7 +661,7 @@
           "description": "Default relay workspace (`RELAY_DEFAULT_WORKSPACE`); else env."
         }
       },
-      "description": "Relay (agent-relay / relaycast) participation config. Like  {@link  * PersonaMemoryConfig } , the persona declares **intent** only — the API key and base URL are secrets that come from workforce env (`RELAY_API_KEY`, `RELAY_BASE_URL`). When enabled, launchers inject the relaycast MCP server (see `buildRelaycastMcpServer`) so the persona is a first-class chat participant: it can post to channels, DM, and answer replies — the human-in-the-loop surface a solo persona otherwise lacks."
+      "description": "Relay (agent-relay / relaycast) participation config. Like {@link PersonaMemoryConfig}, the persona declares **intent** only — the API key and base URL are secrets that come from workforce env (`RELAY_API_KEY`, `RELAY_BASE_URL`). When enabled, launchers inject the relaycast MCP server (see `buildRelaycastMcpServer`) so the persona is a first-class chat participant: it can post to channels, DM, and answer replies — the human-in-the-loop surface a solo persona otherwise lacks."
     }
   },
   "$id": "https://agentworkforce.dev/schemas/persona.schema.json"
