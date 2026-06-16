@@ -194,11 +194,18 @@ export type McpServerSpec =
  *   { on: "pull_request.opened" }
  *   { on: "pull_request_review_comment.created", match: "@mention" }
  *   { on: "check_run.completed", where: "conclusion=failure" }
+ *   { on: "message.created", maxConcurrency: 1 }
  */
 export interface PersonaIntegrationTrigger {
   on: string;
   match?: string;
   where?: string;
+  /**
+   * Optional delivery backpressure hint for this trigger. Positive integers are
+   * preserved by the parser; invalid values are treated as unset so older or
+   * malformed specs do not block delivery.
+   */
+  maxConcurrency?: number;
 }
 
 /**
@@ -235,10 +242,15 @@ export type IntegrationSource =
  * `source` discriminates the cloud-side resolver between `user_integrations`
  * and `workspace_integrations`; defaults to `{ kind: 'deployer_user' }` when
  * omitted so existing personas keep their pre-discriminator behavior.
+ *
+ * `config` is a forward-compatible adapter passthrough. Persona-kit validates
+ * only that it is an object; provider adapters own the nested schema
+ * (for example GitHub materialization policy).
  */
 export interface PersonaIntegrationConfig {
   source?: IntegrationSource;
   scope?: Record<string, string>;
+  config?: Record<string, unknown>;
 }
 
 /**
@@ -362,6 +374,40 @@ export interface PersonaAiMemoryConfig {
 }
 
 export type PersonaMemory = boolean | PersonaMemoryConfig;
+
+/**
+ * Relay (agent-relay / relaycast) participation config. Like {@link PersonaMemoryConfig},
+ * the persona declares **intent** only — the API key and
+ * base URL are secrets that come from workforce env (`RELAY_API_KEY`,
+ * `RELAY_BASE_URL`). When enabled, launchers inject the relaycast MCP server
+ * (see `buildRelaycastMcpServer`) so the persona is a first-class chat
+ * participant: it can post to channels, DM, and answer replies — the
+ * human-in-the-loop surface a solo persona otherwise lacks.
+ */
+export interface PersonaRelayConfig {
+  /** Master switch. Object form defaults to enabled (`{}` ⇒ on). */
+  enabled?: boolean;
+  /**
+   * Agent identity registered on relay (`RELAY_AGENT_NAME`). Defaults to the
+   * env value, then the persona id. Must match the broker's routing name.
+   */
+  agentName?: string;
+  /**
+   * Relaycast channels the persona participates in (names may omit the leading
+   * `#`). Declarative intent consumed when wiring inbox triggers (Unit C);
+   * does not affect MCP injection on its own.
+   */
+  channels?: string[];
+  /**
+   * Relaycast inbox selectors the persona subscribes to (e.g. `@self`, `#eng`),
+   * mirroring the SDK `AgentDefinition.inbox` contract.
+   */
+  inbox?: string[];
+  /** Default relay workspace (`RELAY_DEFAULT_WORKSPACE`); else env. */
+  defaultWorkspace?: string;
+}
+
+export type PersonaRelay = boolean | PersonaRelayConfig;
 
 export type CapabilityValue =
   | boolean
@@ -544,6 +590,13 @@ export interface PersonaSpec {
    * details (api keys, adapter type, etc. come from workforce env).
    */
   memory?: PersonaMemory;
+  /**
+   * Relay (agent-relay / relaycast) participation. Off unless declared. When
+   * enabled, launchers inject the relaycast MCP so the persona can post to
+   * channels, DM, and answer replies — see {@link PersonaRelayConfig}. Secrets
+   * (`RELAY_API_KEY`, `RELAY_BASE_URL`) come from workforce env, not the spec.
+   */
+  relay?: PersonaRelay;
   /**
    * Relative POSIX path to the TypeScript (or compiled .js / .mjs) file
    * whose default export is the deploy-time event handler. Resolved
