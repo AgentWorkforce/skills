@@ -191,10 +191,11 @@ Persona-kit validates only that it is a plain object and preserves it for the
 cloud adapter. It does **not** mount files, grant writeback path scope, or wake
 the handler. Keep using `scope` and `defineAgent(...)` triggers for those.
 
-Use `config` when a provider needs adapter-side sync/write behavior that belongs
-with the persona's connection. The current production case is GitHub
-materialization from `relayfile-adapters#193`: a persona can keep GitHub lazy by
-default while eagerly materializing issues or pulls for selected repositories.
+Use `config` only for adapter settings that the provider explicitly documents.
+It is not a portable cross-provider materialization API. The current production
+case is **GitHub-only** materialization from `relayfile-adapters#193`: a persona
+can keep GitHub lazy by default while eagerly materializing issues or pulls for
+selected repositories.
 
 ```ts
 integrations: {
@@ -225,6 +226,10 @@ Authoring rules:
 - Use canonical GitHub materialization modes: `'lazy'` and `'eager'`. Adapter
   runtime aliases like `'all'` / `'none'` are not typed persona authoring
   values.
+- Do not copy `config.materialization` to Slack, Linear, Notion, Jira, or other
+  providers unless that adapter has shipped and documented the same setting.
+  For unsupported providers, use `scope` plus handler-side filtering, or open an
+  adapter follow-up instead of inventing persona config.
 - Pair materialization with a concrete `scope` for any files the handler reads
   beyond the triggering subtree. `config.materialization` decides what the
   adapter syncs; `scope` decides what the persona mount can see.
@@ -667,7 +672,8 @@ slack: {
 - Pin a test (see §6): parse `persona.integrations` through persona-kit's
   `parseIntegrations` and assert the scope survives as a non-empty map covering
   the writeback subtree your client uses; assert adapter `config` survives when
-  the persona depends on materialization or other provider-owned settings.
+  a GitHub persona depends on materialization or a provider documents another
+  provider-owned setting.
 
 ## 2. `sandbox: true` vs `sandbox: false`
 
@@ -679,13 +685,30 @@ slack: {
 | Daytona box | provisioned per fire (seconds of cold start) | **none** — handler runs in the persona runner (ms) |
 | `ctx.sandbox.exec()` | available | **rejects** (`SandboxNotAvailableError`) |
 | `ctx.files.read/write` | available | unavailable — use VFS helpers (`readJsonFile`/`writeJsonFile`) against provider paths |
-| `ctx.harness.run()` | available | **still works** |
+| `ctx.harness.run()` | available | **unusable** — harness CLI credentials are NOT mounted (`EMPTY_HARNESS_CLI_CREDENTIAL_MOUNT`) and no `CLAUDE_CODE_OAUTH_TOKEN`/`CODEX_OAUTH_CREDENTIAL` env is set, so the claude/codex/opencode CLI cannot authenticate. The method exists but a real harness run fails (`deployment-trigger-delivery.ts`). |
 | Harness CLI credentials | mounted | not mounted |
+| `ctx.llm.complete()` | available | available **only with an explicit credential** — set `useSubscription: true` (or a credentialSelection) so the credential rides in `providerEnv`; the harness-mount fallback that normally backs `ctx.llm` is gone under `sandbox: false` |
 | PR-reviewer checkout / PR writeback / conflict-autofix / git workspace clone | available when capabilities declared | **disabled even if declared** (cloud gates them on `!lightweightSandbox`, `deployment-trigger-delivery.ts`) |
 
-Pick `sandbox: false` for chat-lead / read-classify-reply personas that touch
-provider data only through relayfile (e.g. the linear chat lead). Pick the
-default for anything that clones repos, runs shells, or uses PR capabilities.
+Pick `sandbox: false` **only** for read-classify-reply personas that answer via
+`ctx.llm.complete()` (set `useSubscription: true` or a credentialSelection so the
+credential survives in `providerEnv`) and read provider data with
+`readJsonFile`/`listJsonFiles` over the relayfile **API**. Any persona that calls
+`ctx.harness.run()` — i.e. a claude/codex/opencode conversational or coding agent —
+**must keep `sandbox: true`**: the harness needs the box and its mounted CLI
+credentials (`sandbox: false` drops them, so the run fails). Also keep the default
+for anything that clones repos, runs shells, or uses PR capabilities.
+
+> **Wake cost (sandbox-per-message trap).** A channel-wide trigger like
+> `slack: [{ on: 'message.created', paths: ['/slack/channels/${SLACK_CHANNEL}/**'] }]`
+> wakes — and on `sandbox: true` **provisions a Daytona box + runs the harness** —
+> for **every** message in the channel, even ones the handler self-filters and
+> drops. The handler's own skip-guards run AFTER provisioning, so they don't save
+> the box. Gate the wake at the trigger so the box is only provisioned when the
+> agent is actually addressed: add **`match: '@mention'`** (fires only when the
+> message contains a Slack mention token) or **`where: 'field=value'`** (exact
+> payload-field condition). A pure reply bot can instead use `ctx.llm.complete` +
+> `sandbox: false` and skip the box entirely.
 
 ## 3. Inputs — declaration and resolution
 
