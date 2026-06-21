@@ -1,6 +1,6 @@
 ---
 name: creating-cloud-persona
-description: Use when creating, updating, or reviewing a Workforce cloud persona (`persona.json`/`persona.ts` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, integrations and scope mounting, inputs, memory, sandbox modes, `onEvent`, top-level runtime fields, `defineAgent(...)` triggers/schedules/watch/team-dispatcher launch, provider IO via `@relayfile/relay-helpers`, production-correctness traps, vendored examples, and deploy flow. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, “review a workforce persona”, or “author the agent.ts handler for a workforce persona”.
+description: Use when creating, updating, or reviewing a Workforce cloud persona (`persona.json`/`persona.ts` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, integrations with scope mounting and adapter config passthrough, inputs, memory, sandbox modes, `onEvent`, top-level runtime fields, `defineAgent(...)` triggers/schedules/watch/team-dispatcher launch, provider IO via `@relayfile/relay-helpers`, production-correctness traps, vendored examples, and deploy flow. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, “configure GitHub materialization for a persona”, “review a workforce persona”, or “author the agent.ts handler for a workforce persona”.
 ---
 
 # Creating Cloud Persona
@@ -73,7 +73,7 @@ For cloud personas, expect fields like:
 - `description`
 - `cloud: true`
 - `useSubscription` (optional)
-- `integrations` (optional, for provider connection requirements **and mount scope** — each integration declares both the connection and the relayfile paths it mounts; see Authoring rule 3)
+- `integrations` (optional, for provider connection requirements, mount scope, and adapter config passthrough — see Authoring rules 3 and 4)
 - `memory` (optional; production agents use both `true` and object form)
 - `onEvent`
 - top-level runtime fields, when the agent uses a harness:
@@ -81,7 +81,7 @@ For cloud personas, expect fields like:
   - `model`
   - `systemPrompt`
   - `harnessSettings`
-- optional `inputs`, `env`, `sandbox`, `skills`, `permissions`, `mount`, `mcpServers`, `capabilities`
+- optional `inputs`, `env`, `sandbox`, `skills`, `permissions`, `mount`, `mcpServers`, `capabilities`, `relay`
 
 Do **not** author older `tiers` / `defaultTier` structures unless the repo explicitly still uses them. The latest Workforce examples use flat top-level runtime fields.
 
@@ -162,8 +162,9 @@ If `agent.ts` never uses Slack behavior or Slack-backed writes, do not declare S
 
 And for the integrations you *do* declare, **also declare a mount `scope`**. The
 persona-kit type is
-`PersonaIntegrationConfig { source?: IntegrationSource; scope?: Record<string, string> }`,
-where `scope` maps a resource name to an absolute relayfile glob. An **unscoped
+`PersonaIntegrationConfig { source?: IntegrationSource; scope?: Record<string, string>; config?: Record<string, unknown> }`,
+where `scope` maps a resource name to an absolute relayfile glob and `config`
+passes provider-owned adapter settings through unchanged. An **unscoped
 provider mirror is dropped** — `slack: {}` (and `scope: {}`) mounts no provider
 data, so reads come back empty and writes land on unmounted disk as silent
 no-ops. Prefer the concrete subpaths the handler actually reads and writes back
@@ -183,7 +184,57 @@ integrations: {
 The full mechanics and the labelled-mirror sub-trap are in the
 production-correctness checklist below (§1).
 
-### 4. Schedules are named APIs
+### 4. Use `integrations.<provider>.config` for adapter behavior, not mount behavior
+
+`integrations.<provider>.config` is a forward-compatible adapter passthrough.
+Persona-kit validates only that it is a plain object and preserves it for the
+cloud adapter. It does **not** mount files, grant writeback path scope, or wake
+the handler. Keep using `scope` and `defineAgent(...)` triggers for those.
+
+Use `config` when a provider needs adapter-side sync/write behavior that belongs
+with the persona's connection. The current production case is GitHub
+materialization from `relayfile-adapters#193`: a persona can keep GitHub lazy by
+default while eagerly materializing issues or pulls for selected repositories.
+
+```ts
+integrations: {
+  github: {
+    scope: { paths: '/github/**' },
+    config: {
+      materialization: {
+        default: 'lazy',
+        webhookWritesForLazyRepos: true,
+        rules: [
+          {
+            repos: ['AgentWorkforce/cloud'],
+            issues: {
+              mode: 'eager',
+              filter: { state: 'open', labels: ['factory'] }
+            },
+            pulls: 'lazy'
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Authoring rules:
+
+- Use canonical GitHub materialization modes: `'lazy'` and `'eager'`. Adapter
+  runtime aliases like `'all'` / `'none'` are not typed persona authoring
+  values.
+- Pair materialization with a concrete `scope` for any files the handler reads
+  beyond the triggering subtree. `config.materialization` decides what the
+  adapter syncs; `scope` decides what the persona mount can see.
+- Keep `config` provider-owned. Do not put listener fields (`triggers`,
+  `schedules`, `watch`) in it or under `integrations`; those belong in
+  `defineAgent(...)`.
+- Verify the compiled persona preserves both `integrations.<p>.scope` and
+  `integrations.<p>.config` before deploy.
+
+### 5. Schedules are named APIs
 
 Declare schedules in `defineAgent({ schedules: [...] })`, not in `persona.json`.
 
@@ -200,7 +251,7 @@ Bad:
 - `job1`
 - `schedule-a`
 
-### 5. Memory should match the job
+### 6. Memory should match the job
 
 Examples:
 
@@ -210,7 +261,7 @@ Examples:
 
 Do not enable memory by reflex if the persona is purely stateless.
 
-### 6. `systemPrompt` should define the agent’s role, not the listener plumbing
+### 7. `systemPrompt` should define the agent’s role, not the listener plumbing
 
 The prompt should say what kind of agent this is and what quality bar it follows.
 Do not stuff listener-routing details into the prompt when they are already in code.
@@ -610,11 +661,13 @@ slack: {
   `AgentWorkforce/cloud#1986`.)
 
 - **Verify after compiling**: run `agentworkforce persona compile <dir>/persona.ts`
-  and check the generated persona.json still carries `integrations.<p>.scope`.
-  If persona-kit dropped it, the deployed persona is silently inert.
+  and check the generated persona.json still carries `integrations.<p>.scope`
+  and any `integrations.<p>.config` adapter settings. If persona-kit dropped the
+  field, the deployed persona is silently inert or falls back to adapter defaults.
 - Pin a test (see §6): parse `persona.integrations` through persona-kit's
   `parseIntegrations` and assert the scope survives as a non-empty map covering
-  the writeback subtree your client uses.
+  the writeback subtree your client uses; assert adapter `config` survives when
+  the persona depends on materialization or other provider-owned settings.
 
 ## 2. `sandbox: true` vs `sandbox: false`
 
@@ -683,11 +736,12 @@ function input(ctx: WorkforceCtx, name: string): string | undefined {
   fires because **Daytona is the trust boundary** and codex's nested bubblewrap
   sandbox needs user namespaces Daytona doesn't allow. Say so in a comment when
   you set it.
-- Version pinning: capabilities and spec fields are parsed **client-side by
-  persona-kit before upload**. A persona-kit older than the field you're using
-  silently strips it (this shipped as the teamSolve-capability strip). Exact-pin
-  `@agentworkforce/persona-kit` (and cli/runtime) in the repo and verify the
-  compiled artifact carries every field you depend on.
+- Version pinning: capabilities, `integrations.<provider>.config`, and other
+  spec fields are parsed **client-side by persona-kit before upload**. A
+  persona-kit older than the field you're using silently strips it (this shipped
+  as the teamSolve-capability strip). Exact-pin `@agentworkforce/persona-kit`
+  (and cli/runtime) in the repo and verify the compiled artifact carries every
+  field you depend on.
 
 ## 5. Teams — `teamSolve` capability and `team.json`
 
