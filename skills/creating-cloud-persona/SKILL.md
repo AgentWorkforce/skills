@@ -685,13 +685,30 @@ slack: {
 | Daytona box | provisioned per fire (seconds of cold start) | **none** — handler runs in the persona runner (ms) |
 | `ctx.sandbox.exec()` | available | **rejects** (`SandboxNotAvailableError`) |
 | `ctx.files.read/write` | available | unavailable — use VFS helpers (`readJsonFile`/`writeJsonFile`) against provider paths |
-| `ctx.harness.run()` | available | **still works** |
+| `ctx.harness.run()` | available | **unusable** — harness CLI credentials are NOT mounted (`EMPTY_HARNESS_CLI_CREDENTIAL_MOUNT`) and no `CLAUDE_CODE_OAUTH_TOKEN`/`CODEX_OAUTH_CREDENTIAL` env is set, so the claude/codex/opencode CLI cannot authenticate. The method exists but a real harness run fails (`deployment-trigger-delivery.ts`). |
 | Harness CLI credentials | mounted | not mounted |
+| `ctx.llm.complete()` | available | available **only with an explicit credential** — set `useSubscription: true` (or a credentialSelection) so the credential rides in `providerEnv`; the harness-mount fallback that normally backs `ctx.llm` is gone under `sandbox: false` |
 | PR-reviewer checkout / PR writeback / conflict-autofix / git workspace clone | available when capabilities declared | **disabled even if declared** (cloud gates them on `!lightweightSandbox`, `deployment-trigger-delivery.ts`) |
 
-Pick `sandbox: false` for chat-lead / read-classify-reply personas that touch
-provider data only through relayfile (e.g. the linear chat lead). Pick the
-default for anything that clones repos, runs shells, or uses PR capabilities.
+Pick `sandbox: false` **only** for read-classify-reply personas that answer via
+`ctx.llm.complete()` (set `useSubscription: true` or a credentialSelection so the
+credential survives in `providerEnv`) and read provider data with
+`readJsonFile`/`listJsonFiles` over the relayfile **API**. Any persona that calls
+`ctx.harness.run()` — i.e. a claude/codex/opencode conversational or coding agent —
+**must keep `sandbox: true`**: the harness needs the box and its mounted CLI
+credentials (`sandbox: false` drops them, so the run fails). Also keep the default
+for anything that clones repos, runs shells, or uses PR capabilities.
+
+> **Wake cost (sandbox-per-message trap).** A channel-wide trigger like
+> `slack: [{ on: 'message.created', paths: ['/slack/channels/${SLACK_CHANNEL}/**'] }]`
+> wakes — and on `sandbox: true` **provisions a Daytona box + runs the harness** —
+> for **every** message in the channel, even ones the handler self-filters and
+> drops. The handler's own skip-guards run AFTER provisioning, so they don't save
+> the box. Gate the wake at the trigger so the box is only provisioned when the
+> agent is actually addressed: add **`match: '@mention'`** (fires only when the
+> message contains a Slack mention token) or **`where: 'field=value'`** (exact
+> payload-field condition). A pure reply bot can instead use `ctx.llm.complete` +
+> `sandbox: false` and skip the box entirely.
 
 ## 3. Inputs — declaration and resolution
 
