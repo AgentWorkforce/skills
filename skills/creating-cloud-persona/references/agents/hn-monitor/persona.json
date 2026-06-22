@@ -4,7 +4,7 @@
   "tags": [
     "discovery"
   ],
-  "description": "Scans Hacker News a few times a day for topics you care about and posts a summary to Slack.",
+  "description": "Scans Hacker News a few times a day for topics you care about and posts a summary to Slack. Retains the last ~30 days of digests — DM the agent to ask questions about what it has recently posted.",
   "cloud": true,
   "integrations": {
     "slack": {
@@ -34,14 +34,19 @@
   "systemPrompt": "Summarize Hacker News stories into a short, skimmable Slack digest.",
   "harnessSettings": {
     "reasoning": "low",
-    "timeoutSeconds": 120
+    "timeoutSeconds": 1800
+  },
+  "relay": {
+    "inbox": [
+      "@self"
+    ]
   },
   "memory": {
     "enabled": true,
     "scopes": [
       "workspace"
     ],
-    "ttlDays": 7
+    "ttlDays": 30
   },
   "onEvent": "./agent.ts"
 }
