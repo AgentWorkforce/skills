@@ -161,7 +161,7 @@
     {
       "name": "writeback-as-files",
       "version": "1.0.0",
-      "description": "Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path \u2192 provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/.",
+      "description": "Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path → provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -372,6 +372,25 @@
         "skills/creating-cloud-persona/references/workforce/packages/persona-kit/src/types.ts",
         "skills/creating-cloud-persona/references/workforce/packages/runtime/src/clients/index.ts",
         "skills/creating-cloud-persona/references/workforce/packages/runtime/src/types.ts"
+      ]
+    },
+    {
+      "name": "factory-config",
+      "version": "1.0.0",
+      "description": "Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, and babysitter options",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "factory",
+        "configuration",
+        "relayfile",
+        "linear",
+        "github",
+        "slack",
+        "automation"
+      ],
+      "files": [
+        "skills/factory-config/SKILL.md"
       ]
     },
     {
