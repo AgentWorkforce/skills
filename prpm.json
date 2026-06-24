@@ -376,7 +376,7 @@
     },
     {
       "name": "factory-config",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, and babysitter options",
       "format": "claude",
       "subtype": "skill",
