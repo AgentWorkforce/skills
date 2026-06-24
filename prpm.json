@@ -304,7 +304,7 @@
     },
     {
       "name": "creating-cloud-persona",
-      "version": "1.0.7",
+      "version": "1.0.8",
       "description": "Use when creating or updating a Workforce cloud persona (persona.json/persona.ts + agent.ts) for the current deploy/runtime shape: defineAgent(...) triggers/schedules/watch or team-dispatcher launch, flat runtime fields, integrations with scope and adapter config passthrough, memory, onEvent, provider IO via @relayfile/relay-helpers, vendored production examples, production-correctness checks, and the agent-driven login then deploy flow.",
       "format": "claude",
       "subtype": "skill",
