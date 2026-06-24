@@ -33,11 +33,14 @@ Prefer compact repo config. `workspaceId` is optional; omit it to use the active
 
 ```json
 {
+  "subscription": {
+    "teams": ["AR"]
+  },
   "repos": {
     "org": "AgentWorkforce",
     "cloneRoot": "/Users/khaliqgant/Projects/AgentWorkforce",
     "names": ["relayfile-adapters"],
-    "default": "relayfile-adapters"
+    "default": "AgentWorkforce/relayfile-adapters"
   },
   "safety": {
     "requireTitlePrefix": "[factory]",
@@ -45,15 +48,13 @@ Prefer compact repo config. `workspaceId` is optional; omit it to use the active
     "requireTeamKey": "AR"
   },
   "linear": {
-    "teamIds": {
-      "AR": "50cf92f3-f53c-4ab6-bf05-ea76ebd21692"
+    "states": {
+      "readyForAgent": "Ready for Agent",
+      "agentImplementing": "Agent Implementing",
+      "inPlanning": "In Planning",
+      "done": "Done",
+      "humanReview": "In Human Review"
     }
-  },
-  "stateIds": {
-    "readyForAgent": "b9bec744-b60c-4745-8022-d90d6ab59ae3",
-    "agentImplementing": "39b9881d-1196-4c95-8b80-a20f0c7263f7",
-    "inPlanning": "3de351f2-90e6-4731-aa6b-4a55b77f481e",
-    "done": "83ea5383-bfe9-425a-86ef-517b8190f09a"
   },
   "mergePolicy": "never"
 }
@@ -71,11 +72,11 @@ Use explicit `repos.byLabel` when a label should route to a repo not derivable f
 
 For GitHub issues labeled `factory`, include the GitHub repo in `repos.names` or `repos.byLabel`. The factory mirrors matching GitHub issues to Linear, then dispatches once the Linear mirror is in Ready for Agent.
 
-For reliable Linear create writeback, include `linear.teamIds` for the required team key until the adapter accepts team keys/names directly.
+For Linear create writeback, prefer the team key only: `safety.requireTeamKey` and `subscription.teams` should use the Linear team key such as `AR`. GitHub mirrors carry `team.key`; the Linear writeback provider resolves that key to the provider-side team ID. `linear.teamIds` remains an optional escape hatch for workspaces that explicitly need UUID pinning, but do not add it by default.
 
 ## Linear States
 
-Prefer dynamic state-name resolution when `/linear/states` is available:
+Prefer dynamic state-name resolution:
 
 ```json
 {
@@ -92,7 +93,31 @@ Prefer dynamic state-name resolution when `/linear/states` is available:
 }
 ```
 
-If the states resource is unavailable, pin `stateIds` UUIDs. `stateIds` is an escape hatch and may omit roles that resolve by name.
+The resolver first uses `/linear/states` when available. If that catalog is absent but synced Linear issue records include `state.name` plus `stateId`, it derives the role IDs from those real Linear records. `stateIds` is only an escape hatch for setups with neither a states catalog nor enough synced issue state data, and may omit roles that resolve by name.
+
+For teams that use different workflow state names, scope overrides by team key:
+
+```json
+{
+  "linear": {
+    "states": {
+      "readyForAgent": "Ready for Agent",
+      "agentImplementing": "Agent Implementing",
+      "inPlanning": "In Planning",
+      "done": "Done",
+      "humanReview": "In Human Review"
+    },
+    "statesByTeam": {
+      "ENG": {
+        "readyForAgent": "To Do",
+        "agentImplementing": "Building",
+        "inPlanning": "Backlog",
+        "done": "Shipped"
+      }
+    }
+  }
+}
+```
 
 ## Babysitter
 
@@ -135,6 +160,6 @@ Before finishing a config:
 
 1. Confirm every repo label used by issues maps through `repos.byLabel` or compact `repos.names`.
 2. Confirm `cloneRoot`/`clonePaths` point to real local checkouts.
-3. Confirm `linear.teamIds` includes `safety.requireTeamKey` when GitHub mirrors may be created.
-4. Confirm state names or `stateIds` match the target Linear workspace.
+3. Confirm `subscription.teams` and `safety.requireTeamKey` use Linear team keys, not UUIDs.
+4. Confirm state names match the target Linear workspace, using `linear.statesByTeam` for teams with different names.
 5. Run `factory run-once --config ./factory.config.json --dry-run`.
