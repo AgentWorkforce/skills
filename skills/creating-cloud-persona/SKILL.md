@@ -162,9 +162,10 @@ If `agent.ts` never uses Slack behavior or Slack-backed writes, do not declare S
 
 And for the integrations you *do* declare, **also declare a mount `scope`**. The
 persona-kit type is
-`PersonaIntegrationConfig { source?: IntegrationSource; scope?: Record<string, string>; config?: Record<string, unknown> }`,
-where `scope` maps a resource name to an absolute relayfile glob and `config`
-passes provider-owned adapter settings through unchanged. An **unscoped
+`PersonaIntegrationConfig { source?: IntegrationSource; scope?: Record<string, string>; config?: Record<string, unknown>; optional?: boolean; enabledByInput?: string }`,
+where `scope` maps a resource name to an absolute relayfile glob, `config`
+passes provider-owned adapter settings through unchanged, and `optional` /
+`enabledByInput` gate the integration on a deploy input (see §3b). An **unscoped
 provider mirror is dropped** — `slack: {}` (and `scope: {}`) mounts no provider
 data, so reads come back empty and writes land on unmounted disk as silent
 no-ops. Prefer the concrete subpaths the handler actually reads and writes back
@@ -183,6 +184,61 @@ integrations: {
 
 The full mechanics and the labelled-mirror sub-trap are in the
 production-correctness checklist below (§1).
+
+### 3b. Gate conditional integrations with `optional` + `enabledByInput`
+
+By default every declared integration is connected at deploy: its provider
+credential is required and its triggers register. That is wrong for an
+integration only *some* deploys use — declaring it unconditionally forces every
+deployer to connect a provider they may not want.
+
+`optional: true` + `enabledByInput: '<INPUT>'` (persona-kit ≥ 4.1.12,
+workforce#252) make an integration **opt-in**: its provider connection, trigger
+registration, and mount happen ONLY when the named input resolves to a non-empty
+value (resolution order: `--input` flag > env var > input default). When the
+input is empty the whole integration is pruned before connection. `optional: true`
+**requires** `enabledByInput` (the parser rejects one without the other).
+
+The canonical use is a **dual-transport agent** — one agent that declares both
+`slack` and `telegram` and lets configuration pick which one(s) run, so a
+Slack-only deploy never has to wire up a Telegram bot, and vice versa:
+
+```ts
+integrations: {
+  slack: {
+    optional: true,
+    enabledByInput: 'SLACK_CHANNEL',          // set SLACK_CHANNEL → Slack connects
+    scope: { channels: '/slack/channels/**' }
+  },
+  telegram: {
+    optional: true,
+    enabledByInput: 'TELEGRAM_CHAT',          // set TELEGRAM_CHAT → Telegram connects
+    scope: { chats: '/telegram/chats/**', layout: '/telegram/LAYOUT.md' }
+  }
+},
+inputs: {
+  SLACK_CHANNEL: { env: 'SLACK_CHANNEL', optional: true, picker: { provider: 'slack', resource: 'channels' } },
+  TELEGRAM_CHAT: { env: 'TELEGRAM_CHAT', optional: true }
+}
+```
+
+The handler then registers both triggers (`slack: [...]`, `telegram: [...]`),
+dispatches by `event.type` (`slack.*` vs `telegram.*`), and replies on the
+**origin transport** so a message asked in one channel isn't mirrored to the
+other. The unconfigured transport's trigger never fires because it was pruned.
+
+Authoring rules:
+
+- **Gate-on-id semantics:** the gating input typically doubles as the
+  channel/chat/user id, so providing it both *enables* and *restricts* that
+  transport. Decide deliberately — if you need "enabled but unrestricted", gate
+  on a separate dedicated input instead of the id.
+- Keep always-on data sources (e.g. a `google-mail` read mount) **non-optional** —
+  only gate the transports/integrations a deploy can legitimately skip.
+- Require persona-kit ≥ 4.1.12 in the agents repo. Older versions silently drop
+  `optional`/`enabledByInput` (the integration would connect unconditionally),
+  so verify the compiled `persona.json` actually carries the fields before
+  deploy.
 
 ### 4. Use `integrations.<provider>.config` for adapter behavior, not mount behavior
 
