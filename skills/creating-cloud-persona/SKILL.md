@@ -15,7 +15,11 @@ A cloud persona is two things together:
 2. `agent.ts` implements the **actual behavior**
 
 Important: **triggers, schedules, and watch rules are declared in `agent.ts` via `defineAgent(...)`, while `persona.json` declares deploy/runtime config and integration connection requirements.**
-The handler branches on `event.source` and `event.type` or `event.name`.
+The handler branches on `event.type` (a provider-prefixed dotted string like
+`slack.message.created`, `linear.issue.create`, or `cron.tick`) and reads the
+payload via `await event.expand('full')`. **See "Event model (v4)" below — the
+pre-v4 `event.source` / `event.payload` / `event.name` shape is GONE in
+runtime ≥ 4, and most of the inline examples further down still use it.**
 
 ## First read
 
@@ -102,8 +106,8 @@ Do **not** author older `tiers` / `defaultTier` structures unless the repo expli
 - declares `triggers`, `schedules`, and optionally `watch`; team-member agents
   can intentionally declare none and use `launchedBy: 'team-dispatcher'`
 - receives `ctx` and `event` in `handler`
-- inspects `event.source`
-- inspects `event.type` or `event.name`
+- branches on `event.type` (provider-prefixed dotted string, or `cron.tick`)
+- reads the payload via `await event.expand('full')` (see "Event model (v4)")
 - reads and writes provider data through **`@relayfile/relay-helpers`** clients (`linearClient().comment(...)`, `slackClient().post(...)`, `githubClient().mergePullRequest(...)`, or the generic `relayClient(provider)` / `providerClient(provider)`) — catalog-backed, no hardcoded paths. The raw `@agentworkforce/runtime` VFS helpers (`readJsonFile` / `writeJsonFile`) stay the lower-level fallback. There are **no** per-provider clients on `ctx` (no `ctx.github` / `ctx.linear`)
 - optionally calls `ctx.harness.run(...)`
 - optionally calls `ctx.llm.complete(...)` for smaller synthesis
@@ -118,14 +122,17 @@ Cloud agents currently have four practical shapes, and wakeups are authored in
 `agent.ts`:
 
 1. **Clock** via `defineAgent({ schedules: [...] })`
-   - runtime event source: `cron`
-   - branch on `event.source === 'cron'`
-   - discriminate with `event.name`
+   - branch on `event.type === 'cron.tick'`
+   - the cron event carries `event.schedule` (the cron expr / one-shot id) and
+     `event.scheduledFor` — there is **no** `event.name`. For a single-schedule
+     persona, treat any `cron.tick` as that schedule (see gotcha §G2).
 
 2. **Radio** via `defineAgent({ triggers: { <provider>: [...] } })`
-   - runtime event source: provider name like `github`, `linear`, `slack`, `notion`, `jira`
-   - branch on `event.source`
-   - then branch on `event.type`
+   - the event's `type` is the **provider-prefixed** `on` value: a trigger
+     `{ slack: [{ on: 'message.created' }] }` delivers `event.type ===
+     'slack.message.created'`
+   - branch with `event.type === '<provider>.<on>'` (or
+     `event.type.startsWith('<provider>.')` for a whole provider)
 
 3. **Relayfile watch** via `defineAgent({ watch: [...] })`
    - for file/path-driven proactive behavior
@@ -139,14 +146,61 @@ Cloud agents currently have four practical shapes, and wakeups are authored in
 
 `persona.json.integrations` still matters, but for **connection/setup**, not for declaring which events fire the handler.
 
+## Event model (v4) — verified against runtime 4.1.14
+
+The handler `event` is the relay SDK's normalized `AgentEvent`
+(`@agent-relay/events`), narrowed by `defineAgent` to the triggers/schedules you
+declared. **The pre-v4 `{ source, payload, workspaceId }` shape — and
+`WorkforceProviderEvent` / `WorkforceCronEvent` — were removed.** Authoring
+against them fails to typecheck (`has no exported member 'WorkforceProviderEvent'`,
+`Property 'source' does not exist`). Many examples below still show the old shape;
+prefer this section.
+
+- **Discriminant is `event.type`** — a dotted, provider-prefixed string:
+  `cron.tick`, `slack.message.created`, `linear.issue.create`,
+  `github.pull_request.opened`. There is no `event.source`.
+- **Payload is async**: `const data = (await event.expand('full')).data;` — not a
+  synchronous `event.payload`. `event.resource` is the resource handle;
+  `event.id` / `event.workspace` / `event.occurredAt` still exist.
+- **Cron**: `event.type === 'cron.tick'`; the fired schedule is `event.schedule`
+  (cron expr / one-shot id) + `event.scheduledFor`. **No `event.name`.**
+- **Import** `WorkforceEvent` (alias of `AgentEvent`) for helper signatures;
+  don't import the removed `WorkforceProviderEvent`.
+
+Canonical v4 handler:
+
+```ts
+import { defineAgent, type WorkforceCtx, type WorkforceEvent } from '@agentworkforce/runtime';
+
+export default defineAgent({
+  schedules: [{ name: 'daily', cron: '0 9 * * 1-5' }],
+  triggers: { github: [{ on: 'pull_request.opened' }], slack: [{ on: 'message.created', match: '@mention' }] },
+  handler: async (ctx, event) => {
+    if (event.type === 'cron.tick') return runDaily(ctx);            // single schedule → no name gate
+    if (event.type === 'github.pull_request.opened') {
+      const data = (await event.expand('full')).data;               // payload is async
+      return reviewPr(ctx, data);
+    }
+    if (event.type === 'slack.message.created') {
+      const data = (await event.expand('full')).data;
+      return replyMention(ctx, data);
+    }
+  }
+});
+```
+
+Exhaustiveness note: when your declared triggers/schedules narrow `event` to a
+closed union and you handle every case, a trailing `event.type` access is `never`
+and won't typecheck — drop the unreachable fallback rather than casting.
+
 ## Authoring rules
 
 ### 1. Prefer one `defineAgent(...)` file
 
 Default to one `agent.ts` per persona, exporting one `defineAgent({...})` with internal branching:
 
-- `if (event.source === 'cron') ...`
-- `if (event.source === 'github' && event.type === 'pull_request.opened') ...`
+- `if (event.type === 'cron.tick') ...`
+- `if (event.type === 'github.pull_request.opened') ...`
 
 Do not split into many handlers unless the behavior is truly large.
 
@@ -299,7 +353,10 @@ Authoring rules:
 
 Declare schedules in `defineAgent({ schedules: [...] })`, not in `persona.json`.
 
-Every schedule name should mean something operationally useful, because `event.name` is what the handler receives.
+Every schedule name should mean something operationally useful — it documents
+the wakeup and (for multi-schedule personas) maps to the `event.schedule` cron
+expression you match on. (v4: the handler does NOT receive `event.name`; see
+"Event model (v4)" and G2.)
 
 Good:
 
@@ -395,29 +452,25 @@ export default defineAgent({
   },
   schedules: [{ name: 'daily-triage', cron: '0 9 * * 1-5', tz: 'UTC' }],
   handler: async (ctx, event) => {
-    if (event.source === 'github') {
-      if (event.type === 'pull_request.opened') {
-        // review flow
-        return;
-      }
-      if (event.type === 'issue_comment.created') {
-        // mention reply flow
-        return;
-      }
-      if (event.type === 'check_run.completed') {
-        // failed-CI reaction flow
-        return;
-      }
+    // event.type is provider-prefixed; payload is async (see "Event model (v4)").
+    if (event.type === 'github.pull_request.opened') {
+      const data = (await event.expand('full')).data;
+      return; // review flow
     }
-
-    if (event.source === 'slack' && event.type === 'app_mention') {
-      // slack reply flow
-      return;
+    if (event.type === 'github.issue_comment.created') {
+      const data = (await event.expand('full')).data;
+      return; // mention reply flow
     }
-
-    if (event.source === 'cron' && event.name === 'daily-triage') {
-      // scheduled flow
-      return;
+    if (event.type === 'github.check_run.completed') {
+      const data = (await event.expand('full')).data;
+      return; // failed-CI reaction flow
+    }
+    if (event.type === 'slack.app_mention') {
+      const data = (await event.expand('full')).data;
+      return; // slack reply flow
+    }
+    if (event.type === 'cron.tick') {
+      return; // scheduled flow (single schedule → no name gate)
     }
   }
 });
@@ -425,16 +478,16 @@ export default defineAgent({
 
 ## Event-shape guidance
 
-Use the runtime’s current event model:
+Use the runtime’s current v4 event model (see "Event model (v4)"):
 
-- cron events: `event.source === 'cron'`, `event.name`, `event.cron`
-- provider events: `event.source === '<provider>'`, `event.type`, `event.payload`
+- cron events: `event.type === 'cron.tick'`, with `event.schedule` / `event.scheduledFor` (no `event.name`)
+- provider events: `event.type === '<provider>.<on>'`; the payload is `(await event.expand('full')).data` (async), not `event.payload`
 
 Do not invent custom event wrappers when `@agentworkforce/runtime` already provides them.
 
 When reading provider payloads:
 
-- treat `event.payload` as provider-normalized but still loosely typed
+- treat the expanded `.data` as provider-normalized but still loosely typed
 - write small local extractor helpers instead of spreading unsafe casts everywhere
 - validate required identifiers early and fail clearly
 - prefer `defineAgent({...})` + helper functions over giant inline `if` blocks
@@ -563,8 +616,7 @@ Persona:
 Agent:
 
 - `defineAgent({ schedules: [...] })`
-- branch on `event.source === 'cron'`
-- use `event.name` to select the schedule
+- branch on `event.type === 'cron.tick'` (multi-schedule: match `event.schedule`)
 - fetch/search/gather
 - summarize
 - post or upsert
@@ -583,9 +635,8 @@ Persona:
 Agent:
 
 - `defineAgent({ triggers: { <provider>: [...] } })`
-- branch on provider source
-- branch on event type
-- extract target identifiers from payload
+- branch on `event.type` (`'<provider>.<on>'`, or `.startsWith('<provider>.')`)
+- extract target identifiers from `(await event.expand('full')).data`
 - optionally load prior memory
 - call harness for judgment/output
 - write back with `@relayfile/relay-helpers`; use `writeJsonFile(...)` only
@@ -886,7 +937,7 @@ when the code works and is approved. The bar:
 Declare wakeups in `defineAgent({...})` (triggers / schedules / watch);
 branch imperatively in the handler. Hard-won guard patterns:
 
-- **First line** (single-provider personas): `if (event.source !== '<provider>') return;` — multi-provider handlers branch per `event.source` instead of returning early.
+- **First line** (single-provider personas): `if (!event.type.startsWith('<provider>.')) return;` — multi-provider handlers branch per `event.type` prefix instead of returning early. (v4: there is no `event.source`.)
 - **Terminal-event guards before work**: approval → merge → return;
   green check_run → return; only then the expensive review path.
 - **Read materialized meta defensively.** Provider projections drift — accept
@@ -894,11 +945,12 @@ branch imperatively in the handler. Hard-won guard patterns:
   and decide explicitly whether a gate **fails open or closed** when meta is
   missing (author allowlist: fail closed; skip-label check on a payload that
   lacks labels: fail open). Comment the choice.
-- **Cron**: discriminate with `event.name`, but never write a guard that
-  no-ops the whole persona when `event.name` is empty — cloud's cron payload
-  has shipped without the schedule name, turning `event.name !== 'daily'`
-  into a permanent silent no-op. Prefer "route by name when present, default
-  to the single schedule's behavior otherwise" for single-schedule personas.
+- **Cron**: branch on `event.type === 'cron.tick'`. The v4 cron event has **no
+  `event.name`** — only `event.schedule` (the cron expr / one-shot id) and
+  `event.scheduledFor`. For a single-schedule persona, treat any `cron.tick` as
+  that schedule; do NOT gate on a schedule name (it isn't delivered, so the gate
+  becomes a permanent silent no-op). For a multi-schedule persona, discriminate
+  by matching `event.schedule` against the cron expressions you declared.
 - **Sentinel contracts with the harness**: if the handler keys behavior off
   harness output (e.g. a literal `READY` last line), spell the contract out in
   the prompt and parse only the last line — and remember output-tail
@@ -964,11 +1016,53 @@ Consequences:
    carries every capability you declared (§4, §5).
 5. Tests pin the config invariants and were proven red against the broken
    shape (§6).
-6. Handler guards: source check first, terminal events early-returned,
-   defensive meta reads with explicit fail-open/closed choices, no
-   empty-`event.name` no-op gate (§7).
+6. Handler guards: `event.type` prefix check first, terminal events
+   early-returned, defensive meta reads with explicit fail-open/closed choices,
+   no schedule-name gate on `cron.tick` (there is no `event.name` — §7, G2).
 7. Writeback receipts checked where delivery matters (§9).
 
+
+## Field gotchas (verified against runtime 4.1.14 / persona-kit & cli 4.1.12)
+
+These each cost a compile/deploy failure in practice; check them before deploy.
+
+- **G1 — `intent` must be a `PERSONA_INTENTS` value.** `persona compile` rejects
+  anything else: `persona compile: intent "planning" is invalid`. The shipped set
+  includes `relay-orchestrator`, `requirements-analysis`, `architecture-plan`,
+  `review`, `documentation`, `verification`, … (see persona-kit `constants.ts`
+  `PERSONA_INTENTS`). Note `planning` is a valid **tag**, not an intent — don't
+  confuse the two. `tags` is open-ish; `intent` is a closed enum.
+- **G2 — cron has no schedule name.** See "Event model (v4)": branch on
+  `event.type === 'cron.tick'`; the only schedule fields are `event.schedule`
+  (cron expr) and `event.scheduledFor`. Single-schedule personas just run their
+  one behavior on `cron.tick`.
+- **G3 — an input can't set both `optional: true` and `default`.** `persona
+  compile` errors: `cannot set both 'optional: true' and 'default' — pick one`.
+  A `default` already makes the input always-resolved; use `default` alone for a
+  fallback, or `optional: true` alone for a may-be-empty feature gate.
+- **G4 — `agentworkforce deploy` takes the `persona.json` file path**, not the
+  directory (a dir → `EISDIR`). See the deploy runbook.
+- **G5 — memory is append-only.** `ctx.memory` has only `save` (with `tags`,
+  `scope`, `ttlSeconds` / `expiresInMs`) and `recall` (by relevance + `limit`).
+  There is **no delete or upsert**, and `recall` ranks by **relevance, not
+  recency**. Consequences for "tight"/"current" memory:
+  - to read *the latest* of a tag, recall a handful and pick `max(createdAt)` —
+    a naive `limit:1` can return a stale-but-relevant item;
+  - keep one **single author** per logical record (e.g. one "brief" writer) so
+    copies don't compete;
+  - **carry-forward**: re-synthesize the durable record from (previous record +
+    recent notes) so it survives raw-note TTL expiry;
+  - set short per-write TTLs (`ttlSeconds`) on the handler `save`; the persona's
+    `memory.ttlDays` is only a backstop default;
+  - to "garden" a noisy tag, write a consolidated/deduped note and let the
+    originals lapse via TTL — you can't delete them.
+- **G6 — `teamSolve` fan-out is all-or-nothing on the lead's fire.** The cloud
+  dispatcher launches the **whole** roster when the lead triggers, and the
+  capability is wired to the GitHub-issue launch path — so it can't give roster
+  members independent cadences (e.g. a nightly member + an hourly member). When
+  teammates need different clocks, prefer an **independent collective**:
+  separately-deployed agents that each own their trigger/schedule and cooperate
+  through shared **workspace** memory tags, rather than a `team.json` roster.
 
 ## Anti-patterns
 
@@ -1014,16 +1108,20 @@ printed so they always know the state.
 2. **Dry-run — you run this.** Validate before any side effects:
 
    ```bash
-   agentworkforce deploy ./path/to/persona --mode cloud --dry-run
+   agentworkforce deploy ./path/to/persona/persona.json --mode cloud --dry-run
    ```
 
-   Fix any preflight error (missing `onEvent`, wrong shape, an integration the
-   `agent.ts` listens on but `persona.json` doesn't declare) and re-run until clean.
+   **Pass the `persona.json` FILE, not the directory.** In CLI 4.1.x a directory
+   path fails with `EISDIR: illegal operation on a directory, read`. A clean
+   dry-run prints e.g. `persona <id>: N integration(s), M schedule(s)` then
+   `ok: <id> (dry-run)` — eyeball those counts. Fix any preflight error (missing
+   `onEvent`, wrong shape, an integration the `agent.ts` listens on but
+   `persona.json` doesn't declare; an invalid `intent`) and re-run until clean.
 
 3. **Deploy — you run this; the human completes any connect popups.**
 
    ```bash
-   agentworkforce deploy ./path/to/persona --mode cloud --on-exists update
+   agentworkforce deploy ./path/to/persona/persona.json --mode cloud --on-exists update
    ```
 
    - It bundles `persona.json` + `agent.ts` and, for each provider in
