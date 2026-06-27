@@ -9,7 +9,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | Skill | Version | Description |
 |-------|---------|-------------|
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.4 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
-| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.17 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, verification gates, review-depth review/fix loops with test hardening, channels, and chat-native coordination recipes. |
+| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.18 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, Relayfile-backed Slack human assistance, integration subscriptions, waitFor gates, review-depth review/fix loops, channels, and chat-native coordination recipes. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.1 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.3.2 | Participant-side MCP reference for a **registered** relay agent (spawned worker / registered lead): messaging, channels, threads, reactions, search, inbox, actions, and worker spawn/release. Counterpart to `orchestrating-agent-relay`. |
 | [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.1.2 | The canonical way to run agent-relay: self-bootstrap the broker and autonomously spawn, monitor, and coordinate a worker team without human intervention. |
@@ -22,7 +22,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [workspace-layout](skills/workspace-layout/SKILL.md) | 1.0.1 | Navigate a relayfile mount via root and per-provider `LAYOUT.md` files plus `by-*` alias indexes instead of `find`/`grep -r`. |
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.6 | Create or update a Workforce cloud persona with `persona.json`/`persona.ts`, `agent.ts`, integration scope and adapter config guidance, vendored examples, and production-correctness checks. |
-| [factory-config](skills/factory-config/SKILL.md) | 1.0.0 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, and babysitter mode. |
+| [factory-config](skills/factory-config/SKILL.md) | 1.0.2 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, babysitter mode, and Relayflows dispatch wiring boundaries. |
 | [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 1.0.0 | Run headless multi-agent orchestration sessions via Agent Relay — spawn teams across Claude/Codex/Gemini/Pi/Droid, create channels, and manage agent lifecycle. |
 
 ## Slash Commands

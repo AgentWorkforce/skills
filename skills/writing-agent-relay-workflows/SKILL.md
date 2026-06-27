@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
+description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, Relayfile-backed human assistance, Slack answer injection, integration subscriptions, waitFor gates, repairable verification, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
 ---
 
 # Writing Agent Relay Workflows
@@ -21,6 +21,9 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 - Needing verification gates, retries, or step output chaining
 - Designing product-contract workflows where failing checks should route to agents for repair instead of stopping the run
 - Dynamic channel management: agents joining/leaving/muting channels mid-workflow
+- Adding human-in-the-loop Slack questions that block the workflow and inject the answer back into the active agent
+- Subscribing workflows or agents to Relayfile integration events such as GitHub PR reviews, status checks, Linear issue events, or Slack replies
+- Building event-started or event-gated workflows that use SDK surfaces instead of local provider CLIs
 
 ## Non-Negotiable Workflow Checklist
 
@@ -34,6 +37,8 @@ Every generated workflow should satisfy this checklist before it is considered c
 6. Run final deterministic acceptance after the selected review-depth path and before commit, PR creation, or handoff.
 7. If a real blocker remains, write `BLOCKED_NO_COMMIT` with exact evidence and skip commit/PR creation instead of crashing the workflow.
 8. If the workflow owns shipping, model branch, commit, push, PR creation, and PR URL verification as explicit deterministic steps.
+9. For Slack questions, declare `swarm.humanAssistance.slack.channel` and instruct agents to print exactly one `HUMAN_QUESTION: <question>` line when blocked.
+10. For integration-backed behavior, declare `integrations.relayfile: {}` and use SDK integration steps, subscriptions, or `waitFor` gates; do not require `workspaceId`, tokens, Slack bot tokens, or local provider CLIs in the workflow.
 
 ## Default Principle: Workflows Repair Before They Fail
 
@@ -46,6 +51,146 @@ The point of an agent team workflow is not to discover a red gate and stop. The 
 5. Use `.reliable()` or `.repairable()` on SDK versions that support it, especially for product-contract workflows. As of AgentWorkforce/relay#827, retry-mode workflows with agents are repair-aware by default, repair agents run before retrying malformed/failed agent steps, and the SDK covers DAG, pipeline, fan-out, worktree-backed, deterministic-only, and agent-plus-gate shapes.
 
 Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows that are supposed to be self-healing. Even cheap preconditions such as missing credentials, wrong repository, or an unsafe dirty worktree should normally write a clear `BLOCKED_*` artifact and exit cleanly. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
+
+## Human Assistance and Relayfile Events
+
+Relayflows can block on humans and provider events without shelling out to Slack, GitHub, Linear, or the Relayfile CLI. Declare the integration intent in the workflow and let the SDK/runtime use the existing local Relayfile/Pear connection.
+
+### Slack Human Assistance
+
+Use `swarm.humanAssistance.slack` when an interactive agent may need a human answer before continuing. The channel may be a Slack channel name (`proj-cloud` or `#proj-cloud`) or a channel ID (`C...`). Prefer names in checked-in workflows; the Relayfile Slack channel index resolves them to IDs at runtime.
+
+With `integrations.relayfile: {}`, the workflow uses the existing Relayfile connection and mount. Do not add `workspaceId`, Relayfile token, Slack bot token, or provider tokens to the workflow. Mounting is enabled by default; set `mount: false` only for a controlled test runtime that intentionally does not need `.integrations`.
+
+Agent contract:
+
+1. When blocked, the agent prints exactly one line: `HUMAN_QUESTION: <concise question>`.
+2. The runner posts the question to Slack and blocks the workflow.
+3. A threaded Slack reply resumes the workflow.
+4. The runner injects `HUMAN_ANSWER: <reply text>` into the same active agent.
+5. The agent continues from that answer and exits normally.
+
+```yaml
+version: '1.0'
+name: blocked-agent-question
+swarm:
+  pattern: dag
+  humanAssistance:
+    slack:
+      channel: proj-cloud
+      timeoutMs: 3600000
+integrations:
+  relayfile: {}
+agents:
+  - name: implementer
+    cli: codex
+    role: Implementer that can ask the human one concise question when blocked
+workflows:
+  - name: default
+    steps:
+      - name: implement
+        agent: implementer
+        task: |
+          Implement the requested change.
+          If you are blocked by missing product intent or an unsafe decision, print exactly:
+          HUMAN_QUESTION: <your concise question>
+          Then wait for the injected HUMAN_ANSWER before continuing.
+```
+
+Use an explicit Slack integration step when the workflow itself owns the question instead of an agent:
+
+```yaml
+version: '1.0'
+name: explicit-slack-gate
+swarm:
+  pattern: dag
+integrations:
+  relayfile: {}
+agents:
+  - name: implementer
+    cli: codex
+workflows:
+  - name: default
+    steps:
+      - name: ask-scope
+        type: integration
+        integration:
+          provider: slack
+          action: askQuestion
+          params:
+            channel: proj-cloud
+            text: Which package should receive this change?
+            timeoutMs: 3600000
+          output:
+            mode: data
+            format: json
+            path: answer.text
+      - name: implement
+        agent: implementer
+        dependsOn: [ask-scope]
+        task: |
+          The human answered: {{steps.ask-scope.output}}
+          Implement only that scope.
+```
+
+### Relayfile Integration Subscriptions
+
+Use `integrations.subscriptions` for workflow-level provider events and agent `subscriptions`/`watch` for agent-specific streams. Active agents receive matching provider events as `INTEGRATION_EVENT` messages. Use `waitFor` when a DAG step must block until a matching event arrives.
+
+```yaml
+version: '1.0'
+name: pr-feedback-babysitter
+swarm:
+  pattern: dag
+  humanAssistance:
+    slack:
+      channel: proj-cloud
+integrations:
+  relayfile: {}
+  subscriptions:
+    - name: pr-feedback
+      provider: github
+      path: /github/repos/acme/web/pulls/42/**
+      events: [created, updated]
+      agents: [pr-babysitter]
+agents:
+  - name: pr-babysitter
+    cli: codex
+    role: PR babysitter that fixes review comments until the PR is ready
+    subscriptions:
+      - name: review-events
+        provider: github
+        paths:
+          - /github/repos/acme/web/pulls/42/reviews/**
+          - /github/repos/acme/web/pulls/42/status/**
+        events: [created, updated]
+workflows:
+  - name: default
+    steps:
+      - name: wait-for-first-review
+        type: waitFor
+        waitFor:
+          provider: github
+          path: /github/repos/acme/web/pulls/42/reviews/**
+          event: created
+          timeoutMs: 3600000
+      - name: address-feedback
+        agent: pr-babysitter
+        dependsOn: [wait-for-first-review]
+        task: |
+          Review the first event payload:
+          {{steps.wait-for-first-review.output}}
+
+          Stay subscribed to INTEGRATION_EVENT updates for this PR.
+          Address review comments and failing status checks until no open feedback remains.
+          If you need a decision, print exactly one HUMAN_QUESTION line and wait for HUMAN_ANSWER.
+```
+
+`waitFor` must include either `path` or `paths`. Its output is the matching event payload serialized as JSON, suitable for `{{steps.<name>.output}}` injection.
+
+### Dynamic Kickoff
+
+A running relayflow can block on `waitFor`, and an active agent can receive subscribed events with no polling. Starting a new relayflow from an external event belongs to the host SDK surface, such as Factory or another service with a template registry. That host subscribes to Relayfile events, resolves the template, and calls the Relayflows SDK directly. Do not generate workflows that depend on `relayflows` or provider CLIs being installed on the machine.
 
 ## Review-Depth Fresh-Eyes Loops
 
@@ -2005,6 +2150,13 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | `pipeline` but expecting auto-supervisor | Only hub patterns auto-harden. Use `.pattern('supervisor')` |
 | Workers without `preset: 'worker'` in one-shot DAG lead+worker flows | Add preset for clean stdout when chaining `{{steps.X.output}}` (not needed for interactive team patterns) |
 | Using `_` in YAML numbers (`timeoutMs: 1_200_000`) | YAML doesn't support `_` separators |
+| Putting `steps:` at YAML top level | Use `workflows: [{ name: default, steps: [...] }]`; top-level `steps` is not the Relayflows YAML shape |
+| Requiring `workspaceId`, Relayfile token, Slack bot token, or provider token in workflow YAML | With `integrations.relayfile: {}`, the runtime uses the existing Relayfile/Pear connection and mount; credentials belong to the connection, not the workflow |
+| Hardcoding only Slack channel IDs in reusable workflow YAML | Prefer channel names such as `proj-cloud` or `#proj-cloud`; Relayfile resolves them to IDs, while IDs still work for one-off local tests |
+| Agent asks a human in prose and keeps running | Tell the agent to print exactly one `HUMAN_QUESTION: <question>` line. The runner blocks, posts to Slack, and injects `HUMAN_ANSWER: <reply>` back into that agent |
+| Polling provider paths for PR feedback, Linear updates, or Slack replies | Use Relayfile subscriptions and `waitFor` gates. Active agents receive `INTEGRATION_EVENT`; DAG gates wait without polling |
+| `waitFor` step without `path` or `paths` | Add the provider path pattern to block on; the step output is the matching event payload as JSON |
+| Shelling out to `gh`, `linear`, `slack`, or `relayflows` for provider operations | Use SDK primitives, Relayfile integration steps, subscriptions, or Factory SDK dispatch surfaces so local and cloud runs behave the same |
 | Workflow timeout under 30 min for complex workflows | Use `3600000` (1 hour) as default |
 | Using `require()` in ESM projects | Check `package.json` for `"type": "module"` — use `import` if ESM |
 | Raw top-level `await` in workflow files | Executor paths may compile as CJS. Wrap `.run()` in `async function runWorkflow()` for both ESM and CJS files |
