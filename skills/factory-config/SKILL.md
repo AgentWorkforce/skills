@@ -1,6 +1,6 @@
 ---
 name: factory-config
-description: Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, and babysitter options.
+description: Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, babysitter options, and Relayflows dispatch wiring boundaries.
 ---
 
 # Factory Config
@@ -73,6 +73,24 @@ Use explicit `repos.byLabel` when a label should route to a repo not derivable f
 For GitHub issues labeled `factory`, include the GitHub repo in `repos.names` or `repos.byLabel`. The factory mirrors matching GitHub issues to Linear, then dispatches once the Linear mirror is in Ready for Agent.
 
 For Linear create writeback, prefer the team key only: `safety.requireTeamKey` and `subscription.teams` should use the Linear team key such as `AR`. GitHub mirrors carry `team.key`; the Linear writeback provider resolves that key to the provider-side team ID. `linear.teamIds` remains an optional escape hatch for workspaces that explicitly need UUID pinning, but do not add it by default.
+
+## Relayflows and Integration Event Dispatch
+
+Factory can launch dynamic Relayflows from Relayfile integration events when the deployment wires a Relayflows port/template registry into the factory runtime. Treat that as SDK wiring, not as an automatic `factory.config.json` field. Do not invent JSON keys unless `FactoryConfigSchema` exposes them.
+
+The clean model is:
+
+1. Factory subscribes to Relayfile provider events such as Linear issue created, GitHub PR review submitted, or status check changed.
+2. The runtime suppresses replayed/high-watermark events before dispatch.
+3. A Relayflow template registry maps the event to a template, for example `linear.issue.created -> templates/linear-issue-triage.yaml`.
+4. Factory calls the Relayflows SDK directly to run the selected workflow. It must not shell out to `relayflows`, `gh`, `linear`, or other local CLIs.
+5. The Relayflow template declares `integrations.relayfile: {}` and uses subscriptions, `waitFor`, or integration steps for provider interaction.
+
+`workspaceId` remains optional in config and should be omitted by default so the active Relayfile cloud workspace is used. For code-changing workflows, ensure `repos.clonePaths` or compact `repos.cloneRoot`/`repos.names` resolve to real local checkouts; the factory runtime can start mounts for those clone paths so spawned agents see `.integrations` writebacks.
+
+When configuring live event-driven Relayflows, prefer `liveSubscription.transport: "subscribe"` if the deployment exposes that option. Polling transports are fallback/compatibility modes, not the intended path for new Relayfile event dispatch.
+
+Use Relayflows when the task needs a multi-agent graph, human-assistance gate, long-lived provider subscription, or a PR babysitter loop. Use Factory's direct task dispatch when a Linear/GitHub item can be handled by a single existing factory agent flow without a workflow graph.
 
 ## Linear States
 
@@ -162,4 +180,6 @@ Before finishing a config:
 2. Confirm `cloneRoot`/`clonePaths` point to real local checkouts.
 3. Confirm `subscription.teams` and `safety.requireTeamKey` use Linear team keys, not UUIDs.
 4. Confirm state names match the target Linear workspace, using `linear.statesByTeam` for teams with different names.
-5. Run `factory run-once --config ./factory.config.json --dry-run`.
+5. For Relayflows dispatch deployments, confirm the SDK template registry and Relayflows port are wired in code, not invented as unsupported config keys.
+6. Confirm Relayflow templates use `integrations.relayfile: {}` and do not require `workspaceId`, tokens, or local provider CLIs.
+7. Run `factory run-once --config ./factory.config.json --dry-run`.

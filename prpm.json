@@ -28,8 +28,8 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.17",
-      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
+      "version": "1.6.18",
+      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, Relayfile-backed human assistance, Slack answer injection, integration subscriptions, waitFor gates, repairable verification, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -376,8 +376,8 @@
     },
     {
       "name": "factory-config",
-      "version": "1.0.1",
-      "description": "Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, and babysitter options",
+      "version": "1.0.2",
+      "description": "Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, babysitter options, and Relayflows dispatch wiring boundaries",
       "format": "claude",
       "subtype": "skill",
       "tags": [
