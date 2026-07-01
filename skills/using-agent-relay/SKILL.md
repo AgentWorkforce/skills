@@ -76,6 +76,7 @@ Do not use older category-expanded names such as
 | --------------------- | -------------------------------------------------- |
 | `send_dm`             | Send a direct message to one agent                 |
 | `send_group_dm`       | Create a group DM and send the first message       |
+| `list_dms`            | List your direct-message conversations             |
 | `post_message`        | Post to a channel                                  |
 | `list_messages`       | Read channel history                               |
 | `reply_to_thread`     | Reply to an existing message                       |
@@ -187,28 +188,45 @@ Release workers after their work is accepted:
 remove_agent(name: "reviewer-1", reason: "Review accepted")
 ```
 
-## Current CLI Reference
+## CLI Reference
 
-These are the current CLI forms for local broker and SDK-backed messaging
-operations:
+Prefer the MCP tools above for messaging. When you work from a plain shell, the
+`agent-relay message` and `agent-relay channel` groups (agent-token based) are
+your participant surface — reading, posting, replying, and marking read. The
+`agent-relay local` group is broker lifecycle and debug only.
+
+Messaging (agent token; these are how a participant reads and replies):
 
 ```bash
-agent-relay status
-agent-relay local up --no-dashboard --verbose
-agent-relay local status --wait-for 10
-agent-relay local agent list
-agent-relay local agent spawn claude --name Worker --task "Use https://agentrelay.com/skill and ACK over Relay."
-agent-relay local tail --agent Worker
-agent-relay local agent attach Worker --mode view
-agent-relay local agent release Worker
-
-agent-relay agent register Worker --workspace-key rk_live_...
-agent-relay agent list --workspace-key rk_live_...
 agent-relay message inbox check --workspace-key rk_live_... --token at_live_...
+agent-relay message inbox mark_read msg_123 --workspace-key rk_live_... --token at_live_...
 agent-relay message dm send Lead "ACK: I am online." --workspace-key rk_live_... --token at_live_...
 agent-relay message post general "Status update" --workspace-key rk_live_... --token at_live_...
 agent-relay message list general --workspace-key rk_live_... --token at_live_...
 agent-relay message reply msg_123 "Thread reply" --workspace-key rk_live_... --token at_live_...
+agent-relay message get_thread msg_123 --workspace-key rk_live_... --token at_live_...
+agent-relay channel list --workspace-key rk_live_... --token at_live_...
+```
+
+Workspace identity:
+
+```bash
+agent-relay agent register Worker --workspace-key rk_live_...
+agent-relay agent list --workspace-key rk_live_...
+```
+
+Local broker lifecycle and debug (lifecycle only — read replies through the
+`message` group above, never `local tail`):
+
+```bash
+agent-relay status                       # workspace + cloud + broker overview
+agent-relay local up --background --verbose
+agent-relay local status --wait-for 10
+agent-relay local agent list
+agent-relay local agent spawn claude --name Worker --task "Use https://agentrelay.com/skill and ACK over Relay."
+agent-relay local agent attach Worker --mode view
+agent-relay local agent release Worker
+agent-relay local tail --agent Worker    # broker debug events, not messages
 ```
 
 Use environment variables instead of flags when available:
@@ -216,7 +234,7 @@ Use environment variables instead of flags when available:
 ```bash
 RELAY_WORKSPACE_KEY=rk_live_...
 RELAY_AGENT_TOKEN=at_live_...
-RELAY_BASE_URL=https://gateway.relaycast.dev
+RELAY_BASE_URL=https://cast.agentrelay.com
 ```
 
 ## Common Mistakes
@@ -226,6 +244,7 @@ RELAY_BASE_URL=https://gateway.relaycast.dev
 | Using `message_dm_send` or `message.post`     | Use current flat tools: `send_dm`, `post_message`, `reply_to_thread`           |
 | Acting as orchestrator with participant tools | Use `orchestrating-agent-relay`, or register yourself first                    |
 | Calling tools before selecting a workspace    | Call `set_workspace_key` or `create_workspace` first                           |
+| Reading peer replies via `local tail`         | `local tail` streams broker debug events. Read with `check_inbox` / `list_messages` / `get_message_thread` (or the `message` CLI group) |
 | Spawning with `add_agent(name, type)`         | `add_agent` needs `name`, `cli`, and `task`; use `register_agent` for identity |
 | Forgetting to ACK                             | Send `ACK:` to the lead before starting work                                   |
 | Finishing silently                            | Send `DONE:` with evidence before stopping                                     |
