@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.1.1",
+  "version": "1.1.4",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -10,7 +10,7 @@
   "packages": [
     {
       "name": "choosing-swarm-patterns",
-      "version": "1.1.3",
+      "version": "1.1.4",
       "description": "Use when coordinating multiple AI agents with Agent Relay's workflow engine and need to pick the right orchestration pattern - covers the 10 core patterns (fan-out, pipeline, hub-spoke, consensus, mesh, handoff, cascade, dag, debate, hierarchical) plus 14 specialized ones, with decision framework and accurate SDK/YAML examples.",
       "format": "claude",
       "subtype": "skill",
@@ -28,8 +28,8 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.17",
-      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, repairable verification gates, evidence-based completion, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
+      "version": "1.6.18",
+      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, Relayfile-backed human assistance, Slack answer injection, integration subscriptions, waitFor gates, repairable verification, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -53,7 +53,7 @@
     },
     {
       "name": "setting-up-relayfile",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Use when an agent or human needs to set up relayfile end-to-end so agents can read and write provider files through a local mount. Covers `relayfile setup`, dynamic integration discovery with `relayfile integration available/search`, Nango and Composio backend selection, Atlassian site selection and metadata, cloud login, OAuth/connect flows, mount verification, `RELAYFILE_LOCAL_DIR` handoff, writeback status and retry commands, and key May 2026 cloud-mount gotchas.",
       "format": "claude",
       "subtype": "skill",
@@ -71,8 +71,8 @@
     },
     {
       "name": "using-agent-relay",
-      "version": "1.3.0",
-      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called agent_register) coordinating with peers in real time over Relaycast MCP tools - messaging, channels, threads, reactions, search, webhooks. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
+      "version": "1.3.2",
+      "description": "Use when you are a registered relay agent (a spawned worker, or a lead that called register_agent) coordinating with peers in real time over current Agent Relay MCP tools - messaging, channels, threads, reactions, search, inbox, actions, and worker spawn/release. Participant-side reference; the counterpart for driving a team from outside is orchestrating-agent-relay.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -177,8 +177,8 @@
     },
     {
       "name": "workspace-layout",
-      "version": "1.0.0",
-      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/.layout.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
+      "version": "1.0.1",
+      "description": "Use when an agent is exploring a relayfile mount for the first time or trying to locate a specific resource (Notion page, Linear issue, Slack channel, GitHub PR). Tells the agent to start with `<mount>/LAYOUT.md` and `<provider>/LAYOUT.md` rather than guessing paths from memory, and to use the `by-title/`, `by-id/`, `by-name/`, `by-edited/<date>/`, `by-state/` alias subtrees instead of recursively grepping. Filename convention is `<identifier>__<uuid>`.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -227,6 +227,24 @@
       ],
       "files": [
         "skills/review-fix-signoff-loop/SKILL.md"
+      ]
+    },
+    {
+      "name": "trigger-autocomplete-catalog",
+      "version": "1.0.0",
+      "description": "Use when adding webhook events to make sure integrations properly register the webhook events they carry through KNOWN_TRIGGER_CATALOG in @relayfile/adapter-core - covers checking coverage, adding supportedEvents() or mapping.yaml webhooks, validation commands, and publishing the updated catalog.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "nango",
+        "webhooks",
+        "trigger-catalog",
+        "relayfile",
+        "integration",
+        "autocomplete"
+      ],
+      "files": [
+        "skills/trigger-autocomplete-catalog/SKILL.md"
       ]
     },
     {
@@ -286,8 +304,8 @@
     },
     {
       "name": "creating-cloud-persona",
-      "version": "1.0.0",
-      "description": "Use when creating or updating a Workforce cloud persona (persona.json + agent.ts) for the current deploy/runtime shape: defineAgent(...) triggers/schedules/watch in agent.ts, flat top-level harness/model/systemPrompt/harnessSettings, integrations, memory, onEvent, provider IO via @relayfile/relay-helpers, and the agent-driven login then deploy flow.",
+      "version": "1.0.9",
+      "description": "Use when creating or updating a Workforce cloud persona (persona.json/persona.ts + agent.ts) for the current deploy/runtime shape: defineAgent(...) triggers/schedules/watch or team-dispatcher launch, flat runtime fields, integrations with scope and adapter config passthrough, memory, onEvent, provider IO via @relayfile/relay-helpers, vendored production examples, production-correctness checks, and the agent-driven login then deploy flow.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -304,7 +322,75 @@
       ],
       "files": [
         "skills/creating-cloud-persona/SKILL.md",
-        "skills/creating-cloud-persona/references/workforce-cloud-persona-notes.md"
+        "skills/creating-cloud-persona/references/agents/cloud-team-implementer/agent.ts",
+        "skills/creating-cloud-persona/references/agents/cloud-team-implementer/persona.json",
+        "skills/creating-cloud-persona/references/agents/cloud-team-implementer/persona.ts",
+        "skills/creating-cloud-persona/references/agents/cloud-team-reviewer/agent.ts",
+        "skills/creating-cloud-persona/references/agents/cloud-team-reviewer/persona.json",
+        "skills/creating-cloud-persona/references/agents/cloud-team-reviewer/persona.ts",
+        "skills/creating-cloud-persona/references/agents/granola/agent.ts",
+        "skills/creating-cloud-persona/references/agents/granola/persona.json",
+        "skills/creating-cloud-persona/references/agents/granola/persona.ts",
+        "skills/creating-cloud-persona/references/agents/hn-monitor/agent.ts",
+        "skills/creating-cloud-persona/references/agents/hn-monitor/persona.json",
+        "skills/creating-cloud-persona/references/agents/hn-monitor/persona.ts",
+        "skills/creating-cloud-persona/references/agents/linear-slack/agent.ts",
+        "skills/creating-cloud-persona/references/agents/linear/agent.ts",
+        "skills/creating-cloud-persona/references/agents/linear/persona.json",
+        "skills/creating-cloud-persona/references/agents/linear/persona.ts",
+        "skills/creating-cloud-persona/references/agents/package.json",
+        "skills/creating-cloud-persona/references/agents/repo-hygiene/agent.ts",
+        "skills/creating-cloud-persona/references/agents/repo-hygiene/persona.json",
+        "skills/creating-cloud-persona/references/agents/repo-hygiene/persona.ts",
+        "skills/creating-cloud-persona/references/agents/review/agent.ts",
+        "skills/creating-cloud-persona/references/agents/review/persona.json",
+        "skills/creating-cloud-persona/references/agents/review/persona.ts",
+        "skills/creating-cloud-persona/references/agents/spotify-releases/agent.ts",
+        "skills/creating-cloud-persona/references/agents/spotify-releases/persona.json",
+        "skills/creating-cloud-persona/references/agents/spotify-releases/persona.ts",
+        "skills/creating-cloud-persona/references/agents/tsconfig.json",
+        "skills/creating-cloud-persona/references/agents/vendor-monitor/agent.ts",
+        "skills/creating-cloud-persona/references/agents/vendor-monitor/persona.json",
+        "skills/creating-cloud-persona/references/agents/vendor-monitor/persona.ts",
+        "skills/creating-cloud-persona/references/relayfile-adapters/packages/relay-helpers/README.md",
+        "skills/creating-cloud-persona/references/workforce-cloud-persona-notes.md",
+        "skills/creating-cloud-persona/references/workforce/examples/linear-shipper/agent.ts",
+        "skills/creating-cloud-persona/references/workforce/examples/linear-shipper/persona.json",
+        "skills/creating-cloud-persona/references/workforce/examples/notion-essay-pr/agent.ts",
+        "skills/creating-cloud-persona/references/workforce/examples/notion-essay-pr/persona.json",
+        "skills/creating-cloud-persona/references/workforce/examples/proactive-issue-resolver/agent.ts",
+        "skills/creating-cloud-persona/references/workforce/examples/proactive-issue-resolver/persona.json",
+        "skills/creating-cloud-persona/references/workforce/examples/review-agent/agent.ts",
+        "skills/creating-cloud-persona/references/workforce/examples/review-agent/persona.json",
+        "skills/creating-cloud-persona/references/workforce/examples/review-agent/persona.ts",
+        "skills/creating-cloud-persona/references/workforce/examples/weekly-digest/agent.ts",
+        "skills/creating-cloud-persona/references/workforce/examples/weekly-digest/persona.json",
+        "skills/creating-cloud-persona/references/workforce/packages/cli/src/deploy-command.ts",
+        "skills/creating-cloud-persona/references/workforce/packages/deploy/src/extract-agent.ts",
+        "skills/creating-cloud-persona/references/workforce/packages/deploy/src/preflight.ts",
+        "skills/creating-cloud-persona/references/workforce/packages/persona-kit/schemas/persona.schema.json",
+        "skills/creating-cloud-persona/references/workforce/packages/persona-kit/src/types.ts",
+        "skills/creating-cloud-persona/references/workforce/packages/runtime/src/clients/index.ts",
+        "skills/creating-cloud-persona/references/workforce/packages/runtime/src/types.ts"
+      ]
+    },
+    {
+      "name": "factory-config",
+      "version": "1.0.2",
+      "description": "Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, babysitter options, and Relayflows dispatch wiring boundaries",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "factory",
+        "configuration",
+        "relayfile",
+        "linear",
+        "github",
+        "slack",
+        "automation"
+      ],
+      "files": [
+        "skills/factory-config/SKILL.md"
       ]
     },
     {
