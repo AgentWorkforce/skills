@@ -4,14 +4,14 @@
 #
 # Ensures .claude/settings.json and .claude/settings.local.json have
 # the required permission rules so background workers can use
-# Relaycast MCP tools.
+# Agent Relay MCP tools.
 #
 
 set -euo pipefail
 
 SETTINGS_DIR=".claude"
 PERMISSIONS=(
-  "mcp__plugin_agent-relay_relaycast"
+  "mcp__agent-relay"
 )
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -30,7 +30,7 @@ ensure_permissions() {
 
   if [ ! -f "$file" ]; then
     echo "{\"permissions\":{\"allow\":$PERMS_JSON}}" | jq . > "$file"
-    echo "Created $file with Relaycast MCP permissions."
+    echo "Created $file with Agent Relay MCP permissions."
     return
   fi
 
@@ -42,7 +42,7 @@ ensure_permissions() {
   ' "$file")
 
   if [ "$missing" = "[]" ]; then
-    echo "Relaycast MCP permissions already configured in $file."
+    echo "Agent Relay MCP permissions already configured in $file."
     return
   fi
 
@@ -56,7 +56,7 @@ ensure_permissions() {
     .permissions.allow |= unique
   ' "$file" > "$tmp" && mv "$tmp" "$file"
 
-  echo "Added Relaycast MCP permissions to $file."
+  echo "Added Agent Relay MCP permissions to $file."
 }
 
 ensure_permissions "$SETTINGS_DIR/settings.json"

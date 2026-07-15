@@ -2,7 +2,7 @@
 #
 # SessionStart hook — ensures relay MCP permissions are configured
 # in the project's .claude/settings.json and .claude/settings.local.json
-# so background workers can use Relaycast tools without manual approval.
+# so background workers can use Agent Relay tools without manual approval.
 #
 # Runs silently on every session start. Idempotent.
 #
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SETTINGS_DIR=".claude"
-PERMISSION="mcp__relaycast__*"
+PERMISSION="mcp__agent-relay"
 
 # jq is required for JSON manipulation
 command -v jq >/dev/null 2>&1 || exit 0

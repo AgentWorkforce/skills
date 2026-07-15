@@ -1,13 +1,14 @@
 {
   "mcpServers": {
-    "relaycast": {
+    "agent-relay": {
       "command": "npx",
       "args": [
         "-y",
-        "@relaycast/mcp"
+        "agent-relay",
+        "mcp"
       ],
       "env": {
-        "RELAY_BASE_URL": "https://api.relaycast.dev",
+        "RELAY_BASE_URL": "https://gateway.relaycast.dev",
         "RELAY_AGENT_TYPE": "agent"
       }
     }
