@@ -189,9 +189,11 @@ agent-relay local metrics
 
 > **Reading worker replies is a messaging operation, never `local tail`.**
 > `agent-relay local tail` streams **broker debug events** (spawn/exit/queue
-> internals), not the messages workers send each other. To read a worker's ACK,
-> STATUS, or DONE, use `check_inbox` / `list_messages` / `get_message_thread`
-> over the relay MCP. Use `local tail` only when debugging broker-level delivery.
+> internals); `agent-relay local tail --agent <name>` streams that worker's
+> **raw output/TTY**. Neither is the durable message log workers write to each
+> other. To read a worker's ACK, STATUS, or DONE, use `check_inbox` /
+> `list_messages` / `get_message_thread` over the relay MCP. Use `local tail`
+> only when debugging broker delivery or watching a worker's raw output.
 
 ### Step 4: Release Workers
 
@@ -221,7 +223,8 @@ lifecycle.** Together they give full visibility into agent activity.
 **DM** — targeted, private, for responses you need to read back:
 
 - `send_dm(to: "Worker1", text: "...")` — sends a DM to Worker1
-- Worker replies arrive in your inbox; read them with `check_inbox`
+- Worker replies arrive in your inbox; read new ones with `check_inbox`, and
+  re-read consumed history with `list_dms` + `agent-relay message dm list <conversationId>`
 
 **Channel post** — broadcast, visible to all agents on that channel:
 
@@ -229,12 +232,17 @@ lifecycle.** Together they give full visibility into agent activity.
 - Use for coordination messages, status updates, announcements
 - Read channel history with `list_messages(channel: "general")`
 
-**`check_inbox` is the canonical way to read messages directed at you** — it
-returns unread DMs, mentions, and reactions. For a full channel transcript use
-`list_messages`; for one thread use `get_message_thread`.
+**`check_inbox` is the canonical way to read *unread* messages directed at
+you** — it returns unread DMs, mentions, and reactions and does not resurface
+messages once read. For a full channel transcript use `list_messages`; for one
+thread use `get_message_thread`. To re-read a DM conversation you already
+consumed (an ACK/DONE you saw earlier, or a worker's full DM history), enumerate
+conversations with `list_dms`, then read one persistently with the CLI
+`agent-relay message dm list <conversationId>` — unlike `check_inbox`, that view
+does not clear on read.
 
 ```text
-# WRONG — local tail shows broker events, not worker messages
+# WRONG — local tail --agent streams the worker's raw output, not durable messages
 agent-relay local tail --agent Worker1
 
 # RIGHT — read messages addressed to you (DM replies, mentions)
@@ -250,6 +258,8 @@ get_message_thread(message_id: "msg_123")
 CLI-only equivalents (agent-token based, useful from a plain shell) live under
 the `message` group: `agent-relay message inbox check`,
 `agent-relay message list <channel>`,
+`agent-relay message dm list <conversationId>` (persistent DM history —
+`list_dms` gives the conversation id),
 `agent-relay message get_thread <messageId>`,
 `agent-relay message dm send <agent> <text>`,
 `agent-relay message post <channel> <text>`,
@@ -445,8 +455,8 @@ named `target_node`).
 | Workers not connecting                                   | Ensure broker started; check `agent-relay local agent list` and worker logs                                                                                                                   |
 | Not monitoring workers                                   | Attach with `agent-relay local agent attach <name> --mode view` frequently to track progress                                                                                                  |
 | Workers seem stuck                                       | Inspect with `agent-relay local agent attach <name> --mode view` for errors                                                                                                                   |
-| Messages not delivered                                   | Check channel history with `list_messages(channel: "general")`; for DMs use `check_inbox`                                                                                                      |
-| Tried to read replies with `local tail`                  | `local tail` streams broker debug events, not worker messages. Read replies with `check_inbox` / `list_messages` / `get_message_thread`                                                       |
+| Messages not delivered                                   | Check channel history with `list_messages(channel: "general")`; for new DMs use `check_inbox`, for already-read DM history use `list_dms` + `agent-relay message dm list <conversationId>`      |
+| Tried to read replies with `local tail`                  | `local tail` streams broker events; `local tail --agent <name>` streams the worker's raw output — neither is durable messages. Read replies with `check_inbox` / `list_messages` / `get_message_thread` |
 | Worker DM to `broker` fails with `Agent "broker" not found` | Expected — `broker` is the broker's internal routing self-name, not a DM-able agent. Workers must ACK/DONE to `orchestrator` or `general`. Fix the worker task prompt; never instruct "DM the broker" |
 | `local status` says running but `local agent list`/MCP calls return empty or `Failed to query broker session` | The CLI is dialing a **stale/wrong broker** — leftover `.agentworkforce/relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agentworkforce/relay/connection.json` to the actual listening port, then `agent-relay local down --force`, delete `.agentworkforce/relay/`, `agent-relay local up` clean |
 | `Invalid agent token` while broker + workers keep working | The orchestrator shell has an **unresolved `${RELAY_API_KEY}`-style template** being used as a literal key (broker/workers hold real tokens). Ensure the workspace key/token is actually resolved in the orchestrator env |
