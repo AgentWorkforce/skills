@@ -420,19 +420,22 @@ When you coordinate across nodes rather than only the local broker, capabilities
 and placement come into play:
 
 ```bash
-# Serve a node definition (advertises its capabilities)
-agent-relay fleet serve ./node.ts
+# Enable fleet nodes for the workspace FIRST — it is off by default, and a
+# node you bring up before enabling will not register/list
+agent-relay fleet enable
+agent-relay fleet config          # inspect workspace fleet config
+agent-relay fleet status          # local broker status + this node's provider attachment
+
+# Bring this node up, serving its node definition (advertises its capabilities).
+# `fleet serve` was replaced by `node up`; --config points at the node file
+# (auto-discovers agent-relay.{ts,tsx,js,...} when omitted)
+agent-relay node up --config ./node.ts
 
 # List fleet nodes in the workspace
 agent-relay fleet nodes
 
-# Inspect / enable / disable workspace fleet config
-agent-relay fleet config
-agent-relay fleet enable
-agent-relay fleet status
-
-# Register a custom capability (command) on this node
-agent-relay capabilities register <command>
+# Register a custom capability (command) on this node — both flags are required
+agent-relay capabilities register <command> --description "<what it does>" --handler <agent>
 agent-relay capabilities list
 ```
 
@@ -449,7 +452,7 @@ named `target_node`).
 | Broker not starting                                      | Try `agent-relay local down` first, then `agent-relay local up --background --verbose` and `agent-relay local status --wait-for 10`                                                            |
 | Broker not ready after `local status --wait-for`         | The process is alive but the broker API is not ready; inspect logs, retry readiness, or restart with `agent-relay local down --force` if it remains stuck                                      |
 | Broker stops immediately after start                     | Check `ps aux \| grep agent-relay-broker` and `.agentworkforce/relay/connection.json`; if the process is alive but status is stopped, rerun status from the project root or pass `--state-dir` |
-| Half-started broker: process alive but `local status` says stopped and `Failed to read broker connection metadata` | `local up` spawned a broker that never finished writing connection metadata (readiness timed out) and was not cleaned up. Do NOT just retry `up` — it won't reap the orphan. `pkill -f agent-relay-broker` (or `agent-relay local down --force`), delete `.agentworkforce/relay/`, then `agent-relay local up` clean and `agent-relay local status --wait-for 30` |
+| Half-started broker: process alive but `local status` says stopped and `Failed to read broker connection metadata` | `local up` spawned a broker that never finished writing connection metadata (readiness timed out) and was not cleaned up. Do NOT just retry `local up` — it won't reap the orphan. `pkill -f agent-relay-broker` (or `agent-relay local down --force`), delete `.agentworkforce/relay/`, then `agent-relay local up` clean and `agent-relay local status --wait-for 30` |
 | Worktree verification leaves git status dirty            | Run `agent-relay local down --force`, then remove generated `.agentworkforce/relay/` and `.mcp.json` from throwaway validation worktrees before committing                                    |
 | Spawn fails with `internal reply dropped`                | Broker likely is not fully ready yet; wait for readiness, then spawn one worker first                                                                                                          |
 | Workers not connecting                                   | Ensure broker started; check `agent-relay local agent list` and worker logs                                                                                                                   |
@@ -459,7 +462,7 @@ named `target_node`).
 | Tried to read replies with `local tail`                  | `local tail` streams broker events; `local tail --agent <name>` streams the worker's raw output — neither is durable messages. Read replies with `check_inbox` / `list_messages` / `get_message_thread` |
 | Worker DM to `broker` fails with `Agent "broker" not found` | Expected — `broker` is the broker's internal routing self-name, not a DM-able agent. Workers must ACK/DONE to `orchestrator` or `general`. Fix the worker task prompt; never instruct "DM the broker" |
 | `local status` says running but `local agent list`/MCP calls return empty or `Failed to query broker session` | The CLI is dialing a **stale/wrong broker** — leftover `.agentworkforce/relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agentworkforce/relay/connection.json` to the actual listening port, then `agent-relay local down --force`, delete `.agentworkforce/relay/`, `agent-relay local up` clean |
-| `Invalid agent token` while broker + workers keep working | The orchestrator shell has an **unresolved `${RELAY_API_KEY}`-style template** being used as a literal key (broker/workers hold real tokens). Ensure the workspace key/token is actually resolved in the orchestrator env |
+| `Invalid agent token` while broker + workers keep working | The orchestrator shell has an **unresolved `${RELAY_WORKSPACE_KEY}`-style template** being used as a literal key (broker/workers hold real tokens). Ensure the workspace key/token is actually resolved in the orchestrator env |
 | New worker appears in `local agent list` but no ACK yet  | Expected — appearing means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                   |
 | Harness blocks `sleep 25; check_inbox ...`               | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
