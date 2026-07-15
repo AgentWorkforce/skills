@@ -11,7 +11,7 @@ Self-bootstrap agent-relay infrastructure and manage a team of agents autonomous
 
 A headless orchestrator is an agent that:
 
-1. Starts the local relay broker itself (`agent-relay local up`)
+1. Starts the local relay broker itself (`agent-relay node up`)
 2. Spawns and manages worker agents on that broker
 3. Monitors agent lifecycle events
 4. Coordinates work without human intervention
@@ -20,7 +20,7 @@ The orchestrator drives the team and reads/sends/lists through the **Agent
 Relay MCP server** (`agent-relay mcp`), which auto-registers the orchestrating
 session as the `orchestrator` agent when a workspace key is present. Lifecycle
 control — starting the broker, spawning/releasing local agents, streaming
-broker debug events — goes through the `agent-relay local` command group. The
+broker debug events — goes through the `agent-relay node` command group. The
 workers it spawns are registered participants too; their peer-messaging
 reference is the **`using-agent-relay`** skill.
 
@@ -43,7 +43,7 @@ reference is the **`using-agent-relay`** skill.
 ## When to Use
 
 - Agent needs full control over its worker team
-- No human available to run `agent-relay local up` manually
+- No human available to run `agent-relay node up` manually
 - Agent should manage agent lifecycle autonomously
 - Building self-contained multi-agent systems
 
@@ -53,18 +53,18 @@ reference is the **`using-agent-relay`** skill.
 | --------------------------------- | ----------------------------------------------------------------- |
 | Verify installation               | `command -v agent-relay` or `npx agent-relay --version`           |
 | Verify Node runtime if shim fails | `node --version` or fix mise/asdf first                           |
-| Start broker                      | `agent-relay local up --background --verbose`                     |
-| Check broker readiness            | `agent-relay local status --wait-for 10`                          |
+| Start broker                      | `agent-relay node up --background --verbose`                     |
+| Check broker readiness            | `agent-relay node status --wait-for 10`                          |
 | Workspace + cloud + broker status | `agent-relay status`                                              |
-| Spawn worker                      | `agent-relay local agent spawn claude --name Worker1 --task "..."`|
-| List workers                      | `agent-relay local agent list`                                    |
-| Resource usage                    | `agent-relay local metrics`                                       |
+| Spawn worker                      | `agent-relay node agent spawn claude --name Worker1 --task "..."`|
+| List workers                      | `agent-relay node agent list`                                    |
+| Resource usage                    | `agent-relay node metrics`                                       |
 | Send DM to worker (MCP)           | `send_dm(to: "Worker1", text: "...")`                             |
 | Post to channel (MCP)             | `post_message(channel: "general", text: "...")`                  |
 | Read worker replies (MCP)         | `check_inbox(limit: 20)` / `list_messages(channel: "general")`   |
-| Inspect a worker's TTY            | `agent-relay local agent attach Worker1 --mode view`             |
-| Release worker                    | `agent-relay local agent release Worker1`                         |
-| Stop broker                       | `agent-relay local down`                                          |
+| Inspect a worker's TTY            | `agent-relay node agent attach Worker1 --mode view`             |
+| Release worker                    | `agent-relay node agent release Worker1`                         |
+| Stop broker                       | `agent-relay node down`                                          |
 
 ## Bootstrap Flow
 
@@ -89,19 +89,23 @@ npx agent-relay --version
 
 ```bash
 # Starts a detached broker and returns after API readiness
-agent-relay local up --background --verbose
+agent-relay node up --background --verbose
 ```
 
 Verify broker readiness before spawning any workers:
 
 ```bash
 # Polls for readiness; must report the daemon running before you spawn workers
-agent-relay local status --wait-for 10
+agent-relay node status --wait-for 10
 ```
 
 `agent-relay status` (top level) reports workspace, cloud login, and local
-broker status together; `agent-relay local status` is the focused broker-daemon
+broker status together; `agent-relay node status` is the focused broker-daemon
 readiness check.
+
+> The broker/agent lifecycle commands live under `agent-relay node …`. The old
+> flat `agent-relay local …` group still works as a **hidden, deprecated alias**
+> and prints a removal warning — use `node` in new work.
 
 When verifying from a source checkout or throwaway git worktree, run these
 commands from the project/worktree root. The CLI writes runtime state to
@@ -123,7 +127,7 @@ directly on the local broker via the CLI.
 CLI:
 
 ```bash
-agent-relay local agent spawn claude \
+agent-relay node agent spawn claude \
   --name Worker1 \
   --task "Implement the authentication module following the existing patterns"
 ```
@@ -138,13 +142,13 @@ add_agent(
 )
 ```
 
-`local agent spawn` takes the provider as a positional argument
+`node agent spawn` takes the provider as a positional argument
 (`claude`, `codex`, `gemini`, `droid`, …) and `--name` / `--task` / `--channels`
 / `--model` / `--cwd` flags. By default the agent joins the `general` channel and
 runs in `interactive` spawn mode; pass `--exit-after-task` for a one-shot worker.
 
 > **Expect a 30–60s gap between spawn and the first ACK.** A worker shows in
-> `local agent list` within ~5s (the process is up), but the underlying CLI
+> `node agent list` within ~5s (the process is up), but the underlying CLI
 > (claude/codex) is still cold-starting and won't send its ACK DM until it
 > finishes booting — typically 30–45s, occasionally longer, after it appears.
 > Appearing in the list means "process alive," **not** "agent responsive." Don't
@@ -181,18 +185,18 @@ For broker-side liveness and resource visibility, use the CLI:
 
 ```bash
 # Agents running on the local broker (pid, status, uptime)
-agent-relay local agent list
+agent-relay node agent list
 
 # Resource usage for the broker and its agents
-agent-relay local metrics
+agent-relay node metrics
 ```
 
-> **Reading worker replies is a messaging operation, never `local tail`.**
-> `agent-relay local tail` streams **broker debug events** (spawn/exit/queue
-> internals); `agent-relay local tail --agent <name>` streams that worker's
+> **Reading worker replies is a messaging operation, never `node tail`.**
+> `agent-relay node tail` streams **broker debug events** (spawn/exit/queue
+> internals); `agent-relay node tail --agent <name>` streams that worker's
 > **raw output/TTY**. Neither is the durable message log workers write to each
 > other. To read a worker's ACK, STATUS, or DONE, use `check_inbox` /
-> `list_messages` / `get_message_thread` over the relay MCP. Use `local tail`
+> `list_messages` / `get_message_thread` over the relay MCP. Use `node tail`
 > only when debugging broker delivery or watching a worker's raw output.
 
 ### Step 4: Release Workers
@@ -204,18 +208,18 @@ remove_agent(name: "Worker1", reason: "Work accepted")
 CLI equivalent:
 
 ```bash
-agent-relay local agent release Worker1
+agent-relay node agent release Worker1
 ```
 
 ### Step 5: Shutdown (optional)
 
 ```bash
-agent-relay local down
+agent-relay node down
 ```
 
 ## Coordination Commands
 
-**Lean on the relay MCP for messaging and on `agent-relay local` for
+**Lean on the relay MCP for messaging and on `agent-relay node` for
 lifecycle.** Together they give full visibility into agent activity.
 
 ### Channel vs DM — When to Use Each
@@ -242,8 +246,8 @@ conversations with `list_dms`, then read one persistently with the CLI
 does not clear on read.
 
 ```text
-# WRONG — local tail --agent streams the worker's raw output, not durable messages
-agent-relay local tail --agent Worker1
+# WRONG — node tail --agent streams the worker's raw output, not durable messages
+agent-relay node tail --agent Worker1
 
 # RIGHT — read messages addressed to you (DM replies, mentions)
 check_inbox(limit: 20)
@@ -268,9 +272,9 @@ the `message` group: `agent-relay message inbox check`,
 ### Monitoring Workers (Essential)
 
 Spawn/send/release commands are in the Quick Reference and Bootstrap Step 3 —
-not repeated here. For monitoring specifically: poll `agent-relay local agent
+not repeated here. For monitoring specifically: poll `agent-relay node agent
 list` for broker-side liveness (pid, status, uptime) instead of scraping the
-worker TTY, and use `agent-relay local agent attach <name> --mode view` to watch
+worker TTY, and use `agent-relay node agent attach <name> --mode view` to watch
 real-time output when debugging.
 
 > **Harness note: don't poll with a bare foreground `sleep`.** Many harnesses
@@ -280,26 +284,26 @@ real-time output when debugging.
 > snippets shown elsewhere in this skill are illustrative of the *logic*; in a
 > harnessed environment, run the wait loop with `run_in_background` (or the
 > harness's Monitor + until-loop), polling `check_inbox` and
-> `agent-relay local agent list` from inside the backgrounded loop rather than
+> `agent-relay node agent list` from inside the backgrounded loop rather than
 > blocking the foreground on `sleep`.
 
 ### Troubleshooting
 
 ```bash
 # Release an unresponsive worker (graceful stop)
-agent-relay local agent release Worker1
+agent-relay node agent release Worker1
 
 # Re-check broker status
-agent-relay local status
+agent-relay node status
 
 # Workspace + cloud + broker overview
 agent-relay status
 
 # If a worker looks stuck, attach in view mode to inspect its TTY
-agent-relay local agent attach Worker1 --mode view
+agent-relay node agent attach Worker1 --mode view
 ```
 
-**Tip:** Attach with `--mode view` or watch `agent-relay local tail --agent
+**Tip:** Attach with `--mode view` or watch `agent-relay node tail --agent
 <name>` to monitor worker progress and catch errors early.
 
 ## Orchestrator Instructions Template
@@ -315,13 +319,13 @@ Quick Reference. Then enforce this protocol:
 
 ## Protocol
 - Workers will ACK when they receive tasks — but expect a 30–60s cold-start
-  gap after spawn: a worker appears in `local agent list` (~5s) well before
+  gap after spawn: a worker appears in `node agent list` (~5s) well before
   the CLI is booted enough to send its first ACK. Don't troubleshoot a "stuck"
   fresh worker until at least 60s has passed
 - Workers will send DONE when complete
 - In a harnessed environment, never wait with a bare foreground `sleep`
   (it is blocked) — run ACK/DONE poll loops with run_in_background or a
-  Monitor/until-loop, polling `check_inbox` and `local agent list` from inside it
+  Monitor/until-loop, polling `check_inbox` and `node agent list` from inside it
 - **ACK/DONE target: `orchestrator` (the auto-registered spawning identity) or
   the `general` channel — NEVER `broker`.** `broker` is the broker's internal
   routing self-name, not a spawnable/DM-able agent: a worker DM to `broker`
@@ -333,10 +337,10 @@ Quick Reference. Then enforce this protocol:
   worker. If the worker is gone, spawn a fresh one and re-inject branch +
   commit SHA + the full verdict
 - Read worker replies with `check_inbox` / `list_messages` / `get_message_thread`
-  over the relay MCP — never `local tail` (that streams broker debug events,
+  over the relay MCP — never `node tail` (that streams broker debug events,
   not worker messages). See the "Channel vs DM" section for the full reading
   model
-- Poll `agent-relay local agent list` for worker liveness; set a wall-clock
+- Poll `agent-relay node agent list` for worker liveness; set a wall-clock
   fallback so a silently-dead worker can't hang the loop
 ```
 
@@ -358,7 +362,7 @@ instead of just DMing the existing one.
 **Put this in every implementer/worker task prompt explicitly:**
 
 ```text
-Do NOT release yourself (no remove_agent / agent-relay local agent release on
+Do NOT release yourself (no remove_agent / agent-relay node agent release on
 yourself). Report DONE and stay alive and idle. The orchestrator will send you
 review findings to fix, or release you when the work is fully accepted.
 Self-removing before then breaks the fix loop.
@@ -374,7 +378,7 @@ If a worker did self-remove (or died), you cannot just DM it. Spawn a fresh
 worker and re-inject everything it needs to act with no prior memory:
 
 ```bash
-agent-relay local agent spawn codex --name Implementer2 \
+agent-relay node agent spawn codex --name Implementer2 \
   --task "Continuation of prior work. \
 Branch: feature/auth. Last commit: <sha>. \
 The reviewer returned NO-GO with these findings: <full verdict text>. \
@@ -392,9 +396,9 @@ Inbox polling fires on **messages only**. A worker that exits or self-removes
 produces no message, so the inbox just goes quiet — indistinguishable from a
 worker still thinking. Defenses:
 
-- Poll `agent-relay local agent list` for liveness instead of inferring it from
+- Poll `agent-relay node agent list` for liveness instead of inferring it from
   inbox silence. A worker that vanishes from the list is gone.
-- `agent-relay local agent attach <name> --mode view` (or `local tail --agent
+- `agent-relay node agent attach <name> --mode view` (or `node tail --agent
   <name>`) will show a self-issued release call — but it is noisy TTY/event
   scraping, a last resort, not a signal.
 - Always set a wall-clock fallback (e.g. a ScheduleWakeup ~30 min out) so a
@@ -403,7 +407,7 @@ worker still thinking. Defenses:
 
 ## Lifecycle Events
 
-`agent-relay local tail` streams broker events. The broker emits these (also
+`agent-relay node tail` streams broker events. The broker emits these (also
 available via SDK subscriptions):
 
 | Event                    | When                        |
@@ -449,24 +453,24 @@ named `target_node`).
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent-relay: command not found` or mise/asdf shim error | Ensure Node is available first (`node --version`); if a shim is broken, fix the runtime manager, then install/use `agent-relay`                                                                |
 | "Nested session" error                                   | Broker handles this automatically; if running manually, unset `CLAUDECODE` env var                                                                                                             |
-| Broker not starting                                      | Try `agent-relay local down` first, then `agent-relay local up --background --verbose` and `agent-relay local status --wait-for 10`                                                            |
-| Broker not ready after `local status --wait-for`         | The process is alive but the broker API is not ready; inspect logs, retry readiness, or restart with `agent-relay local down --force` if it remains stuck                                      |
+| Broker not starting                                      | Try `agent-relay node down` first, then `agent-relay node up --background --verbose` and `agent-relay node status --wait-for 10`                                                            |
+| Broker not ready after `node status --wait-for`         | The process is alive but the broker API is not ready; inspect logs, retry readiness, or restart with `agent-relay node down --force` if it remains stuck                                      |
 | Broker stops immediately after start                     | Check `ps aux \| grep agent-relay-broker` and `.agentworkforce/relay/connection.json`; if the process is alive but status is stopped, rerun status from the project root or pass `--state-dir` |
-| Half-started broker: process alive but `local status` says stopped and `Failed to read broker connection metadata` | `local up` spawned a broker that never finished writing connection metadata (readiness timed out) and was not cleaned up. Do NOT just retry `local up` — it won't reap the orphan. `pkill -f agent-relay-broker` (or `agent-relay local down --force`), delete `.agentworkforce/relay/`, then `agent-relay local up` clean and `agent-relay local status --wait-for 30` |
-| Worktree verification leaves git status dirty            | Run `agent-relay local down --force`, then remove generated `.agentworkforce/relay/` and `.mcp.json` from throwaway validation worktrees before committing                                    |
+| Half-started broker: process alive but `node status` says stopped and `Failed to read broker connection metadata` | `node up` spawned a broker that never finished writing connection metadata (readiness timed out) and was not cleaned up. Do NOT just retry `node up` — it won't reap the orphan. `pkill -f agent-relay-broker` (or `agent-relay node down --force`), delete `.agentworkforce/relay/`, then `agent-relay node up` clean and `agent-relay node status --wait-for 30` |
+| Worktree verification leaves git status dirty            | Run `agent-relay node down --force`, then remove generated `.agentworkforce/relay/` and `.mcp.json` from throwaway validation worktrees before committing                                    |
 | Spawn fails with `internal reply dropped`                | Broker likely is not fully ready yet; wait for readiness, then spawn one worker first                                                                                                          |
-| Workers not connecting                                   | Ensure broker started; check `agent-relay local agent list` and worker logs                                                                                                                   |
-| Not monitoring workers                                   | Attach with `agent-relay local agent attach <name> --mode view` frequently to track progress                                                                                                  |
-| Workers seem stuck                                       | Inspect with `agent-relay local agent attach <name> --mode view` for errors                                                                                                                   |
+| Workers not connecting                                   | Ensure broker started; check `agent-relay node agent list` and worker logs                                                                                                                   |
+| Not monitoring workers                                   | Attach with `agent-relay node agent attach <name> --mode view` frequently to track progress                                                                                                  |
+| Workers seem stuck                                       | Inspect with `agent-relay node agent attach <name> --mode view` for errors                                                                                                                   |
 | Messages not delivered                                   | Check channel history with `list_messages(channel: "general")`; for new DMs use `check_inbox`, for already-read DM history use `list_dms` + `agent-relay message dm list <conversationId>`      |
-| Tried to read replies with `local tail`                  | `local tail` streams broker events; `local tail --agent <name>` streams the worker's raw output — neither is durable messages. Read replies with `check_inbox` / `list_messages` / `get_message_thread` |
+| Tried to read replies with `node tail`                  | `node tail` streams broker events; `node tail --agent <name>` streams the worker's raw output — neither is durable messages. Read replies with `check_inbox` / `list_messages` / `get_message_thread` |
 | Worker DM to `broker` fails with `Agent "broker" not found` | Expected — `broker` is the broker's internal routing self-name, not a DM-able agent. Workers must ACK/DONE to `orchestrator` or `general`. Fix the worker task prompt; never instruct "DM the broker" |
-| `local status` says running but `local agent list`/MCP calls return empty or `Failed to query broker session` | The CLI is dialing a **stale/wrong broker** — leftover `.agentworkforce/relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agentworkforce/relay/connection.json` to the actual listening port, then `agent-relay local down --force`, delete `.agentworkforce/relay/`, `agent-relay local up` clean |
+| `node status` says running but `node agent list`/MCP calls return empty or `Failed to query broker session` | The CLI is dialing a **stale/wrong broker** — leftover `.agentworkforce/relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agentworkforce/relay/connection.json` to the actual listening port, then `agent-relay node down --force`, delete `.agentworkforce/relay/`, `agent-relay node up` clean |
 | `Invalid agent token` while broker + workers keep working | The orchestrator shell has an **unresolved `${RELAY_WORKSPACE_KEY}`-style template** being used as a literal key (broker/workers hold real tokens). Ensure the workspace key/token is actually resolved in the orchestrator env |
-| New worker appears in `local agent list` but no ACK yet  | Expected — appearing means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                   |
+| New worker appears in `node agent list` but no ACK yet  | Expected — appearing means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                   |
 | Harness blocks `sleep 25; check_inbox ...`               | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
-| Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay local agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                  |
+| Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay node agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                  |
 
 ## Prerequisites
 
