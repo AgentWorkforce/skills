@@ -1,6 +1,6 @@
 ---
 name: creating-cloud-persona
-description: Use when creating, updating, or reviewing a Workforce cloud persona (`persona.json`/`persona.ts` + `agent.ts`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, integrations with scope mounting and adapter config passthrough, inputs, memory, sandbox modes, `onEvent`, top-level runtime fields, `defineAgent(...)` triggers/schedules/watch/team-dispatcher launch, provider IO via `@relayfile/relay-helpers`, production-correctness traps, vendored examples, and deploy flow. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, “configure GitHub materialization for a persona”, “review a workforce persona”, or “author the agent.ts handler for a workforce persona”.
+description: Use when creating, updating, or reviewing a Workforce cloud persona (`persona.ts` + `agent.ts`, compiling to `persona.json`) for the current deploy/runtime shape. Covers `cloud`, `useSubscription`, integrations with scope mounting / optional `enabledByInput` gating / adapter config passthrough, inputs, memory, sandbox modes (incl. the `sandbox:false` no-mount trap), `onEvent`, top-level runtime fields, capabilities (`teamSolve`, `httpRead`, `conversational`, `conflictResolve`), the v4 `AgentEvent` model, `defineAgent(...)` triggers (with `paths`)/schedules/watch/team-dispatcher launch, provider IO via `@relayfile/relay-helpers` (36 clients, `CreatedResult` delivery status, `writeJsonFile` now throwing), multi-transport `@agentworkforce/delivery`, `ctx.relay` agent-to-agent messaging, the `[[NO_REPLY]]` marker, production-correctness traps, vendored examples, and the deploy flow. Use for requests like “create a cloud persona”, “write a deployable workforce persona”, “add integrations to a persona”, “configure GitHub materialization for a persona”, “review a workforce persona”, or “author the agent.ts handler for a workforce persona”.
 ---
 
 # Creating Cloud Persona
@@ -9,12 +9,19 @@ Use this skill when authoring a deployable Workforce persona in the **current** 
 
 ## Core rule
 
-A cloud persona is two things together:
+A cloud persona is two files that ship **as a pair**:
 
-1. `persona.json` declares **deployment metadata and runtime wiring**
-2. `agent.ts` implements the **actual behavior**
+1. `persona.ts` (`definePersona({...})`) declares **deployment metadata and runtime wiring**, and points at the handler via `onEvent: './agent.ts'`. It compiles to `persona.json` (a generated, gitignored artifact — author `persona.ts`, never the compiled JSON).
+2. `agent.ts` (`export default defineAgent({...})`) implements the **actual behavior**.
 
-Important: **triggers, schedules, and watch rules are declared in `agent.ts` via `defineAgent(...)`, while `persona.json` declares deploy/runtime config and integration connection requirements.**
+**Always ship both.** The runtime's composable-runtime closure treats `persona.ts`
+as the canonical entry; a bare `agent.ts` with no sibling `persona.ts` falls back
+to a **synthesized minimal-preview persona** (and emits a compatibility warning) —
+you lose the real harness/model/integration/memory wiring. (The
+`composable-runtime-closure` acceptance harness in the agents repo pins this: it
+fails if a deploy synthesizes a persona instead of loading `persona.ts`.)
+
+Important: **triggers, schedules, and watch rules are declared in `agent.ts` via `defineAgent(...)`, while `persona.ts` declares deploy/runtime config and integration connection requirements.**
 The handler branches on `event.type` (a provider-prefixed dotted string like
 `slack.message.created`, `linear.issue.create`, or `cron.tick`) and reads the
 payload via `await event.expand('full')`. **See "Event model (v4)" below — the
@@ -27,20 +34,22 @@ Before authoring, read the vendored examples and current types in this skill's
 `references/` directory. They are copied from the current Workforce and agents
 repos so the skill is self-contained.
 
-Production agents:
+Production agents — each is a **`persona.ts` + `agent.ts` pair**. `persona.ts` is
+the **authored source** (edit it, never the JSON). Each reference dir also carries
+a `persona.json` — the **compiled artifact** (`agentworkforce persona compile
+<dir>/persona.ts`, persona-kit 4.1.23) — vendored so you can see the shipped shape;
+in the live agents repo that file is gitignored (`*/persona.json`) and regenerated
+on demand:
 
-- `references/agents/review/persona.json`
-- `references/agents/review/agent.ts`
-- `references/agents/repo-hygiene/persona.json`
-- `references/agents/repo-hygiene/agent.ts`
-- `references/agents/linear/persona.json`
-- `references/agents/linear/agent.ts`
-- `references/agents/hn-monitor/persona.json`
-- `references/agents/hn-monitor/agent.ts`
-- `references/agents/cloud-team-implementer/persona.json`
-- `references/agents/cloud-team-implementer/agent.ts`
-- `references/agents/cloud-team-reviewer/persona.json`
-- `references/agents/cloud-team-reviewer/agent.ts`
+- `references/agents/review/{persona.ts,agent.ts}` — PR reviewer: harness run + VFS github reads, per-PR Slack thread, merge, `capabilities.conflictResolve`
+- `references/agents/repo-hygiene/{persona.ts,agent.ts}` — sandboxed shell + Notion writeback via VFS `writeJsonFile`/`draftFile`
+- `references/agents/linear/{persona.ts,agent.ts}` — Linear Agent Session API (`linearClient().agentActivity/respond/acknowledge`) + thin-lead `ctx.workflow.run` delegation
+- `references/agents/linear-slack/{persona.ts,agent.ts}` — harness-emits-fenced-actions rail, receipt-gated Linear writes
+- `references/agents/hn-monitor/{persona.ts,agent.ts}` — `@agentworkforce/delivery` multi-transport, threaded digest, two-tier `ctx.memory` + `ctx.files` state
+- `references/agents/joke-bot/{persona.ts,agent.ts}` — `sandbox: false` conversational bot, triple transport, `capabilities.conversational`
+- `references/agents/inbox-buddy/{persona.ts,agent.ts}` — `sandbox: true` **required** for VFS Gmail reads, dual-transport, cross-turn memory
+- `references/agents/gcp-watcher/{persona.ts,agent.ts}` — token-free VFS monitor, dedup by signature, pure exported `evaluateSignals`
+- `references/agents/cloud-team-implementer/{persona.ts,agent.ts}` and `references/agents/cloud-team-reviewer/{persona.ts,agent.ts}` — team members (`launchedBy: 'team-dispatcher'`)
 
 Workforce examples:
 
@@ -133,6 +142,16 @@ Cloud agents currently have four practical shapes, and wakeups are authored in
      'slack.message.created'`
    - branch with `event.type === '<provider>.<on>'` (or
      `event.type.startsWith('<provider>.')` for a whole provider)
+   - a trigger can carry `paths: ['/slack/channels/${SLACK_CHANNEL}/**']` to
+     **scope wake-routing before provisioning** (and `match: '@mention'` /
+     `where: 'field=value'` to gate further — see §2 wake-cost). The `${INPUT}`
+     token is **deploy-time input-ref substitution inside a single-quoted
+     string** (resolved from the persona input at deploy), **not** JS template
+     interpolation — write it literally, don't backtick-interpolate it.
+   - provider names in triggers are **canonicalized at deploy** via known
+     aliases (e.g. `google-mail` → `gmail`), so an alias in a trigger still
+     matches its integration; keep the `integrations` key in the form the
+     adapter documents.
 
 3. **Relayfile watch** via `defineAgent({ watch: [...] })`
    - for file/path-driven proactive behavior
@@ -146,7 +165,7 @@ Cloud agents currently have four practical shapes, and wakeups are authored in
 
 `persona.json.integrations` still matters, but for **connection/setup**, not for declaring which events fire the handler.
 
-## Event model (v4) — verified against runtime 4.1.14
+## Event model (v4) — verified against workforce 4.1.34 (agents repo pins runtime/persona-kit 4.1.23)
 
 The handler `event` is the relay SDK's normalized `AgentEvent`
 (`@agent-relay/events`), narrowed by `defineAgent` to the triggers/schedules you
@@ -505,6 +524,8 @@ The useful pieces on `ctx` are typically:
 - `ctx.files.*`
 - `ctx.schedule.*`
 - `ctx.workflow.*`
+- `ctx.relay.dm(to, text)` / `ctx.relay.post(channel, text)` — **agent-to-agent** messaging over the relay (DM a peer agent by registered name, or post to a relay channel). Returns `{ ok, messageId? }` and **never throws** (`{ ok: false }` on failure). Use it to answer a relay-inbox DM (`isRelaycastMessageEvent`) or hand off to a peer agent — not for user-facing provider posts (those go through `@relayfile/relay-helpers`).
+- `ctx.trajectory.*` — auto-recorded decision trail (no-op unless `persona.memory.trajectories` is opted in); always safe to call.
 - `ctx.log(...)`
 
 Prefer direct typed runtime helpers over invoking external commands.
@@ -533,15 +554,64 @@ A write is a draft file the Relayfile writeback worker turns into the real
 provider call (with retry/durability) — handlers never hold a token or call a
 provider REST API directly.
 
-Every provider in the catalog has a named client (`notionClient`, `jiraClient`,
-`gitlabClient`, …). When a provider has no bespoke method for what you need, use
-the generic resource access — `providerClient('notion').pages.write({ databaseId }, {...})`
+The catalog now exposes **36 provider clients** (31 generated + 5 bespoke —
+`githubClient`, `linearClient`, `slackClient`, `redditClient`, `telegramClient`),
+plus the `providerClient` / `relayClient` escape hatches. (The old "all-29" count
+is stale; the number is catalog-driven and grows as adapters ship, enforced by an
+in-sync test.) When a provider has no bespoke method for what you need, use the
+generic resource access — `providerClient('notion').pages.write({ databaseId }, {...})`
 — or `relayClient('linear').write('issues', {}, {...})` when you need the raw
-writeback **receipt** (e.g. the created issue's URL/id).
+writeback **receipt** (`{ path, receipt: { url, id, identifier } }` — the created
+record's URL/id).
+
+**Delivery status is explicit now — don't treat a returned handle as delivered.**
+The github/linear **create** helpers return a discriminated `CreatedResult`:
+`status: 'confirmed' | 'pending' | 'dropped'`, plus `path` (the draft handle,
+always present), `id` (falls back to `path` until a provider receipt supplies a
+real id), and `url` (empty string until confirmed — never a filesystem path).
+Idempotency rules: on **`pending`**, do NOT throw or retry (a retry can duplicate
+the provider-side effect); **`dropped`** requires positive evidence the draft
+won't be handled; genuinely ambiguous failures (admission timeout) still throw.
+Never promote `pending` → `dropped` yourself. Slack's `post`/`dm`/`reply` keep
+the older shape — they return `{ ts }` (`ts: ''` when no receipt arrived, a
+**silent** non-delivery — see §1/§9), not a `CreatedResult`.
+
+**Multi-transport delivery — `@agentworkforce/delivery`.** For an agent that
+fans one message out to whichever transports are configured (Slack and/or
+Telegram), prefer the delivery helper over hand-rolling per-provider posts:
+`createDelivery(ctx, undefined, ['slack', 'telegram'])` exposes `.targets`,
+`.publish()`, and `.send(text, { replyTo, nonBlocking })`. **Thread by passing a
+header's `DeliveryResult` as `replyTo`** (not a raw `thread_ts`). hn-monitor uses
+this for its threaded digest; agents that still hand-roll (spotify-releases) call
+`slackClient().dm()` + a shared `../shared/telegram.ts` helper. Either way, the
+idempotency rule from the notes holds: once the header has posted, don't throw —
+a retried handler re-posts a duplicate header.
+
+**Preview-safety (composable-runtime closure).** Handlers run under a closure that
+records every side effect: provider writes land as `previewed` actions,
+`memory`/`files` writes replay, and — importantly — **undeclared outbound HTTP is
+denied**. A raw `GET`/`HEAD` via `node:http`/`fetch` that isn't allow-listed in
+`capabilities.httpRead` is rejected before it runs (POSTs always denied). If a
+handler must read a live URL, declare it (see §5b `httpRead`); otherwise
+prefer VFS/provider reads.
 
 **Lower-level escape hatch.** For reads that are *not* catalog writeback
 resources (e.g. a github PR's record JSON, a provider's `_index.json`), drop to
-the generic VFS helpers from `@agentworkforce/runtime`.
+the generic VFS helpers from `@agentworkforce/runtime`
+(`readJsonFile`/`listJsonFiles`/`writeJsonFile`/`draftFile`).
+
+> **`writeJsonFile` now THROWS on non-success.** The runtime's `writeJsonFile`
+> wrapper (re-exported from `@relayfile/adapter-core/vfs-client`) normalizes the
+> writeback status and **throws `WritebackError` unless the state is
+> `succeeded`** — the one exception is `writebackTimeoutMs: 0` + `no_receipt`,
+> which returns the result without throwing (used for fire-and-thread posts). This
+> is a change from older runtimes where the low-level write returned silently on
+> timeout. Two consequences: (a) a raw `writeJsonFile` to an **unmounted** path
+> now surfaces as a thrown `WritebackError` rather than a silent no-op — good, but
+> catch it where a partial failure shouldn't fail the whole handler; (b) the
+> **relay-helpers Slack client still returns `ts: ''` silently** (it uses its own
+> transport, not this wrapper), so the §1 "make delivery loud" rule for Slack
+> still stands.
 
 **Never assume a record path — the mount self-describes its layout.** The
 relayfile adapter publishes a guide per provider at `/<provider>/LAYOUT.md`
@@ -588,6 +658,15 @@ Use the harness when the persona needs real judgment or synthesis, for example:
 - clustering and writing human-facing output
 
 Do not use the harness for simple deterministic routing, field extraction, or formatting that plain TypeScript can do more safely.
+
+**`[[NO_REPLY]]` — the supported silent-reply marker.** When a conversational
+harness prompt decides there's nothing worth saying, have it emit the reserved
+`[[NO_REPLY]]` marker. The runtime **strips the marker** before returning
+`output` and sets `result.suppressed = true` (with `result.containsMarker`); a
+`suppressed` result on `exitCode 0` is an intentional silent success, **not** a
+failure — branch on it to skip the reply rather than posting an empty message.
+`HarnessRunResult` also now carries `stderr` (folded into `output` on a non-zero
+exit, so failure reasons are visible to callers that only read `output`).
 
 ## Inputs and env
 
@@ -791,7 +870,8 @@ slack: {
 |---|---|---|
 | Daytona box | provisioned per fire (seconds of cold start) | **none** — handler runs in the persona runner (ms) |
 | `ctx.sandbox.exec()` | available | **rejects** (`SandboxNotAvailableError`) |
-| `ctx.files.read/write` | available | unavailable — use VFS helpers (`readJsonFile`/`writeJsonFile`) against provider paths |
+| `ctx.files.read/write` | available | unavailable |
+| Relayfile **filesystem mount** (`resolveMountRoot` + `readJsonFile`/`readdir` against the mount path) | mirrored by the mount daemon | **NOT mounted** — the daemon is skipped, so mount-path reads come back **empty**. Reads must go over the relayfile **HTTP API** (relay-helpers clients / API-mode reads), not the filesystem. |
 | `ctx.harness.run()` | available | **unusable** — harness CLI credentials are NOT mounted (`EMPTY_HARNESS_CLI_CREDENTIAL_MOUNT`) and no `CLAUDE_CODE_OAUTH_TOKEN`/`CODEX_OAUTH_CREDENTIAL` env is set, so the claude/codex/opencode CLI cannot authenticate. The method exists but a real harness run fails (`deployment-trigger-delivery.ts`). |
 | Harness CLI credentials | mounted | not mounted |
 | `ctx.llm.complete()` | available | available **only with an explicit credential** — set `useSubscription: true` (or a credentialSelection) so the credential rides in `providerEnv`; the harness-mount fallback that normally backs `ctx.llm` is gone under `sandbox: false` |
@@ -799,8 +879,21 @@ slack: {
 
 Pick `sandbox: false` **only** for read-classify-reply personas that answer via
 `ctx.llm.complete()` (set `useSubscription: true` or a credentialSelection so the
-credential survives in `providerEnv`) and read provider data with
-`readJsonFile`/`listJsonFiles` over the relayfile **API**. Any persona that calls
+credential survives in `providerEnv`) and whose provider I/O rides the relayfile
+**HTTP API** — i.e. **writes** through `@relayfile/relay-helpers` clients
+(`slackClient().post()` etc.). joke-bot is the model: a zero-data-dependency
+conversational bot that only writes.
+
+> **`sandbox: false` gets no filesystem mount.** If the handler **reads
+> materialized provider data from the mount** (`resolveMountRoot()` +
+> `readJsonFile`/`readdir`, e.g. `/google-mail/threads/**`), those reads come back
+> **empty** under `sandbox: false` — the mount daemon is skipped. inbox-buddy is
+> the cautionary case: it reads Gmail from the VFS mount, so it **must** be
+> `sandbox: true` even though it uses no harness. Rule of thumb: **write-only →
+> `sandbox: false` is fine; read-from-mount → needs `sandbox: true`** (or restructure
+> reads to go over the relayfile HTTP API).
+
+Any persona that calls
 `ctx.harness.run()` — i.e. a claude/codex/opencode conversational or coding agent —
 **must keep `sandbox: true`**: the harness needs the box and its mounted CLI
 credentials (`sandbox: false` drops them, so the run fails). Also keep the default
@@ -916,6 +1009,45 @@ already-deployed personas in the workspace — deploy members first, then bind.
 Spawning is cloud-side (`launchMember`); there is **no in-box
 `ctx.team.spawn`** — don't write handler code that assumes one.
 
+## 5b. Other persona `capabilities`
+
+Beyond `teamSolve`, the persona spec now carries several capability blocks. Like
+all capabilities they're parsed **client-side by persona-kit** — pin a recent
+persona-kit and verify the compiled artifact carries them (§4).
+
+- **`httpRead` — live outbound-read allowlist.** Handlers run under a
+  preview-safe closure that **denies undeclared outbound HTTP** (see "Preview
+  safety" in the reads/writes section). To let a handler read a live URL,
+  allow-list it:
+
+  ```json
+  "capabilities": {
+    "httpRead": {
+      "enabled": true,
+      "allow": [
+        { "method": "GET",  "urlGlob": "https://hacker-news.firebaseio.com/**" },
+        { "method": "HEAD", "urlGlob": "https://example.com/status" }
+      ]
+    }
+  }
+  ```
+
+  Only `GET`/`HEAD` are expressible (`method` + `urlGlob` both required); POSTs
+  are always denied. Prefer VFS/provider reads; reach for `httpRead` only for a
+  genuine external API the catalog doesn't mirror. See
+  `references/agents/hn-monitor/persona.json` (compiled) for a live example — it
+  allow-lists the Hacker News Algolia API (`https://hn.algolia.com/api/v1/...`).
+
+- **`conversational` — cloud chat routing.** Opts a persona into cloud's
+  `app_mention`/chat responder routing (used by joke-bot):
+  `{ enabled, defaultResponder, channels, identity }`. Pair it with the transport
+  triggers/handler branches the persona actually implements.
+
+- **`conflictResolve` — PR conflict autofix directive** (review agent):
+  `{ directive: '@relay fix conflicts', resolveMarkers: true }` — declares the
+  comment directive and marker-resolution behavior the reviewer honors. Requires
+  `sandbox: true` (it clones/edits — gated on `!lightweightSandbox`, §2).
+
 ## 6. The showcase quality bar (AgentWorkforce/agents repo)
 
 The agents repo is a public showcase. Merges get blocked on brittleness even
@@ -977,6 +1109,15 @@ from `completion.output`). The chat handler stays responsive; the workflow
 carries the long work. Keep workflow definitions as checked-in files under
 `workflows/` (see §6) rather than assembling source strings in the handler.
 
+That agent also shows the **Linear Agent Session API** via `linearClient()`:
+triggers `on: 'AgentSessionEvent.created' | 'AgentSessionEvent.prompted' |
+'AppUserNotification.issueCommentMention'` (delivered provider-prefixed, e.g.
+`event.type === 'linear.AgentSessionEvent.created'`), and the handler streams
+progress with `linearClient().agentActivity(sessionId, { type: 'thought' |
+'response' | 'elicitation' | 'action' | 'error', body })`, `respond(sessionId,
+body)`, and `acknowledge(sessionId)`. Key session-scoped memory on the
+`sessionId`.
+
 ## 9. Relayfile — how provider clients actually resolve
 
 `slackClient()` / `linearClient()` / `githubClient()` / `providerClient(p)`
@@ -994,10 +1135,16 @@ Consequences:
   root (CWD `…/workforce-runtime` vs mount `…/workspace` shipped as a real
   ENOENT bug). Pass `{ relayfileMountRoot: resolveMountRoot({}) }` or rely on
   the `RELAYFILE_MOUNT_ROOT` env — never on relative paths from CWD.
-- **A returned receipt is the success signal.** `result.receipt?.created/id`
-  present → delivered; absent after the wait → not delivered (the call does
-  not throw for an unmounted path). If delivery is load-bearing, check the
-  receipt and surface the failure.
+- **A returned receipt / `confirmed` status is the success signal.**
+  `result.receipt?.created/id` present (or a `CreatedResult.status === 'confirmed'`)
+  → delivered; absent/`pending` after the wait → not yet delivered. Two write
+  surfaces now behave differently: the **relay-helpers clients** (`slackClient`,
+  `githubClient`, `linearClient`) do **not** throw on a missing receipt — Slack
+  returns `ts: ''` and github/linear return a `pending`/`dropped` `CreatedResult`
+  — so you must inspect the return; the lower-level **runtime `writeJsonFile`**
+  now **throws `WritebackError`** on non-success instead. Either way, if delivery
+  is load-bearing, check the result and surface the failure. Do **not** retry a
+  `pending` create (duplicate-effect risk — see the idempotency rules above).
 - Item paths (ending `.json`) are direct read/write; collection paths take
   drafts and `.list()`. Encode user-supplied path segments with
   `encodeSegment(...)`.
@@ -1022,7 +1169,7 @@ Consequences:
 7. Writeback receipts checked where delivery matters (§9).
 
 
-## Field gotchas (verified against runtime 4.1.14 / persona-kit & cli 4.1.12)
+## Field gotchas (verified against workforce 4.1.34; agents repo pins runtime/persona-kit/cli 4.1.23)
 
 These each cost a compile/deploy failure in practice; check them before deploy.
 
@@ -1040,8 +1187,10 @@ These each cost a compile/deploy failure in practice; check them before deploy.
   compile` errors: `cannot set both 'optional: true' and 'default' — pick one`.
   A `default` already makes the input always-resolved; use `default` alone for a
   fallback, or `optional: true` alone for a may-be-empty feature gate.
-- **G4 — `agentworkforce deploy` takes the `persona.json` file path**, not the
-  directory (a dir → `EISDIR`). See the deploy runbook.
+- **G4 — `agentworkforce deploy` takes a persona FILE path, not a directory**
+  (a dir → `EISDIR`). It now accepts the authored **`persona.ts`** source
+  directly (compiled in place) as well as a compiled `persona.json`. See the
+  deploy runbook.
 - **G5 — memory is append-only.** `ctx.memory` has only `save` (with `tags`,
   `scope`, `ttlSeconds` / `expiresInMs`) and `recall` (by relevance + `limit`).
   There is **no delete or upsert**, and `recall` ranks by **relevance, not
@@ -1099,20 +1248,26 @@ printed so they always know the state.
 
 **Runbook**
 
-1. **Check auth.** If `~/.agentworkforce/active.json` is missing (or a CLI call
-   401s), the human isn't logged in. Ask them to run `agentworkforce login` — it
-   opens the browser to `https://agentrelay.com`, they pick a workspace, and it
-   writes the pointer — then wait for them to confirm before continuing.
-   `--workspace <id-or-slug>` skips the picker.
+1. **Check auth.** If a CLI call 401s, the human isn't logged in. Ask them to run
+   `agentworkforce login` — it opens the browser to `https://agentrelay.com`, they
+   pick a workspace, and it resolves the workspace descriptor
+   (`GET /api/v1/workspaces/<ws>/resolve`) and stores a **workspace key** in the
+   agent-relay cloud session store — then wait for them to confirm before
+   continuing. `--workspace <id-or-slug>` skips the picker. (Login **no longer
+   writes** a `~/.agentworkforce/active.json` pointer, so don't test for that file
+   — a 401 is the reliable "not logged in" signal.)
 
 2. **Dry-run — you run this.** Validate before any side effects:
 
    ```bash
-   agentworkforce deploy ./path/to/persona/persona.json --mode cloud --dry-run
+   agentworkforce deploy ./path/to/persona/persona.ts --mode cloud --dry-run
    ```
 
-   **Pass the `persona.json` FILE, not the directory.** In CLI 4.1.x a directory
-   path fails with `EISDIR: illegal operation on a directory, read`. A clean
+   **Pass a FILE, not the directory** (a directory → `EISDIR`). Deploy now
+   accepts the authored **`persona.ts`** source directly (it compiles it in
+   place via `compileAgentSource`/`loadPersonaSourceFile`) — you no longer need a
+   separate `agentworkforce persona compile` step first; a `persona.json` path
+   still works too. A clean
    dry-run prints e.g. `persona <id>: N integration(s), M schedule(s)` then
    `ok: <id> (dry-run)` — eyeball those counts. Fix any preflight error (missing
    `onEvent`, wrong shape, an integration the `agent.ts` listens on but
@@ -1121,18 +1276,24 @@ printed so they always know the state.
 3. **Deploy — you run this; the human completes any connect popups.**
 
    ```bash
-   agentworkforce deploy ./path/to/persona/persona.json --mode cloud --on-exists update
+   agentworkforce deploy ./path/to/persona/persona.ts --mode cloud --on-exists update
    ```
 
-   - It bundles `persona.json` + `agent.ts` and, for each provider in
-     `persona.json.integrations` that isn't connected yet, opens a connect flow —
+   - It compiles + bundles the persona spec + `agent.ts` and, for each provider in
+     the persona's `integrations` that isn't connected yet, opens a connect flow —
      relay that to the human and wait for them to finish before continuing.
    - `--on-exists update` redeploys over an existing persona of the same id.
      **Gotcha:** the default is `cancel`, a silent no-op — if a deploy "did
      nothing", you wanted `--on-exists update`.
-   - `--reconnect <provider>` forces a fresh connect; `--no-connect` fails
+   - `--reconnect <provider>` forces a fresh connect — it now also covers the
+     **harness LLM credential** (e.g. `--reconnect openai/codex`,
+     `--reconnect anthropic/claude`), and is repeatable; `--no-connect` fails
      instead of prompting (use only when everything's already connected);
      `--input key=value` overrides a declared input; `--detach` backgrounds the runner.
+   - `--harness-source <managed|byok|oauth>` selects how the harness LLM
+     authenticates (`managed` = platform-managed credential, `byok` = your own
+     API key, `oauth` = OAuth). **`plan` is a legacy alias for `managed`** — the
+     old `--harness-source plan` still works but prefer `managed`.
 
 4. **Confirm it's live — you run this.** Capture the deployment URL/status the
    deploy printed, then:
