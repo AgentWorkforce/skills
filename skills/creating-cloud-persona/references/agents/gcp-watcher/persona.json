@@ -1,0 +1,63 @@
+{
+  "id": "gcp-watcher",
+  "intent": "relay-orchestrator",
+  "tags": [
+    "discovery"
+  ],
+  "description": "Watches your GCP project's Cloud Run services, Monitoring alerts, and billing via the relayfile VFS and posts a Slack alert when a service is unhealthy, an alert fires, or spend crosses a threshold. Can also answer questions about current GCP state via relay inbox.",
+  "cloud": true,
+  "harness": "opencode",
+  "model": "deepseek-v4-flash-free",
+  "systemPrompt": "You are a GCP infrastructure monitor. Answer questions about the current GCP project state (Cloud Run services, Monitoring alerts, billing) concisely using Slack markdown. When no question is asked, summarize any active alerts.",
+  "integrations": {
+    "gcp": {
+      "scope": {
+        "run": "/gcp/run/**",
+        "monitoring": "/gcp/monitoring/**",
+        "billing": "/gcp/billing/**"
+      }
+    },
+    "slack": {
+      "scope": {
+        "paths": "/slack/channels/**"
+      }
+    }
+  },
+  "inputs": {
+    "SLACK_CHANNEL": {
+      "description": "Team Slack channel id to post alerts to.",
+      "env": "SLACK_CHANNEL",
+      "picker": {
+        "provider": "slack",
+        "resource": "channels"
+      }
+    },
+    "GCP_PROJECT_ID": {
+      "description": "GCP project id to monitor.",
+      "env": "GCP_PROJECT_ID",
+      "default": "nightcto-production"
+    },
+    "BILLING_ALERT_USD": {
+      "description": "Alert when current-period spend (USD) reaches this amount.",
+      "env": "BILLING_ALERT_USD",
+      "default": "500"
+    }
+  },
+  "harnessSettings": {
+    "reasoning": "medium",
+    "timeoutSeconds": 600
+  },
+  "relay": {
+    "inbox": [
+      "@self"
+    ]
+  },
+  "memory": {
+    "enabled": true,
+    "scopes": [
+      "workspace"
+    ],
+    "ttlDays": 90
+  },
+  "onEvent": "./agent.ts"
+}
