@@ -269,6 +269,29 @@ the `message` group: `agent-relay message inbox check`,
 `agent-relay message post <channel> <text>`,
 `agent-relay message reply <messageId> <text>`.
 
+### Plain-Shell Orchestration (no relay MCP configured)
+
+An orchestrating session without the relay MCP still has full read access:
+`agent-relay message list <channel> --limit 50` works with no credentials and
+returns a JSON array (**newest first**; `[]` when the channel is empty — each
+item carries `text`, `from.name`, `createdAt`, `kind`). Every **send**, however,
+fails with `requires agentToken or agentClient` until the shell holds an agent
+token. Mint one once per project and keep it inside the gitignored broker state
+dir:
+
+```bash
+TOKEN=$(agent-relay agent register orchestrator --type system | grep -oE 'at_live_[A-Za-z0-9_-]+' | head -1)
+(umask 077 && printf '%s' "$TOKEN" > .agentworkforce/relay/orchestrator.token)
+
+TOKEN=$(cat .agentworkforce/relay/orchestrator.token)   # later shells re-read it
+RELAY_AGENT_TOKEN="$TOKEN" agent-relay message post general "checkpoint: reviews start after both DONEs"
+RELAY_AGENT_TOKEN="$TOKEN" agent-relay message dm send Worker1 "NO-GO findings: …"
+RELAY_AGENT_TOKEN="$TOKEN" agent-relay message inbox check
+```
+
+Never echo, commit, or log the token. Registering also makes `orchestrator` a
+DM-able recipient for workers — the same identity the relay MCP auto-registers.
+
 ### Monitoring Workers (Essential)
 
 Spawn/send/release commands are in the Quick Reference and Bootstrap Step 3 —
@@ -286,6 +309,23 @@ real-time output when debugging.
 > harness's Monitor + until-loop), polling `check_inbox` and
 > `agent-relay node agent list` from inside the backgrounded loop rather than
 > blocking the foreground on `sleep`.
+
+The push-style alternative to polling is a backgrounded `node tail` pipeline
+used purely as a **wake-up trigger**:
+
+```bash
+# Backgrounded; exits the moment a relay_inbound event carrying the marker arrives
+agent-relay node tail | grep -m1 '"body":"DONE'
+```
+
+`relay_inbound` events carry each message's `body`, `from`, and `target`, and
+the stream replays a bounded window before following live — a historical match
+fires instantly, which is correct for first-occurrence waits. This wakes you
+the second the event happens instead of on the next poll tick; it is still not
+the durable log, so read the actual messages with `check_inbox` /
+`list_messages` after waking. (Stock macOS has no `timeout(1)` — bound a
+one-off listen with `python3` `subprocess.run(..., timeout=N)` or a
+backgrounded kill.)
 
 ### Troubleshooting
 
@@ -463,6 +503,8 @@ named `target_node`).
 | Not monitoring workers                                   | Attach with `agent-relay node agent attach <name> --mode view` frequently to track progress                                                                                                  |
 | Workers seem stuck                                       | Inspect with `agent-relay node agent attach <name> --mode view` for errors                                                                                                                   |
 | Messages not delivered                                   | Check channel history with `list_messages(channel: "general")`; for new DMs use `check_inbox`, for already-read DM history use `list_dms` + `agent-relay message dm list <conversationId>`      |
+| CLI send fails with `requires agentToken or agentClient` | Plain-shell sends need an agent token — register an `orchestrator` identity and pass it via `RELAY_AGENT_TOKEN` (see Plain-Shell Orchestration). Channel reads need no token                    |
+| Monitor loop never matches the DONE post                 | `agent-relay message list <channel>` returns **newest first**; in `node tail`, message text is in `relay_inbound` events' `body` field                                                          |
 | Tried to read replies with `node tail`                  | `node tail` streams broker events; `node tail --agent <name>` streams the worker's raw output — neither is durable messages. Read replies with `check_inbox` / `list_messages` / `get_message_thread` |
 | Worker DM to `broker` fails with `Agent "broker" not found` | Expected — `broker` is the broker's internal routing self-name, not a DM-able agent. Workers must ACK/DONE to `orchestrator` or `general`. Fix the worker task prompt; never instruct "DM the broker" |
 | `node status` says running but `node agent list`/MCP calls return empty or `Failed to query broker session` | The CLI is dialing a **stale/wrong broker** — leftover `.agentworkforce/relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agentworkforce/relay/connection.json` to the actual listening port, then `agent-relay node down --force`, delete `.agentworkforce/relay/`, `agent-relay node up` clean |
