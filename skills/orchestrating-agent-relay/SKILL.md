@@ -321,20 +321,33 @@ a **wake-up trigger**, run through the harness's background-task facility (or
 with `&` in a plain shell — in the foreground it blocks until a match):
 
 ```bash
-# Exits the moment a matching relay_inbound event arrives
-agent-relay node tail | grep -m1 '"from":"Implementer".*"body":"DONE Implementer r2'
+# Exits the moment a matching relay_inbound event arrives.
+# Anchor on the body VALUE starting with the marker — not a loose substring.
+agent-relay node tail | grep -m1 '"body":"DONE Implementer r2'
 ```
 
 `relay_inbound` events carry each message's `body`, `from`, and `target`, and
-the stream replays a bounded window before following live. Scope the pattern to
-the sender plus a run-specific marker — have workers post
-`DONE <name> <round-tag> — <evidence>` — so a replayed event from an earlier
-round can't fire it; a bare `"body":"DONE` match is only safe for a first,
-one-shot wait. This wakes you the second the event happens instead of on the
-next poll tick; it is still not the durable log, so read the actual messages
-with `check_inbox` / `list_messages` after waking. (Stock macOS has no
-`timeout(1)` — bound a one-off listen with `python3`
-`subprocess.run(..., timeout=N)` or a backgrounded kill.)
+the stream replays a bounded window before following live. Two independent traps
+make a loose `grep` fire on the wrong event, and you need to defend against both:
+
+- **Replay + quoting.** A substring like `REVIEW VERDICT: GO` matches not only the
+  real verdict but every earlier message that *quoted* the marker — an ACK saying
+  "I'll post `REVIEW VERDICT: GO` when done" is in the replay window and fires
+  first. Anchoring the pattern on `"body":"<marker>` (the body value **beginning**
+  with the marker) rejects quotes, since a quoted marker sits mid-sentence after
+  some other opening text.
+- **Your own outbound.** If you DM a worker the instructions containing the marker
+  string, that DM is a `relay_inbound` event too (with `"from":"orchestrator"`).
+  Add `"from":"<Worker>"` to the pattern, or anchor on the body as above, so your
+  own messages can't trip it.
+
+Give workers a run-specific marker (`DONE <name> <round-tag> — <evidence>`) so a
+replayed event from an earlier round can't match either. A bare `"body":"DONE`
+substring is only safe for a first, one-shot wait in a fresh workspace. This
+wakes you the second the event happens instead of on the next poll tick; it is
+still not the durable log, so read the actual messages with `check_inbox` /
+`list_messages` after waking. (Stock macOS has no `timeout(1)` — bound a one-off
+listen with `python3` `subprocess.run(..., timeout=N)` or a backgrounded kill.)
 
 ### Troubleshooting
 
