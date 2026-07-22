@@ -17,8 +17,10 @@ A headless orchestrator is an agent that:
 4. Coordinates work without human intervention
 
 The orchestrator drives the team and reads/sends/lists through the **Agent
-Relay MCP server** (`agent-relay mcp`), which auto-registers the orchestrating
-session as the `orchestrator` agent when a workspace key is present. Lifecycle
+Relay MCP server** (`agent-relay mcp`). The session registers itself once with
+the `register_agent` tool (name it `orchestrator`) — every messaging tool
+errors with `Not registered. Call the "register_agent" tool first.` until it
+does. Lifecycle
 control — starting the broker, spawning/releasing local agents, streaming
 broker debug events — goes through the `agent-relay node` command group. The
 workers it spawns are registered participants too; their peer-messaging
@@ -158,8 +160,8 @@ runs in `interactive` spawn mode; pass `--exit-after-task` for a one-shot worker
 
 ### Step 3: Monitor and Coordinate
 
-The orchestrator reads and sends through the relay MCP (it is auto-registered as
-`orchestrator`):
+The orchestrator reads and sends through the relay MCP (after its one-time
+`register_agent` call):
 
 ```text
 # Read messages directed to you — DM replies, mentions, reactions
@@ -280,8 +282,11 @@ token. Mint one once per project and keep it inside the gitignored broker state
 dir:
 
 ```bash
+grep -qxF '.agentworkforce/' .gitignore 2>/dev/null || echo '.agentworkforce/' >> .gitignore
 TOKEN=$(agent-relay agent register orchestrator --type system | grep -oE 'at_live_[A-Za-z0-9_-]+' | head -1)
+[ -n "$TOKEN" ] || { echo "registration failed — no token captured" >&2; exit 1; }
 (umask 077 && printf '%s' "$TOKEN" > .agentworkforce/relay/orchestrator.token)
+chmod 600 .agentworkforce/relay/orchestrator.token   # tighten a pre-existing file too
 
 TOKEN=$(cat .agentworkforce/relay/orchestrator.token)   # later shells re-read it
 RELAY_AGENT_TOKEN="$TOKEN" agent-relay message post general "checkpoint: reviews start after both DONEs"
@@ -290,7 +295,8 @@ RELAY_AGENT_TOKEN="$TOKEN" agent-relay message inbox check
 ```
 
 Never echo, commit, or log the token. Registering also makes `orchestrator` a
-DM-able recipient for workers — the same identity the relay MCP auto-registers.
+DM-able recipient for workers — the same identity an MCP-based session creates
+with the `register_agent` tool.
 
 ### Monitoring Workers (Essential)
 
@@ -310,22 +316,25 @@ real-time output when debugging.
 > `agent-relay node agent list` from inside the backgrounded loop rather than
 > blocking the foreground on `sleep`.
 
-The push-style alternative to polling is a backgrounded `node tail` pipeline
-used purely as a **wake-up trigger**:
+The push-style alternative to polling is a `node tail` pipeline used purely as
+a **wake-up trigger**, run through the harness's background-task facility (or
+with `&` in a plain shell — in the foreground it blocks until a match):
 
 ```bash
-# Backgrounded; exits the moment a relay_inbound event carrying the marker arrives
-agent-relay node tail | grep -m1 '"body":"DONE'
+# Exits the moment a matching relay_inbound event arrives
+agent-relay node tail | grep -m1 '"from":"Implementer".*"body":"DONE Implementer r2'
 ```
 
 `relay_inbound` events carry each message's `body`, `from`, and `target`, and
-the stream replays a bounded window before following live — a historical match
-fires instantly, which is correct for first-occurrence waits. This wakes you
-the second the event happens instead of on the next poll tick; it is still not
-the durable log, so read the actual messages with `check_inbox` /
-`list_messages` after waking. (Stock macOS has no `timeout(1)` — bound a
-one-off listen with `python3` `subprocess.run(..., timeout=N)` or a
-backgrounded kill.)
+the stream replays a bounded window before following live. Scope the pattern to
+the sender plus a run-specific marker — have workers post
+`DONE <name> <round-tag> — <evidence>` — so a replayed event from an earlier
+round can't fire it; a bare `"body":"DONE` match is only safe for a first,
+one-shot wait. This wakes you the second the event happens instead of on the
+next poll tick; it is still not the durable log, so read the actual messages
+with `check_inbox` / `list_messages` after waking. (Stock macOS has no
+`timeout(1)` — bound a one-off listen with `python3`
+`subprocess.run(..., timeout=N)` or a backgrounded kill.)
 
 ### Troubleshooting
 
@@ -366,7 +375,7 @@ Quick Reference. Then enforce this protocol:
 - In a harnessed environment, never wait with a bare foreground `sleep`
   (it is blocked) — run ACK/DONE poll loops with run_in_background or a
   Monitor/until-loop, polling `check_inbox` and `node agent list` from inside it
-- **ACK/DONE target: `orchestrator` (the auto-registered spawning identity) or
+- **ACK/DONE target: `orchestrator` (the registered spawning identity) or
   the `general` channel — NEVER `broker`.** `broker` is the broker's internal
   routing self-name, not a spawnable/DM-able agent: a worker DM to `broker`
   fails with `Agent "broker" not found`. Write the worker task prompt to DM
@@ -527,6 +536,7 @@ named `target_node`).
    - Set `ANTHROPIC_API_KEY` or authenticate via `claude auth login`
 
 3. **For MCP-based coordination**: run `agent-relay mcp` as the relay MCP stdio
-   server in your client's MCP settings. With a workspace key present it
-   auto-registers the session as `orchestrator`; messaging tools (`send_dm`,
-   `post_message`, `check_inbox`, …) then work from the orchestrating session.
+   server in your client's MCP settings, then register the session once with
+   the `register_agent` tool (as `orchestrator`). Messaging tools (`send_dm`,
+   `post_message`, `check_inbox`, …) work only after that call — before it they
+   fail with `Not registered. Call the "register_agent" tool first.`
