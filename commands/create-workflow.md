@@ -24,7 +24,7 @@ Scaffold a new multi-agent workflow that runs on the agent-relay broker. This co
    - Keep prompts model-agnostic — never hardcode a specific model name into a step's instructions.
    - Size steps so a single agent can complete them in one focused pass.
 
-4. **Wire the team.** Define the lead + worker agents, the channel(s) they share, and the team name. Reuse names from `agent-relay agents` only after checking for collisions.
+4. **Wire the team.** Define the lead + worker agents, the channel(s) they share, and the team name. Reuse names from `agent-relay node agent list` only after checking for collisions.
 
 5. **Provide a runnable example.** Output one minimal end-to-end example that demonstrates feeding `$ARGUMENTS` into the workflow and shows the expected `{{steps.*.output}}` shape at each stage.
 

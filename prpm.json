@@ -271,7 +271,7 @@
     },
     {
       "name": "create-workflow",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "description": "Slash command to scaffold a new agent-relay multi-agent workflow using the writing-agent-relay-workflows skill - harness-agnostic, model-agnostic prompts, picks the right swarm pattern, and emits a runnable WorkflowBuilder file with verify gates, selected review-depth review/fix loops with test hardening, and integration notes",
       "format": "claude",
       "subtype": "slash-command",
@@ -289,7 +289,7 @@
     },
     {
       "name": "spawn",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Slash command for relay-orchestrator that bootstraps the agent-relay broker and spawns a worker on the chosen harness (claude, codex, opencode, droid, gemini, pi) with optional --model and --task - loads the orchestrator skill so infrastructure, channels, and lifecycle just work",
       "format": "claude",
       "subtype": "slash-command",
@@ -417,8 +417,8 @@
     },
     {
       "name": "openclaw-orchestrator",
-      "version": "1.0.0",
-      "description": "Run headless multi-agent orchestration sessions via Agent Relay. Use when spawning teams of agents, creating channels for coordination, managing agent lifecycle, and running parallel workloads across Claude/Codex/Gemini/Pi/Droid agents.",
+      "version": "2.0.0",
+      "description": "Run headless multi-agent Agent Relay sessions from OpenClaw. Use when spawning teams of agents, coordinating them over channels, and managing agent lifecycle from an OpenClaw session. Covers only the OpenClaw-specific setup and event reporting; the broker, spawn, and coordination mechanics come from the orchestrating-agent-relay skill.",
       "format": "claude",
       "subtype": "skill",
       "files": [
