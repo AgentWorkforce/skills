@@ -447,6 +447,172 @@ From the relay MCP, `query_nodes` finds nodes by capability or name and `spawn`
 invokes the fleet spawn action — the engine places it on an eligible node (or a
 named `target_node`).
 
+### Is the node actually available?
+
+`online` is not the same as **available for placement**. A node can be live and
+still never receive a spawn. Check the capability list, not the status field:
+
+```bash
+# `fleet nodes` HIDES offline/non-fleet records by default (it hid 385 of 390
+# on a real workspace), so a node you are looking for may simply not be printed.
+agent-relay fleet nodes --all > /tmp/nodes.raw    # redirect: output truncates at 64KB through a pipe
+python3 - <<'PY'
+import json, re
+raw = open("/tmp/nodes.raw").read()
+m = re.search(r"^\{", raw, re.M)          # first brace at start of a line, not inside the preamble
+if not m:
+    raise SystemExit("No JSON in output. Raw:\n" + raw[:500])
+for n in json.loads(raw[m.start():]).get("nodes", []):
+    caps = [c["name"] for c in n.get("capabilities", [])]
+    print(f'{n.get("name")}  id={n.get("id")}  {n.get("status")}  live={n.get("live")}  {caps}')
+PY
+```
+
+`id` is printed because that is the field you compare against in the placement
+proof below — `dispatchedNodeId` is a node **id**, not a name.
+
+A placement target must carry the `spawn:<agent-type>` capability for the spawn
+you are requesting — a node advertising only `spawn:claude` is a valid target for
+`fleet spawn claude` and not for `fleet spawn codex`. `release` and
+`relay:delivery-cursor-v1` are separate lifecycle capabilities, needed to manage
+the worker once placed. A record with no `spawn:*` capability at all is
+registered but cannot receive a spawn.
+
+Prove placement end to end rather than trusting the roster — spawn **from a
+different machine** so you are testing placement and not a local spawn, confirm
+`dispatchedNodeId` matches the target's node id, then verify on the target host
+that the process actually exists, and release:
+
+```bash
+# STEP 0 — run everything below from a machine OTHER than <node>. Spawning on the
+# same host you are testing proves nothing about placement.
+
+# Read the token without leaving it in shell history or `ps` argv.
+read -r -s -p 'Agent token: ' RELAY_AGENT_TOKEN; printf '\n'
+export RELAY_AGENT_TOKEN
+trap 'unset RELAY_AGENT_TOKEN' EXIT
+
+agent-relay fleet spawn claude \
+  --name placement-proof --node <node> --channel general \
+  --task "Run hostname -s and reply with its output only." > /tmp/spawn.json
+
+# STEP 1 — the control plane says it dispatched where you asked. The response carries
+# a human-readable preamble before the JSON. Never abort here: a failed spawn is a
+# result, and a traceback would skip the STEP 3 release and leak a running agent.
+python3 - <<'PY'
+import json, re
+raw = open("/tmp/spawn.json").read()
+m = re.search(r"^\{", raw, re.M)          # first brace at start of a line
+inv = None
+if m:
+    try:
+        inv = json.loads(raw[m.start():]).get("invocation")
+    except ValueError:
+        pass
+if not inv:
+    print("Spawn did not return an invocation — it likely failed. Raw output:\n" + raw)
+else:
+    print("dispatched to:", inv.get("dispatchedNodeId"),
+          "| name:", (inv.get("node") or {}).get("name"),
+          "| status:", inv.get("status"))
+PY
+# `dispatchedNodeId` must equal <node>'s `id` from the roster command above — it is an
+# id (`node_…`), not a name. A mismatch means placement ignored your target; a match
+# still proves nothing about execution, hence STEP 2.
+
+# STEP 2 — the process actually exists. Run this ON THE TARGET HOST.
+pgrep -fl placement-proof            # broker pty + CLI process must both be present
+
+# STEP 3 — release from the control plane. Works regardless of how the node's broker
+# was started. Do NOT use `node agent release` here: a fleet node started with
+# --state-dir (as the LaunchAgent does) is unreachable from that subcommand.
+agent-relay fleet release placement-proof
+```
+
+Steps 1 and 2 are separate claims. Step 1 alone is the mistake that makes a broken
+node look healthy — dispatch is recorded by the control plane whether or not
+anything ran.
+
+### Enrolling a new machine as a fleet node
+
+Enrollment is a two-step API flow — mint on the control plane, redeem from the
+node:
+
+1. `POST /api/v1/fleet/enrollment-tokens` → single-use `ocl_node_enr_…`
+2. `POST /api/v1/fleet/register`, from the machine being enrolled
+
+The node-side script is `sandbox-node-bootstrap.sh`, with
+`README.md` alongside it as the authoritative reference. Both live at
+`dev-stack/fleet-node-bootstrap/` in the **`AgentWorkforce/cloud`** repository —
+they are not shipped with this skill, so you need access to that repo to run an
+enrollment. It supports Daytona, CF Containers, the local dev-stack runner, and
+Mac minis.
+
+The script takes its inputs from the environment so secrets never reach `ps`
+argv. Populate the token with a silent read so it does not land in shell history
+either:
+
+```bash
+read -r -s -p 'Enrollment token: ' RELAY_ENROLLMENT_TOKEN; printf '\n'
+trap 'unset RELAY_ENROLLMENT_TOKEN' EXIT
+
+RELAY_ENROLLMENT_TOKEN="$RELAY_ENROLLMENT_TOKEN" \
+RELAY_ENROLLMENT_URL='https://<app>/api/v1/fleet/register' \
+RELAY_NODE_NAME='<name>' \
+  sandbox-node-bootstrap.sh enroll
+```
+
+> **Never skip `sandbox-node-bootstrap.sh preflight` on a machine that already
+> runs brokers.** `agent-relay node up` calls `killOrphanedBrokerProcesses(projectRoot)`
+> at startup, terminating **every broker whose CWD is that root**. `findProjectRoot()`
+> walks up for markers (`.git`, `package.json`, `.agentworkforce/relay`), so a
+> `$HOME`-rooted workdir resolves `projectRoot=$HOME` and reaps every
+> `$HOME`-rooted broker. That is relay#1328 — a real incident that killed
+> production brokers on a shared machine. Pin `AGENT_RELAY_PROJECT` to a unique
+> per-instance dir and drop a physical `.agentworkforce/relay` marker there.
+
+Enrollment persists to `~/.agentworkforce/relay/fleet-enrollments.json` (holds a
+live `nt_live_…` node token — never echo this file). Once enrolled, a
+`com.agentrelay.fleet-node` LaunchAgent brings the node back automatically across
+reboots; a rebooted machine does **not** need re-enrolling.
+
+### Reaching a `--state-dir` broker
+
+`agent-relay node up --state-dir <dir>` (how the `com.agentrelay.fleet-node`
+LaunchAgent starts every fleet node) writes its connection file to
+`<dir>/connection.json`. Every `node agent` subcommand except `attach` reads only
+the **default** `~/.agentworkforce/relay/connection.json`, rejects `--state-dir`,
+and ignores `AGENT_RELAY_DATA_DIR` — so those subcommands report
+`No running broker found` against a perfectly healthy broker (`relay#1446`).
+
+**Prefer the control plane.** `agent-relay fleet nodes`, `fleet spawn` and
+`fleet release` need no local connection file and work on any node regardless of
+how its broker was started. Reach for the workaround below only for a node-local
+subcommand that has no fleet equivalent.
+
+```bash
+DEF=~/.agentworkforce/relay/connection.json
+SD=<state-dir>                       # the --state-dir the broker was started with
+
+# -e alone is FALSE for a dangling symlink, which is exactly what a previous run
+# leaves behind if it died before its cleanup — so test -L as well, or `ln -s`
+# fails with "File exists" and the subcommand silently never runs.
+if [ -e "$DEF" ] || [ -L "$DEF" ]; then
+  echo "REFUSING: $DEF already exists — on some hosts this is a real connection file"
+  echo "and clobbering it would break the default broker. If it is a dangling symlink"
+  echo "from an interrupted run, remove it; otherwise inspect it before proceeding."
+else
+  mkdir -p "$(dirname "$DEF")"       # may not exist yet on a freshly provisioned node
+  ln -s "$SD/connection.json" "$DEF"
+  agent-relay node agent list        # ... or whichever node-local subcommand you need
+  [ -L "$DEF" ] && rm "$DEF"         # remove ONLY a symlink, and only one we created
+fi
+```
+
+Never use `ln -sf` here. The `-f` silently destroys a pre-existing connection file,
+and that file is a real regular file on some hosts — not a stale leftover. Delete
+this whole workaround once `relay#1446` lands rather than letting it outlive the bug.
+
 ## Common Mistakes
 
 | Mistake                                                  | Fix                                                                                                                                                                                            |
@@ -468,6 +634,11 @@ named `target_node`).
 | `node status` says running but `node agent list`/MCP calls return empty or `Failed to query broker session` | The CLI is dialing a **stale/wrong broker** — leftover `.agentworkforce/relay/connection.json` from a prior run on an old port, or a second broker process. `ps aux \| grep -c '[a]gent-relay-broker'` (>1 ⇒ kill extras), compare `.agentworkforce/relay/connection.json` to the actual listening port, then `agent-relay node down --force`, delete `.agentworkforce/relay/`, `agent-relay node up` clean |
 | `Invalid agent token` while broker + workers keep working | The orchestrator shell has an **unresolved `${RELAY_WORKSPACE_KEY}`-style template** being used as a literal key (broker/workers hold real tokens). Ensure the workspace key/token is actually resolved in the orchestrator env |
 | New worker appears in `node agent list` but no ACK yet  | Expected — appearing means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                   |
+| A node you know exists is missing from `agent-relay fleet nodes` | The default view hides offline/non-fleet records (385 of 390 hidden on a real workspace) — and the node may be present but past the cut. Use `agent-relay fleet nodes --all` |
+| `fleet nodes` JSON fails to parse mid-object | Output **truncates at 64KB** through a pipe. Redirect to a file first (`agent-relay fleet nodes --all > /tmp/nodes.raw`) and parse the file, never the pipe |
+| `node agent list`/`release` says `No running broker found (…/relay/connection.json does not exist)` while the fleet node is clearly running | The subcommand is reading the **default** connection path, not the broker's `--state-dir` one (`relay#1446`). Use the control-plane equivalent — `agent-relay fleet release <name>` / `fleet nodes` — which needs no local connection file. See [Reaching a `--state-dir` broker](#reaching-a---state-dir-broker) for the guarded workaround when only a node-local subcommand will do |
+| Targeted `fleet spawn` fails with `Targeted Fleet spawn requires an agent token` | Pass `--token` or set `RELAY_AGENT_TOKEN`; mint one with `agent-relay agent register <name> --type system` (capture it without echoing). `--task` is also mandatory and the error only surfaces one problem at a time |
+| Node shows `online` but never receives a spawn | `online` ≠ available. Check `capabilities` contains `spawn:*` — a record can be live with no spawn capacity. Confirm with a throwaway targeted spawn, verified by `pgrep` **on the target host**, then release |
 | Harness blocks `sleep 25; check_inbox ...`               | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
 | Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay node agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                  |
