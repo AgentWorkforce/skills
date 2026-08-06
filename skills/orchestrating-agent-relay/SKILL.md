@@ -473,6 +473,9 @@ different machine** so you are testing placement and not a local spawn, confirm
 that the process actually exists, and release:
 
 ```bash
+# STEP 0 — run everything below from a machine OTHER than <node>. Spawning on the
+# same host you are testing proves nothing about placement.
+
 # Read the token without leaving it in shell history or `ps` argv.
 read -r -s -p 'Agent token: ' RELAY_AGENT_TOKEN; printf '\n'
 export RELAY_AGENT_TOKEN
@@ -480,15 +483,27 @@ trap 'unset RELAY_AGENT_TOKEN' EXIT
 
 agent-relay fleet spawn claude \
   --name placement-proof --node <node> --channel general \
-  --task "Run hostname -s and reply with its output only."
-# confirm dispatchedNodeId in the response matches <node>'s id, then ON THE TARGET HOST:
+  --task "Run hostname -s and reply with its output only." > /tmp/spawn.json
+
+# STEP 1 — the control plane says it dispatched where you asked. The response has a
+# human-readable preamble before the JSON, so parse from the first brace.
+python3 -c 'import json;raw=open("/tmp/spawn.json").read();i=json.loads(raw[raw.find("{"):])["invocation"];
+print("dispatched to:", i["dispatchedNodeId"], "| name:", i["node"]["name"], "| status:", i["status"])'
+# That id must equal <node>'s id in `agent-relay fleet nodes --all`. A mismatch means
+# placement ignored your target; a match still proves nothing about execution — hence step 2.
+
+# STEP 2 — the process actually exists. Run this ON THE TARGET HOST.
 pgrep -fl placement-proof            # broker pty + CLI process must both be present
 
-# Release from the control plane — works regardless of how the node's broker was
-# started. Do NOT use `node agent release` here: a fleet node started with
+# STEP 3 — release from the control plane. Works regardless of how the node's broker
+# was started. Do NOT use `node agent release` here: a fleet node started with
 # --state-dir (as the LaunchAgent does) is unreachable from that subcommand.
 agent-relay fleet release placement-proof
 ```
+
+Steps 1 and 2 are separate claims. Step 1 alone is the mistake that makes a broken
+node look healthy — dispatch is recorded by the control plane whether or not
+anything ran.
 
 ### Enrolling a new machine as a fleet node
 
@@ -533,6 +548,39 @@ live `nt_live_…` node token — never echo this file). Once enrolled, a
 `com.agentrelay.fleet-node` LaunchAgent brings the node back automatically across
 reboots; a rebooted machine does **not** need re-enrolling.
 
+### Reaching a `--state-dir` broker
+
+`agent-relay node up --state-dir <dir>` (how the `com.agentrelay.fleet-node`
+LaunchAgent starts every fleet node) writes its connection file to
+`<dir>/connection.json`. Every `node agent` subcommand except `attach` reads only
+the **default** `~/.agentworkforce/relay/connection.json`, rejects `--state-dir`,
+and ignores `AGENT_RELAY_DATA_DIR` — so those subcommands report
+`No running broker found` against a perfectly healthy broker (`relay#1446`).
+
+**Prefer the control plane.** `agent-relay fleet nodes`, `fleet spawn` and
+`fleet release` need no local connection file and work on any node regardless of
+how its broker was started. Reach for the workaround below only for a node-local
+subcommand that has no fleet equivalent.
+
+```bash
+DEF=~/.agentworkforce/relay/connection.json
+SD=<state-dir>                       # the --state-dir the broker was started with
+
+if [ -e "$DEF" ]; then
+  echo "REFUSING: $DEF already exists — on some hosts this is a real connection file"
+  echo "and clobbering it would break the default broker. Inspect it before proceeding."
+else
+  mkdir -p "$(dirname "$DEF")"       # may not exist yet on a freshly provisioned node
+  ln -s "$SD/connection.json" "$DEF"
+  agent-relay node agent list        # ... or whichever node-local subcommand you need
+  [ -L "$DEF" ] && rm "$DEF"         # remove ONLY a symlink, and only one we created
+fi
+```
+
+Never use `ln -sf` here. The `-f` silently destroys a pre-existing connection file,
+and that file is a real regular file on some hosts — not a stale leftover. Delete
+this whole workaround once `relay#1446` lands rather than letting it outlive the bug.
+
 ## Common Mistakes
 
 | Mistake                                                  | Fix                                                                                                                                                                                            |
@@ -556,7 +604,7 @@ reboots; a rebooted machine does **not** need re-enrolling.
 | New worker appears in `node agent list` but no ACK yet  | Expected — appearing means process up (~5s); the CLI cold-starts for another 30–45s before its first ACK DM. Wait ≥60s before troubleshooting a fresh worker                                   |
 | A node you know exists is missing from `agent-relay fleet nodes` | The default view hides offline/non-fleet records (385 of 390 hidden on a real workspace) — and the node may be present but past the cut. Use `agent-relay fleet nodes --all` |
 | `fleet nodes` JSON fails to parse mid-object | Output **truncates at 64KB** through a pipe. Redirect to a file first (`agent-relay fleet nodes --all > /tmp/nodes.raw`) and parse the file, never the pipe |
-| `node agent list`/`release` says `No running broker found (…/relay/connection.json does not exist)` while the fleet node is clearly running | These subcommands only read the **default** `~/.agentworkforce/relay/connection.json`. They reject `--state-dir` and ignore `AGENT_RELAY_DATA_DIR`, so a node started with `--state-dir` (as the `com.agentrelay.fleet-node` LaunchAgent does) is unreachable (`relay#1446`). **For fleet-spawned agents use the control plane instead — `agent-relay fleet release <name>` and `agent-relay fleet nodes` need no local connection file.** Only if you genuinely need a node-local subcommand, guard the symlink: refuse to proceed if the default path already exists (it is a real file on some hosts and `ln -sf` would destroy it), then remove only the link you created — `[ -e ~/.agentworkforce/relay/connection.json ] && echo "pre-existing, do not clobber" \|\| { ln -s <state-dir>/connection.json ~/.agentworkforce/relay/connection.json; agent-relay node agent list; [ -L ~/.agentworkforce/relay/connection.json ] && rm ~/.agentworkforce/relay/connection.json; }` |
+| `node agent list`/`release` says `No running broker found (…/relay/connection.json does not exist)` while the fleet node is clearly running | The subcommand is reading the **default** connection path, not the broker's `--state-dir` one (`relay#1446`). Use the control-plane equivalent — `agent-relay fleet release <name>` / `fleet nodes` — which needs no local connection file. See [Reaching a `--state-dir` broker](#reaching-a---state-dir-broker) for the guarded workaround when only a node-local subcommand will do |
 | Targeted `fleet spawn` fails with `Targeted Fleet spawn requires an agent token` | Pass `--token` or set `RELAY_AGENT_TOKEN`; mint one with `agent-relay agent register <name> --type system` (capture it without echoing). `--task` is also mandatory and the error only surfaces one problem at a time |
 | Node shows `online` but never receives a spawn | `online` ≠ available. Check `capabilities` contains `spawn:*` — a record can be live with no spawn capacity. Confirm with a throwaway targeted spawn, verified by `pgrep` **on the target host**, then release |
 | Harness blocks `sleep 25; check_inbox ...`               | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only |
