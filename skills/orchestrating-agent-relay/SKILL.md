@@ -456,9 +456,20 @@ still never receive a spawn. Check the capability list, not the status field:
 # `fleet nodes` HIDES offline/non-fleet records by default (it hid 385 of 390
 # on a real workspace), so a node you are looking for may simply not be printed.
 agent-relay fleet nodes --all > /tmp/nodes.raw    # redirect: output truncates at 64KB through a pipe
-python3 -c 'import json;raw=open("/tmp/nodes.raw").read();d=json.loads(raw[raw.find("{"):]);
-[print(n["name"], n["status"], n.get("live"), [c["name"] for c in n.get("capabilities",[])]) for n in d["nodes"]]'
+python3 - <<'PY'
+import json, re
+raw = open("/tmp/nodes.raw").read()
+m = re.search(r"^\{", raw, re.M)          # first brace at start of a line, not inside the preamble
+if not m:
+    raise SystemExit("No JSON in output. Raw:\n" + raw[:500])
+for n in json.loads(raw[m.start():]).get("nodes", []):
+    caps = [c["name"] for c in n.get("capabilities", [])]
+    print(f'{n.get("name")}  id={n.get("id")}  {n.get("status")}  live={n.get("live")}  {caps}')
+PY
 ```
+
+`id` is printed because that is the field you compare against in the placement
+proof below — `dispatchedNodeId` is a node **id**, not a name.
 
 A placement target must carry the `spawn:<agent-type>` capability for the spawn
 you are requesting — a node advertising only `spawn:claude` is a valid target for
@@ -485,12 +496,29 @@ agent-relay fleet spawn claude \
   --name placement-proof --node <node> --channel general \
   --task "Run hostname -s and reply with its output only." > /tmp/spawn.json
 
-# STEP 1 — the control plane says it dispatched where you asked. The response has a
-# human-readable preamble before the JSON, so parse from the first brace.
-python3 -c 'import json;raw=open("/tmp/spawn.json").read();i=json.loads(raw[raw.find("{"):])["invocation"];
-print("dispatched to:", i["dispatchedNodeId"], "| name:", i["node"]["name"], "| status:", i["status"])'
-# That id must equal <node>'s id in `agent-relay fleet nodes --all`. A mismatch means
-# placement ignored your target; a match still proves nothing about execution — hence step 2.
+# STEP 1 — the control plane says it dispatched where you asked. The response carries
+# a human-readable preamble before the JSON. Never abort here: a failed spawn is a
+# result, and a traceback would skip the STEP 3 release and leak a running agent.
+python3 - <<'PY'
+import json, re
+raw = open("/tmp/spawn.json").read()
+m = re.search(r"^\{", raw, re.M)          # first brace at start of a line
+inv = None
+if m:
+    try:
+        inv = json.loads(raw[m.start():]).get("invocation")
+    except ValueError:
+        pass
+if not inv:
+    print("Spawn did not return an invocation — it likely failed. Raw output:\n" + raw)
+else:
+    print("dispatched to:", inv.get("dispatchedNodeId"),
+          "| name:", (inv.get("node") or {}).get("name"),
+          "| status:", inv.get("status"))
+PY
+# `dispatchedNodeId` must equal <node>'s `id` from the roster command above — it is an
+# id (`node_…`), not a name. A mismatch means placement ignored your target; a match
+# still proves nothing about execution, hence STEP 2.
 
 # STEP 2 — the process actually exists. Run this ON THE TARGET HOST.
 pgrep -fl placement-proof            # broker pty + CLI process must both be present
@@ -566,9 +594,13 @@ subcommand that has no fleet equivalent.
 DEF=~/.agentworkforce/relay/connection.json
 SD=<state-dir>                       # the --state-dir the broker was started with
 
-if [ -e "$DEF" ]; then
+# -e alone is FALSE for a dangling symlink, which is exactly what a previous run
+# leaves behind if it died before its cleanup — so test -L as well, or `ln -s`
+# fails with "File exists" and the subcommand silently never runs.
+if [ -e "$DEF" ] || [ -L "$DEF" ]; then
   echo "REFUSING: $DEF already exists — on some hosts this is a real connection file"
-  echo "and clobbering it would break the default broker. Inspect it before proceeding."
+  echo "and clobbering it would break the default broker. If it is a dangling symlink"
+  echo "from an interrupted run, remove it; otherwise inspect it before proceeding."
 else
   mkdir -p "$(dirname "$DEF")"       # may not exist yet on a freshly provisioned node
   ln -s "$SD/connection.json" "$DEF"
