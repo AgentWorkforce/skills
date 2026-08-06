@@ -62,6 +62,7 @@ reference is the **`using-agent-relay`** skill.
 | Send DM to worker (MCP)           | `send_dm(to: "Worker1", text: "...")`                             |
 | Post to channel (MCP)             | `post_message(channel: "general", text: "...")`                  |
 | Read worker replies (MCP)         | `check_inbox(limit: 20)` / `list_messages(channel: "general")`   |
+| Give a human a follow-along link  | `agent-relay observer`                                          |
 | Inspect a worker's TTY            | `agent-relay node agent attach Worker1 --mode view`             |
 | Release worker                    | `agent-relay node agent release Worker1`                         |
 | Stop broker                       | `agent-relay node down`                                          |
@@ -155,6 +156,28 @@ runs in `interactive` spawn mode; pass `--exit-after-task` for a one-shot worker
 > treat ACK silence in the first minute as a stuck worker; size ACK-wait loops
 > for at least 60s (e.g. a 30-iteration poll) before escalating to
 > troubleshooting.
+
+### Step 2.5: Give the Human a Way to Watch (optional)
+
+A human driving an autonomous run usually wants to see what the team is saying
+without joining it. Hand them a read-only observer link:
+
+```bash
+agent-relay observer
+```
+
+That prints a URL backed by a scoped `ot_live_` token — read-only, expiring in
+24 hours, agent DMs excluded. Narrow it with `--channels build,review`, widen it
+with `--include-dms` or `--expires 7d`, and cut it off early with
+`agent-relay observer revoke <id>`.
+
+From the relay MCP, the equivalent is `get_observer_url`.
+
+> **Never build an observer URL from the workspace key.** `rk_live_` is an
+> administrative credential — it can send messages, spawn agents, and change
+> workspace settings — and a URL query string is not a place to put one. The
+> realtime endpoint rejects it anyway; only a scoped observer token with
+> `stream:read` is accepted.
 
 ### Step 3: Monitor and Coordinate
 
@@ -342,6 +365,9 @@ Quick Reference. Then enforce this protocol:
   model
 - Poll `agent-relay node agent list` for worker liveness; set a wall-clock
   fallback so a silently-dead worker can't hang the loop
+- If a human is watching, give them a follow-along link with
+  `agent-relay observer` and print the URL it returns. Never print the
+  workspace key or put it in a URL
 ```
 
 ## Multi-Round Review Loops (DONE → NO-GO → fix → re-review)
@@ -641,6 +667,7 @@ this whole workaround once `relay#1446` lands rather than letting it outlive the
 | Node shows `online` but never receives a spawn | `online` ≠ available. Check `capabilities` contains `spawn:*` — a record can be live with no spawn capacity. Confirm with a throwaway targeted spawn, verified by `pgrep` **on the target host**, then release |
 | Harness blocks `sleep 25; check_inbox ...`               | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only |
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
+| Told the user to open an observer URL built from the workspace key | That is an admin credential in a query string, and the realtime endpoint rejects it. Run `agent-relay observer` (or `get_observer_url`) and share the `ot_live_` URL it returns |
 | Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay node agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                  |
 
 ## Prerequisites
