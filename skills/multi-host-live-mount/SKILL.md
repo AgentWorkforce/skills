@@ -489,14 +489,20 @@ case "$PROBE_FILE" in "$PROBE_SCOPE"/*) ;; *) exit 2;; esac
 
 # ---- on HOST A (the writer) ----
 jq -n --arg body "cross-host visibility probe: $MARK" '{body: $body}' \
-  > "$MIRROR_A$PROBE_FILE"
+  > "$MIRROR_A$PROBE_FILE" || { echo 'Could not create source probe' >&2; exit 1; }
+SOURCE_PROBE="$MIRROR_A$PROBE_FILE"
+if [[ ! -f "$SOURCE_PROBE" ]] || ! grep -qF -- "$MARK" "$SOURCE_PROBE"; then
+  echo 'ASSERT cross-host-source-written: FAIL — marker absent from exact source file' >&2
+  exit 1
+fi
+echo "ASSERT cross-host-source-written: PASS file=$PROBE_FILE"
 relayfile writeback status "$WS" --json | jq '{pending, deadLettered: (.deadLettered|length)}'
 echo "marker: $MARK"
 
 # ---- on HOST B (the reader) ----
-# This polls only the expected file and checks the marker inside it.
+# This polls the cloud artifact and the exact expected target file for the marker.
 /path/to/installed-skill/scripts/assert-cross-host-write-visible.sh \
-  "$WS" "$MIRROR_A" "$MIRROR_B" "$PROBE_SCOPE" "$PROBE_FILE" "$MARK"
+  "$WS" "$MIRROR_B" "$PROBE_SCOPE" "$PROBE_FILE" "$MARK"
 ```
 
 Rules that make this assertion honest:
@@ -674,52 +680,79 @@ BY_ID_DIR="/github/repos/<owner>__<repo>/issues/by-id"
   "$BY_ID_DIR" "$KNOWN" || exit 1
 
 # Assertion B: HOST A must mount /linear too and have --write. It writes the
-# exact schema-valid probe shown above; run this poll on the TARGET host (B).
+# exact schema-valid probe shown above and verifies its source file on HOST A;
+# run this cloud-and-target poll on the TARGET host (B).
 # For an intentionally read-only target, assert its attempted reverse probe is
 # rejected at that exact resource path instead of expecting B→A visibility.
-HOST_A_MIRROR=/path/to/host-a-mirror
 MARK='<paste marker from host A>'
 PROBE_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$MARK.json"
-"$ASSERT_CROSS_HOST" "$TARGET_WS" "$HOST_A_MIRROR" "$TARGET_MIRROR" \
-  /linear "$PROBE_FILE" "$MARK" || exit 1
+"$ASSERT_CROSS_HOST" "$TARGET_WS" "$TARGET_MIRROR" /linear \
+  "$PROBE_FILE" "$MARK" || exit 1
 
 # This target joined read-only. Its reverse direction must reject the exact
-# schema-valid write asynchronously; a successful local redirection is not an
-# outcome. Use a dedicated throwaway resource because a FAIL below means the
-# write may have become a real mutation.
+# schema-valid write. A local permission rejection can be immediate; if the
+# filesystem accepts it, wait for the exact asynchronous result. Use a dedicated
+# throwaway resource because a FAIL below means the write may have mutated cloud.
 REJECT_MARK="xhost-reject-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 REJECT_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$REJECT_MARK.json"
-jq -n --arg body "must be rejected: $REJECT_MARK" '{body: $body}' \
-  > "$TARGET_MIRROR$REJECT_FILE" || { echo 'Could not create rejection probe' >&2; exit 1; }
-REJECTED=0
-for i in $(seq 1 12); do
-  READONLY_SEEN=0
-  while IFS= read -r -d '' state_file; do
-    if jq -e --arg path "$REJECT_FILE" \
-      '.files[$path].readonly == true and ((.files[$path].dirty // false) == false)' \
-      "$state_file" >/dev/null; then
-      READONLY_SEEN=1
-      break
-    fi
-  done < <(find "$TARGET_STATE_DIR" -type f -name state.json -print0)
+REJECT_LOCAL="$TARGET_MIRROR$REJECT_FILE"
+if WRITE_ERR=$( { jq -n --arg body "must be rejected: $REJECT_MARK" \
+  '{body: $body}' > "$REJECT_LOCAL"; } 2>&1 ); then
+  LOCAL_REJECTED=0
+elif grep -qF "$REJECT_LOCAL" <<<"$WRITE_ERR" &&
+     grep -Eiq 'permission denied|read-only file system|operation not permitted' <<<"$WRITE_ERR"; then
+  LOCAL_REJECTED=1
+else
+  echo "ASSERT cross-host-write-rejected: FAIL — unexpected local write error: $WRITE_ERR" >&2
+  exit 1
+fi
 
+# A filesystem-enforced rejection is valid only when the exact cloud path is
+# also absent. Other read errors are not absence evidence.
+if (( LOCAL_REJECTED )); then
   if READ_RESULT=$(relayfile read "$TARGET_WS" "$REJECT_FILE" 2>&1); then
     echo 'ASSERT cross-host-write-rejected: FAIL — exact cloud path exists' >&2
     exit 1
   fi
-  if (( READONLY_SEEN )) && grep -qF "$REJECT_FILE" <<<"$READ_RESULT" &&
+  if grep -qF "$REJECT_FILE" <<<"$READ_RESULT" &&
      grep -Eiq '404|not found|does not exist' <<<"$READ_RESULT"; then
-    REJECTED=1
-    break
+    echo "ASSERT cross-host-write-rejected: PASS — local permission rejection plus exact cloud absence"
+    echo "  mount: workspace=$TARGET_WS mirror=$TARGET_MIRROR scope=/linear file=$REJECT_FILE"
+  else
+    echo 'ASSERT cross-host-write-rejected: FAIL — cloud absence was not proven' >&2
+    exit 1
   fi
-  [ "$i" -lt 12 ] && sleep 10
-done
-if (( ! REJECTED )); then
-  echo 'ASSERT cross-host-write-rejected: FAIL — no exact read-only result plus cloud absence within 120s' >&2
-  exit 1
+else
+  REJECTED=0
+  for i in $(seq 1 12); do
+    READONLY_SEEN=0
+    while IFS= read -r -d '' state_file; do
+      if jq -e --arg path "$REJECT_FILE" \
+        '.files[$path].readonly == true and ((.files[$path].dirty // false) == false)' \
+        "$state_file" >/dev/null; then
+        READONLY_SEEN=1
+        break
+      fi
+    done < <(find "$TARGET_STATE_DIR" -type f -name state.json -print0)
+
+    if READ_RESULT=$(relayfile read "$TARGET_WS" "$REJECT_FILE" 2>&1); then
+      echo 'ASSERT cross-host-write-rejected: FAIL — exact cloud path exists' >&2
+      exit 1
+    fi
+    if (( READONLY_SEEN )) && grep -qF "$REJECT_FILE" <<<"$READ_RESULT" &&
+       grep -Eiq '404|not found|does not exist' <<<"$READ_RESULT"; then
+      REJECTED=1
+      break
+    fi
+    [ "$i" -lt 12 ] && sleep 10
+  done
+  if (( ! REJECTED )); then
+    echo 'ASSERT cross-host-write-rejected: FAIL — no exact read-only result plus cloud absence within 120s' >&2
+    exit 1
+  fi
+  echo "ASSERT cross-host-write-rejected: PASS after a bounded result check"
+  echo "  mount: workspace=$TARGET_WS mirror=$TARGET_MIRROR scope=/linear file=$REJECT_FILE"
 fi
-echo "ASSERT cross-host-write-rejected: PASS after a bounded result check"
-echo "  mount: workspace=$TARGET_WS mirror=$TARGET_MIRROR scope=/linear file=$REJECT_FILE"
 
 # If the target instead joined with --write, run the same schema-valid probe in
 # the reverse direction on HOST A and require assert-cross-host-write-visible.sh

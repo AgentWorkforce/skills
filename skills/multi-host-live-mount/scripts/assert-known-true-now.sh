@@ -4,6 +4,8 @@ set -uo pipefail
 WS="${1:?workspace}"; MIRROR="${2:?local mirror dir}"
 BY_ID_REL="${3:?by-id directory relative to mirror}"; KNOWN="${4:?known identifier}"
 case "$BY_ID_REL" in /*) ;; *) echo "by-id directory must start with /" >&2; exit 2;; esac
+case "$BY_ID_REL" in *//*|*/./*|*/../*|*/.|*/..) echo "by-id directory must not contain empty or dot components" >&2; exit 2;; esac
+[[ "$KNOWN" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "known identifier contains unsafe characters" >&2; exit 2; }
 BY_ID="$MIRROR$BY_ID_REL"
 shopt -s nullglob
 projected_files=("$BY_ID"/*.json)
