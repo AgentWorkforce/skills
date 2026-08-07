@@ -193,6 +193,28 @@
       ]
     },
     {
+      "name": "multi-host-live-mount",
+      "version": "1.0.0",
+      "description": "Use when one Relayfile workspace must be mounted on several machines and an agent placed on a remote host inside the live tree without cloning. Covers joining an existing workspace with write opt-in, per-node mount scopes and credentials, fleet enrollment and placement, and byte-level proof that remote mirrors are current. Treats daemon liveness, lag/status lines, and fleet-node presence as non-proof.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "multi-host",
+        "fleet",
+        "mount",
+        "staleness",
+        "placement",
+        "agent-context"
+      ],
+      "files": [
+        "skills/multi-host-live-mount/SKILL.md",
+        "skills/multi-host-live-mount/scripts/assert-mirror-current.sh",
+        "skills/multi-host-live-mount/scripts/assert-known-true-now.sh",
+        "skills/multi-host-live-mount/scripts/assert-cross-host-write-visible.sh"
+      ]
+    },
+    {
       "name": "adding-swarm-patterns",
       "version": "1.0.0",
       "description": "Use when adding new multi-agent coordination patterns to agent-relay - provides checklist for types, schema, templates, and docs updates",
@@ -455,7 +477,7 @@
       "id": "relayfile-workspace",
       "name": "Relayfile Workspace",
       "description": "Relayfile workspace primitives for agents - activity digests, workspace layout, and file-native provider writeback",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "development",
       "tags": [
         "relayfile",
@@ -488,6 +510,12 @@
           "version": "latest",
           "required": true,
           "reason": "Create provider mutations through file-native writeback with schemas and dead-letter recovery"
+        },
+        {
+          "packageId": "@agent-relay/multi-host-live-mount",
+          "version": "latest",
+          "required": true,
+          "reason": "Mount one existing Relayfile workspace on several hosts and prove each agent-visible mirror is current before placement"
         }
       ]
     }
