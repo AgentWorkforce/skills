@@ -195,7 +195,7 @@
     {
       "name": "multi-host-live-mount",
       "version": "1.0.0",
-      "description": "Use when one Relayfile workspace must be mounted on several machines at once and an agent is placed on a remote host to work inside that live-mounted tree with nothing cloned. Covers joining an existing workspace with `relayfile workspace join --write`, per-node `--remote-path` scopes and `--creds-file` credentials, composing fleet enrollment with placement, and proving the remote mirror is current - a live daemon pid, a `lag: 0s` status line, and presence in `agent-relay fleet nodes` are all false positives.",
+      "description": "Use when one Relayfile workspace must be mounted on several machines and an agent placed on a remote host inside the live tree without cloning. Covers joining an existing workspace with write opt-in, per-node mount scopes and credentials, fleet enrollment and placement, and byte-level proof that remote mirrors are current. Treats daemon liveness, lag/status lines, and fleet-node presence as non-proof.",
       "format": "claude",
       "subtype": "skill",
       "tags": [

@@ -1,6 +1,6 @@
 ---
 name: multi-host-live-mount
-description: Use when one Relayfile workspace must be mounted on several machines at once and an agent is placed on a remote host to work inside that live-mounted tree with nothing cloned. Covers what the placed agent sees, repo surfaces vs provider surfaces, per-node credentials and path scopes, joining an existing workspace with `relayfile workspace join`, composing fleet enrollment with placement, and — above all — proving the remote mirror is actually current, because a live daemon pid, a `lag: 0s` status line, and presence in `agent-relay fleet nodes` are all false positives.
+description: "Use when one Relayfile workspace must be mounted on several machines and an agent placed on a remote host inside the live tree without cloning. Covers joining an existing workspace with write opt-in, per-node mount scopes and credentials, fleet enrollment and placement, and byte-level proof that remote mirrors are current. Treats daemon liveness, lag/status lines, and fleet-node presence as non-proof."
 ---
 
 # One Workspace, Many Hosts, Nothing Cloned
@@ -312,7 +312,15 @@ def page(path):
         d = json.loads(r.stdout[r.stdout.index('{'):])
     except (ValueError, json.JSONDecodeError) as e:
         return [], None, f"unparseable: {e}"
-    return d.get("entries", []), d.get("nextCursor"), None
+    if not isinstance(d, dict):
+        return [], None, "tree response is not a JSON object"
+    entries = d.get("entries")
+    if not isinstance(entries, list):
+        return [], None, "tree response has no entries array"
+    cursor = d.get("nextCursor")
+    if cursor is not None and not isinstance(cursor, str):
+        return [], None, "tree response has an invalid nextCursor"
+    return entries, cursor, None
 
 def cloud_bytes(path):
     """Read the actual cloud artifact. Revision/size are diagnostics, not proof."""
@@ -349,6 +357,8 @@ def local_files(root):
                     visit(entry.path, logical)
                 elif entry.is_file(follow_symlinks=True):
                     paths.add(logical)
+                else:
+                    walk_errors.append(f"non-regular local entry: {logical}")
             except OSError as e:
                 walk_errors.append(f"cannot inspect {logical}: {e}")
 
@@ -370,15 +380,22 @@ while queue:
     if cursor:
         truncated.append(path)          # this directory was NOT fully listed
     for e in entries:
+        if not isinstance(e, dict):
+            errors.append((path, f"invalid cloud entry: {e!r}")); continue
         p, typ = e.get("path"), e.get("type")
         if not isinstance(p, str) or not p.startswith("/"):
             errors.append((path, f"invalid cloud entry path: {p!r}")); continue
+        parent = path.rstrip("/")
+        if path != "/" and not p.startswith(parent + "/"):
+            errors.append((path, f"cloud entry escaped listed directory: {p!r}")); continue
+        if any(part in {"", ".", ".."} for part in p.split("/")[1:]):
+            errors.append((path, f"cloud entry contains empty/dot component: {p!r}")); continue
         if ".relay" in p.lstrip("/").split("/"):
             continue                             # reserved daemon state is not cloud content
         if typ == "dir":
             queue.append(p); continue
         if typ != "file":
-            continue
+            errors.append((p, f"invalid cloud entry type: {typ!r}")); continue
         size, rev = e.get("size"), e.get("revision")
         cloud_paths.add(p)
         lp = mirror + p
@@ -608,11 +625,17 @@ unset RELAY_ENROLLMENT_TOKEN RELAY_ENROLLMENT_URL RELAY_NODE_NAME
 TARGET_WS=rw_7ccfea89
 TARGET_MIRROR=/path/to/mirror
 TARGET_MOUNT_SCOPES=(/digests /github /linear)
-PROJECTION_MODE=full     # full or on-demand; choose before asserting each scope
+TARGET_PROJECTION_MODES=(full on-demand on-demand)  # one verified mode per scope
 (( ${#TARGET_MOUNT_SCOPES[@]} )) || { echo 'Refusing placement: no mount scopes declared' >&2; exit 2; }
+(( ${#TARGET_MOUNT_SCOPES[@]} == ${#TARGET_PROJECTION_MODES[@]} )) || {
+  echo 'Each mount scope needs one projection mode' >&2; exit 2
+}
 case "$TARGET_MIRROR" in /*) ;; *) echo 'Target mirror path must be absolute' >&2; exit 2;; esac
-for scope in "${TARGET_MOUNT_SCOPES[@]}"; do
+for i in "${!TARGET_MOUNT_SCOPES[@]}"; do
+  scope=${TARGET_MOUNT_SCOPES[$i]}
+  mode=${TARGET_PROJECTION_MODES[$i]}
   case "$scope" in /*) ;; *) echo "Invalid remote scope: $scope" >&2; exit 2;; esac
+  case "$mode" in full|on-demand) ;; *) echo "Invalid projection mode for $scope: $mode" >&2; exit 2;; esac
 done
 MOUNT_ARGS=()
 for scope in "${TARGET_MOUNT_SCOPES[@]}"; do MOUNT_ARGS+=(--remote-path "$scope"); done
@@ -638,14 +661,17 @@ ASSERT_CROSS_HOST="$ASSERT_DIR/assert-cross-host-write-visible.sh"
 for assertion in "$ASSERT_MIRROR_CURRENT" "$ASSERT_KNOWN_TRUE_NOW" "$ASSERT_CROSS_HOST"; do
   [[ -x "$assertion" ]] || { echo "Missing packaged assertion: $assertion" >&2; exit 2; }
 done
-for scope in "${TARGET_MOUNT_SCOPES[@]}"; do
-  "$ASSERT_MIRROR_CURRENT" "$TARGET_WS" "$TARGET_MIRROR" "$scope" "$PROJECTION_MODE" || exit 1
+for i in "${!TARGET_MOUNT_SCOPES[@]}"; do
+  scope=${TARGET_MOUNT_SCOPES[$i]}
+  mode=${TARGET_PROJECTION_MODES[$i]}
+  "$ASSERT_MIRROR_CURRENT" "$TARGET_WS" "$TARGET_MIRROR" "$scope" "$mode" || exit 1
 done
 
 # Assertion C: choose an anchor that is independently true now and in a mounted scope.
 KNOWN=2949  # replace after confirming in the provider UI
+BY_ID_DIR="/github/repos/<owner>__<repo>/issues/by-id"
 "$ASSERT_KNOWN_TRUE_NOW" "$TARGET_WS" "$TARGET_MIRROR" \
-  /github/repos/<owner>__<repo>/issues/by-id "$KNOWN" || exit 1
+  "$BY_ID_DIR" "$KNOWN" || exit 1
 
 # Assertion B: HOST A must mount /linear too and have --write. It writes the
 # exact schema-valid probe shown above; run this poll on the TARGET host (B).
@@ -653,21 +679,46 @@ KNOWN=2949  # replace after confirming in the provider UI
 # rejected at that exact resource path instead of expecting B→A visibility.
 HOST_A_MIRROR=/path/to/host-a-mirror
 MARK='<paste marker from host A>'
-PROBE_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$MARK"
+PROBE_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$MARK.json"
 "$ASSERT_CROSS_HOST" "$TARGET_WS" "$HOST_A_MIRROR" "$TARGET_MIRROR" \
   /linear "$PROBE_FILE" "$MARK" || exit 1
 
 # This target joined read-only. Its reverse direction must reject the exact
-# schema-valid write; use a dedicated throwaway resource because a FAIL below
-# means the write unexpectedly succeeded and can become a real mutation.
+# schema-valid write asynchronously; a successful local redirection is not an
+# outcome. Use a dedicated throwaway resource because a FAIL below means the
+# write may have become a real mutation.
 REJECT_MARK="xhost-reject-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 REJECT_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$REJECT_MARK.json"
-if jq -n --arg body "must be rejected: $REJECT_MARK" '{body: $body}' \
-  > "$TARGET_MIRROR$REJECT_FILE"; then
-  echo 'ASSERT cross-host-write-rejected: FAIL — read-only target accepted a write' >&2
+jq -n --arg body "must be rejected: $REJECT_MARK" '{body: $body}' \
+  > "$TARGET_MIRROR$REJECT_FILE" || { echo 'Could not create rejection probe' >&2; exit 1; }
+REJECTED=0
+for i in $(seq 1 12); do
+  READONLY_SEEN=0
+  while IFS= read -r -d '' state_file; do
+    if jq -e --arg path "$REJECT_FILE" \
+      '.files[$path].readonly == true and ((.files[$path].dirty // false) == false)' \
+      "$state_file" >/dev/null; then
+      READONLY_SEEN=1
+      break
+    fi
+  done < <(find "$TARGET_STATE_DIR" -type f -name state.json -print0)
+
+  if READ_RESULT=$(relayfile read "$TARGET_WS" "$REJECT_FILE" 2>&1); then
+    echo 'ASSERT cross-host-write-rejected: FAIL — exact cloud path exists' >&2
+    exit 1
+  fi
+  if (( READONLY_SEEN )) && grep -qF "$REJECT_FILE" <<<"$READ_RESULT" &&
+     grep -Eiq '404|not found|does not exist' <<<"$READ_RESULT"; then
+    REJECTED=1
+    break
+  fi
+  [ "$i" -lt 12 ] && sleep 10
+done
+if (( ! REJECTED )); then
+  echo 'ASSERT cross-host-write-rejected: FAIL — no exact read-only result plus cloud absence within 120s' >&2
   exit 1
 fi
-echo "ASSERT cross-host-write-rejected: PASS"
+echo "ASSERT cross-host-write-rejected: PASS after a bounded result check"
 echo "  mount: workspace=$TARGET_WS mirror=$TARGET_MIRROR scope=/linear file=$REJECT_FILE"
 
 # If the target instead joined with --write, run the same schema-valid probe in

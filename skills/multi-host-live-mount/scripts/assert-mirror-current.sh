@@ -25,7 +25,15 @@ def page(path):
         d = json.loads(r.stdout[r.stdout.index('{'):])
     except (ValueError, json.JSONDecodeError) as e:
         return [], None, f"unparseable: {e}"
-    return d.get("entries", []), d.get("nextCursor"), None
+    if not isinstance(d, dict):
+        return [], None, "tree response is not a JSON object"
+    entries = d.get("entries")
+    if not isinstance(entries, list):
+        return [], None, "tree response has no entries array"
+    cursor = d.get("nextCursor")
+    if cursor is not None and not isinstance(cursor, str):
+        return [], None, "tree response has an invalid nextCursor"
+    return entries, cursor, None
 
 def cloud_bytes(path):
     """Read the actual cloud artifact. Revision/size are diagnostics, not proof."""
@@ -62,6 +70,8 @@ def local_files(root):
                     visit(entry.path, logical)
                 elif entry.is_file(follow_symlinks=True):
                     paths.add(logical)
+                else:
+                    walk_errors.append(f"non-regular local entry: {logical}")
             except OSError as e:
                 walk_errors.append(f"cannot inspect {logical}: {e}")
 
@@ -83,15 +93,22 @@ while queue:
     if cursor:
         truncated.append(path)
     for e in entries:
+        if not isinstance(e, dict):
+            errors.append((path, f"invalid cloud entry: {e!r}")); continue
         p, typ = e.get("path"), e.get("type")
         if not isinstance(p, str) or not p.startswith("/"):
             errors.append((path, f"invalid cloud entry path: {p!r}")); continue
+        parent = path.rstrip("/")
+        if path != "/" and not p.startswith(parent + "/"):
+            errors.append((path, f"cloud entry escaped listed directory: {p!r}")); continue
+        if any(part in {"", ".", ".."} for part in p.split("/")[1:]):
+            errors.append((path, f"cloud entry contains empty/dot component: {p!r}")); continue
         if ".relay" in p.lstrip("/").split("/"):
             continue
         if typ == "dir":
             queue.append(p); continue
         if typ != "file":
-            continue
+            errors.append((p, f"invalid cloud entry type: {typ!r}")); continue
         size, rev = e.get("size"), e.get("revision")
         cloud_paths.add(p)
         lp = mirror + p
