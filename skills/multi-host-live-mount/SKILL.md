@@ -30,7 +30,7 @@ Everything before it is setup. If you read one section, read that one.
 - **A mirror is a cache, and caches go stale silently.** There is no
   self-healing guarantee and no loud failure. A mount daemon can be alive,
   connected, and reporting `lag: 0s` while serving two-day-old bytes. Verified
-  live — see [the observed failure](#the-observed-failure-daemon-alive-lag-0s-two-days-stale).
+  live — see [the observed failure](#the-observed-failure-every-health-signal-green-content-days-stale).
 - **Hosts are not symmetric.** Two hosts mounting the same workspace routinely
   hold *different* scopes, *different* credentials, and *different* write
   permissions. "Host B sees what host A sees" is a claim to test, never assume.
@@ -158,6 +158,52 @@ The four flags that make multi-host work:
 > shared or multi-tenant host, treat every token handed to a placed agent as
 > disclosed. Prefer per-node delegated credentials with the narrowest scope, and
 > rotate anything that has appeared in a process listing or a transcript.
+
+### One repo can hold several mounts, from different workspaces
+
+Do not assume a machine has *one* mount. A single working directory routinely
+carries more than one mounted surface, and they may project **different
+workspaces**. Observed live in one repo:
+
+```text
+chief/senses/github/…          ← workspace rw_7ccfea89   (full projection)
+chief/.integrations/github/…   ← workspace 50587328-…    (UUID, different workspace)
+                                 and .integrations is a SYMLINK to
+                                 ~/.agentworkforce/pear/relayfile/workspaces/<uuid>
+```
+
+Both expose a `github/` subtree. An agent that reads `github/...` without
+knowing which root it came from is reading an unidentified workspace. Three
+consequences:
+
+- **Certify per mount, not per machine.** A currency assertion naming
+  `rw_7ccfea89` says nothing about the other mount. Pair every assertion with
+  the (workspace, mirror root) it actually ran against, and name the pairing in
+  the result.
+- **Mounts are often symlinks.** `find` without `-L` will not traverse one, and
+  `os.walk` without `followlinks=True` reports **0 files** for a symlinked
+  provider dir — a coverage counter that silently measures nothing. The script
+  above passes `followlinks=True` for exactly this reason.
+- **Workspace ids come in both shapes.** `rw_<8hex>` *and* bare UUIDs are both
+  live, sometimes on the same host. They are not interchangeable; pass the exact
+  id the mount was created with.
+
+### Not every mount is a full projection — absence can be by design
+
+Some surfaces deliberately do **not** download history: records are fetched on
+demand or arrive through webhook events, and only writeback command roots plus
+`discovery/<provider>/` schemas are materialized up front. On such a mount a
+cloud file with no local counterpart is **expected**, not stale.
+
+This breaks the naive reading of Assertion A: `MISSING` would fire in bulk and
+mean nothing. Before treating `MISSING` as a defect, establish which kind of
+mount you have — a full projection, or an on-demand/event-scoped one. For the
+latter, drop `missing` from the failure condition and gate on `stale` only, and
+say in the result which mode you asserted under. `STALE` (present locally but
+byte-divergent from cloud) remains a real defect in both modes.
+
+Never write provider records into `discovery/` — it holds schemas and examples.
+Writeback files belong under the provider's command root.
 
 ### Scope and write-permission are per host — check, don't assume
 
@@ -288,7 +334,11 @@ while queue:
             stale += 1; bad.append(("STALE", p, size, os.path.getsize(lp), rev))
 
 checked = match + stale + missing
-local_total = sum(len(f) for _, _, f in os.walk(mirror + scope)) if os.path.isdir(mirror + scope) else 0
+# followlinks=True is REQUIRED: mounts are routinely symlinks (or contain
+# symlinked provider dirs), and os.walk's default silently reports 0 files
+# for them — making the coverage line read clean when it measured nothing.
+local_total = (sum(len(f) for _, _, f in os.walk(mirror + scope, followlinks=True))
+               if os.path.isdir(mirror + scope) else 0)
 ok = not (stale or missing or truncated or errors)
 
 print(f"ASSERT mirror-matches-cloud: {'PASS' if ok else 'FAIL'}")
@@ -569,6 +619,9 @@ projection of a shared cloud workspace, not a checkout.
 | Mirror never converges; sync cycle repeats "forcing full reconcile" | Adapter emitted one path as both file and directory — POSIX cannot hold both, so bootstrap never completes. Adapter-side fix; see `setting-up-relayfile`. |
 | `relayfile tree` shows fewer files than exist | It is paginated and capped per response; higher `--depth` returns *fewer* rows. Use `--json` (only it exposes `nextCursor`), walk `--depth 1` per directory, and never treat one call as a complete listing. `--cursor` is not implemented. |
 | A currency assertion "passed" but the mirror was stale | It verified a truncated page. Always print and read the `coverage:` line — `checked` well below the local file count means the pass covers a corner of the tree. |
+| Coverage line reads 0 files while the mirror clearly has content | The mirror (or a provider dir inside it) is a symlink. `os.walk` needs `followlinks=True`; `find` needs `-L`. PASS/FAIL is unaffected — per-file `os.path.exists` follows symlinks — but the coverage number is meaningless without it. |
+| Bulk `MISSING` on a mount that is working fine | It is an on-demand/event-scoped surface, not a full projection. Absence is by design there; gate on `stale` only and say which mode you asserted under. |
+| Two mounts in one repo disagree about the same provider | They project different workspaces (`rw_*` and bare UUIDs both occur, sometimes on one host). Certify per (workspace, mirror root) pair, never per machine. |
 | Placed agent cloned a repo anyway | Task prompt did not forbid it. Use the prompt block above. |
 | Node missing from `agent-relay fleet nodes` | Default view omits live spawn-capable nodes. Use `--all --capability spawn:<harness>`, redirected to a file. |
 
@@ -585,6 +638,8 @@ rather than implying it passed.
 | `listing-coverage-reported` | the currency check states how much of the tree it actually verified | any directory returned `nextCursor`, or coverage went unreported |
 | `known-true-now` | mounted content contains a fact confirmed true out-of-band right now | the anchor record is absent — the projection is behind the provider |
 | `uncertified-scopes-named` | every scope the agent will read was asserted, or is explicitly listed as unknown | an unasserted scope is reported as current (or as stale) |
+| `mount-identified` | each result names the exact (workspace id, mirror root) pair it ran against | a repo holds several mounts and the result says only "the mount" |
+| `projection-mode-known` | the mount is known to be a full projection vs on-demand/event-scoped before `MISSING` is called a defect | bulk `MISSING` on an on-demand mount reported as staleness |
 | `cross-host-write-visible` | A→B and B→A visibility through the cloud, bounded | marker not observed within the ceiling |
 | `write-permission-matches-intent` | `--write` granted exactly to hosts meant to mutate | a read-only host mutates, or a writer silently cannot |
 | `placement-target-live` | target carries `spawn:<harness>` and `live: true` | read from the default `fleet nodes` view |
