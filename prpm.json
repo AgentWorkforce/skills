@@ -193,6 +193,25 @@
       ]
     },
     {
+      "name": "multi-host-live-mount",
+      "version": "1.0.0",
+      "description": "Use when one Relayfile workspace must be mounted on several machines at once and an agent is placed on a remote host to work inside that live-mounted tree with nothing cloned. Covers joining an existing workspace with `relayfile workspace join --write`, per-node `--remote-path` scopes and `--creds-file` credentials, composing fleet enrollment with placement, and proving the remote mirror is current - a live daemon pid, a `lag: 0s` status line, and presence in `agent-relay fleet nodes` are all false positives.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayfile",
+        "multi-host",
+        "fleet",
+        "mount",
+        "staleness",
+        "placement",
+        "agent-context"
+      ],
+      "files": [
+        "skills/multi-host-live-mount/SKILL.md"
+      ]
+    },
+    {
       "name": "adding-swarm-patterns",
       "version": "1.0.0",
       "description": "Use when adding new multi-agent coordination patterns to agent-relay - provides checklist for types, schema, templates, and docs updates",
