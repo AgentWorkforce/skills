@@ -474,7 +474,7 @@
       "id": "relayfile-workspace",
       "name": "Relayfile Workspace",
       "description": "Relayfile workspace primitives for agents - activity digests, workspace layout, and file-native provider writeback",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "category": "development",
       "tags": [
         "relayfile",
@@ -507,6 +507,12 @@
           "version": "latest",
           "required": true,
           "reason": "Create provider mutations through file-native writeback with schemas and dead-letter recovery"
+        },
+        {
+          "packageId": "@agent-relay/multi-host-live-mount",
+          "version": "latest",
+          "required": true,
+          "reason": "Mount one existing Relayfile workspace on several hosts and prove each agent-visible mirror is current before placement"
         }
       ]
     }
