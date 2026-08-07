@@ -208,7 +208,10 @@
         "agent-context"
       ],
       "files": [
-        "skills/multi-host-live-mount/SKILL.md"
+        "skills/multi-host-live-mount/SKILL.md",
+        "skills/multi-host-live-mount/scripts/assert-mirror-current.sh",
+        "skills/multi-host-live-mount/scripts/assert-known-true-now.sh",
+        "skills/multi-host-live-mount/scripts/assert-cross-host-write-visible.sh"
       ]
     },
     {

@@ -199,9 +199,11 @@ This breaks the naive reading of Assertion A: `MISSING` would fire in bulk and
 mean nothing. Before treating `MISSING` as a defect, establish which kind of
 mount you have — a full projection, or an on-demand/event-scoped one. For the
 latter, make only `missing` non-fatal; `STALE`, an incomplete cloud listing,
-and every read/listing error still fail the assertion. Say in the result which
-mode you asserted under. `STALE` (present locally but byte-divergent from
-cloud) remains a real defect in both modes.
+and every read/listing error still fail the assertion. An on-demand assertion
+also needs at least one local/cloud byte comparison — an all-missing listing is
+unknown, not current. Say in the result which mode you asserted under. `STALE`
+(present locally but byte-divergent from cloud) remains a real defect in both
+modes.
 
 Never write provider records into `discovery/` — it holds schemas and examples.
 Writeback files belong under the provider's command root.
@@ -340,7 +342,7 @@ def local_files(root):
             return
         for entry in entries:
             logical = logical_dir.rstrip("/") + "/" + entry.name
-            if logical == "/.relay" or logical.startswith("/.relay/"):
+            if ".relay" in logical.lstrip("/").split("/"):
                 continue                         # reserved daemon state is not cloud content
             try:
                 if entry.is_dir(follow_symlinks=True):
@@ -371,6 +373,8 @@ while queue:
         p, typ = e.get("path"), e.get("type")
         if not isinstance(p, str) or not p.startswith("/"):
             errors.append((path, f"invalid cloud entry path: {p!r}")); continue
+        if ".relay" in p.lstrip("/").split("/"):
+            continue                             # reserved daemon state is not cloud content
         if typ == "dir":
             queue.append(p); continue
         if typ != "file":
@@ -378,8 +382,10 @@ while queue:
         size, rev = e.get("size"), e.get("revision")
         cloud_paths.add(p)
         lp = mirror + p
-        if not os.path.exists(lp):
+        if not os.path.lexists(lp):
             missing += 1; bad.append(("MISSING", p, size, None, rev))
+        elif not os.path.isfile(lp):
+            errors.append((p, "local path is not a regular file")); continue
         else:
             try:
                 with open(lp, "rb") as f:
@@ -399,12 +405,17 @@ checked = match + stale + missing
 local_paths, walk_errors = local_files(mirror + scope)
 errors.extend((scope, e) for e in walk_errors)
 extra = sorted(local_paths - cloud_paths)
+if not cloud_paths:
+    errors.append((scope, "cloud listing contained no file paths; currency not proven"))
+if mode == "on-demand" and match + stale == 0:
+    errors.append((scope, "no local/cloud bytes were compared; currency not proven"))
 fatal = stale or truncated or errors or extra
 if mode == "full":
     fatal = fatal or missing
 ok = not fatal
 
 print(f"ASSERT mirror-matches-cloud ({mode}): {'PASS' if ok else 'FAIL'}")
+print(f"  mount: workspace={ws} mirror={mirror} scope={scope}")
 print(f"  checked={checked} match={match} stale={stale} missing={missing}")
 print(f"  coverage: {len(cloud_paths)} cloud paths listed; {len(local_paths)} local paths under {scope}")
 if truncated:
@@ -420,13 +431,20 @@ sys.exit(0 if ok else 1)
 PY
 ```
 
+The package ships this exact executable as
+`scripts/assert-mirror-current.sh`. Use that shipped file in a gate; do not
+retype the listing into a different script. The composition workflow below
+checks that each packaged assertion executable is present before it invokes one.
+
 Non-zero exit ⇒ **the mirror is not current; do not place an agent on this
 host.** Read the `coverage:` line every time — `checked` far below the local
 file count means you verified a corner of the tree, not the tree.
 
-The walk is serial and one HTTP call per directory, so a deep scope (`/github`,
-`/linear`) takes minutes. Run it against the **scope the agent will actually
-read**, not the whole workspace. For a byte-exact check on one file that matters:
+The walk is serial and makes one cloud `tree` call per directory **plus one full
+`relayfile read` per listed file**, so a deep scope (`/github`, `/linear`) can
+take substantially longer than minutes. Run it against the **scope the agent
+will actually read**, not the whole workspace. For a byte-exact check on one
+file that matters:
 
 ```bash
 diff <(relayfile read "$WS" /digests/today.md) "$MIRROR/digests/today.md" && echo CURRENT
@@ -442,27 +460,26 @@ Direction matters: run it **both ways**, because `--write` is per host and an
 asymmetric grant is invisible until you test the direction that lacks it.
 
 ```bash
-# ---- on HOST A (the writer; must have joined with --write) ----
+# Preconditions: `/linear` is in BOTH hosts' --remote-path sets, HOST A joined
+# with --write, and this is a dedicated throwaway Linear issue/comment surface.
+PROBE_SCOPE=/linear
 MARK="xhost-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 # This concrete example is for a Linear comments directory whose .schema.json
 # requires a non-empty `body`; construct a different payload only from its schema.
-PROBE_DIR="$MIRROR_A/linear/issues/<issue-id>__<uuid>/comments"
+PROBE_DIR="$PROBE_SCOPE/issues/<issue-id>__<uuid>/comments"
+PROBE_FILE="$PROBE_DIR/wb-$MARK.json"       # remote path, not a basename search
+case "$PROBE_FILE" in "$PROBE_SCOPE"/*) ;; *) exit 2;; esac
+
+# ---- on HOST A (the writer) ----
 jq -n --arg body "cross-host visibility probe: $MARK" '{body: $body}' \
-  > "$PROBE_DIR/wb-$MARK.json"
+  > "$MIRROR_A$PROBE_FILE"
 relayfile writeback status "$WS" --json | jq '{pending, deadLettered: (.deadLettered|length)}'
 echo "marker: $MARK"
 
-# ---- on HOST B (the reader) — bounded poll, never an unbounded wait ----
-MARK="<paste from host A>"
-for i in $(seq 1 12); do            # 12 × 10s = 120s ceiling
-  if grep -rqF "$MARK" "$MIRROR_B" 2>/dev/null; then
-    echo "ASSERT cross-host-write-visible: PASS after ~$((i*10))s"
-    exit 0
-  fi
-  [ "$i" -lt 12 ] && sleep 10
-done
-echo "ASSERT cross-host-write-visible: FAIL (120s)"
-exit 1
+# ---- on HOST B (the reader) ----
+# This polls only the expected file and checks the marker inside it.
+/path/to/installed-skill/scripts/assert-cross-host-write-visible.sh \
+  "$WS" "$MIRROR_A" "$MIRROR_B" "$PROBE_SCOPE" "$PROBE_FILE" "$MARK"
 ```
 
 Rules that make this assertion honest:
@@ -471,6 +488,9 @@ Rules that make this assertion honest:
   which reads as "still working" instead of "broken."
 - **Use a unique marker per run.** A previous run's marker still on disk turns
   the assertion into a tautology that always passes.
+- **Bind the file to a shared declared scope.** The source and target must both
+  mount `PROBE_SCOPE`, and the source must have `--write`; a broad grep across a
+  different mount or scope is not evidence.
 - **Write into a resource the adapter actually accepts**, discovered from
   `.adapter.md` / `.schema.json` (see `writeback-as-files`). Never write under
   `<local-dir>/.relay/` — it is reserved daemon state.
@@ -479,6 +499,9 @@ Rules that make this assertion honest:
 - **A pass proves the pair, at that moment, for that scope.** It is not
   transitive: A↔B passing says nothing about host C, which may mount a
   different scope entirely.
+- **Test only permitted directions as visibility.** If B is intentionally
+  read-only, A→B must pass and B→A must be a schema-valid probe rejected at the
+  exact resource path; do not call a forbidden reverse write a visibility pass.
 
 > In harnessed environments a bare foreground `sleep` in a wait loop is often
 > blocked. Run the poll backgrounded, or with the harness's Monitor/until-loop.
@@ -497,17 +520,8 @@ then assert the mount contains it:
 ```bash
 # Anchor: a GitHub issue you KNOW exists right now (confirm out-of-band first).
 KNOWN=2949
-NEWEST=$(ls "$MIRROR"/github/repos/<owner>__<repo>/issues/by-id/*.json 2>/dev/null \
-         | xargs -n1 basename | sed 's/\.json$//' | sort -n | tail -1)
-echo "newest projected: #$NEWEST | known-true-now: #$KNOWN"
-shopt -s nullglob
-known_files=("$MIRROR/github/repos/<owner>__<repo>/issues/by-id/${KNOWN}"__*.json)
-if ((${#known_files[@]})); then
-  echo "ASSERT known-true-now: PASS"
-  exit 0
-fi
-echo "ASSERT known-true-now: FAIL — #$KNOWN absent; projection is behind reality"
-exit 1
+BY_ID_DIR="/github/repos/<owner>__<repo>/issues/by-id"
+/path/to/installed-skill/scripts/assert-known-true-now.sh "$WS" "$MIRROR" "$BY_ID_DIR" "$KNOWN"
 ```
 
 A gap between `newest projected` and `known-true-now` is a **projection**
@@ -530,10 +544,11 @@ $ find . -name state.json -mmin -5 →  all 4 provider state files   ← "health
                                       rewritten minutes ago
 $ relayfile supervisor status    →  service not found (never installed)
 
-$ ./assert-mirror-current.sh rw_7ccfea89 ./senses /digests full
+$ /path/to/installed-skill/scripts/assert-mirror-current.sh rw_7ccfea89 ./senses /digests full
   ASSERT mirror-matches-cloud (full): FAIL
+    mount: workspace=rw_7ccfea89 mirror=./senses scope=/digests
     checked=80 match=78 stale=2 missing=0
-    coverage: 80 cloud paths listed; 84 local paths under /digests
+    coverage: 80 cloud paths listed; 80 local paths under /digests
      ('STALE', '/digests/this-week.md', 169047, 70301, 'rev_1553124')
      ('STALE', '/digests/today.md',      38416, 10112, 'rev_1553123')
 
@@ -586,32 +601,99 @@ trap 'unset RELAY_ENROLLMENT_TOKEN RELAY_ENROLLMENT_URL RELAY_NODE_NAME RELAY_AG
 sandbox-node-bootstrap.sh preflight && sandbox-node-bootstrap.sh enroll
 unset RELAY_ENROLLMENT_TOKEN RELAY_ENROLLMENT_URL RELAY_NODE_NAME
 
-# 3. Join + mount + SCOPE on that machine (Steps 1–2 above).
-WS=rw_7ccfea89
-MIRROR=/path/to/mirror
-MOUNT_SCOPES=(/digests)  # list every scope the placed agent may read
-PROJECTION_MODE=full     # full or on-demand; choose before asserting
+# 3. On the TARGET host, declare and mount the target-local manifest.
+#    `/github` supplies the Assertion C anchor and `/linear` supplies the
+#    Assertion B probe in this example. Substitute compatible in-scope paths;
+#    do not drop an assertion without a real replacement.
+TARGET_WS=rw_7ccfea89
+TARGET_MIRROR=/path/to/mirror
+TARGET_MOUNT_SCOPES=(/digests /github /linear)
+PROJECTION_MODE=full     # full or on-demand; choose before asserting each scope
+(( ${#TARGET_MOUNT_SCOPES[@]} )) || { echo 'Refusing placement: no mount scopes declared' >&2; exit 2; }
+case "$TARGET_MIRROR" in /*) ;; *) echo 'Target mirror path must be absolute' >&2; exit 2;; esac
+for scope in "${TARGET_MOUNT_SCOPES[@]}"; do
+  case "$scope" in /*) ;; *) echo "Invalid remote scope: $scope" >&2; exit 2;; esac
+done
 MOUNT_ARGS=()
-for scope in "${MOUNT_SCOPES[@]}"; do MOUNT_ARGS+=(--remote-path "$scope"); done
-relayfile workspace join "$WS" --name shared-ws           # add --write only if it must mutate
-relayfile mount "$WS" "$MIRROR" --background --local-layout scoped \
-  --creds-file /path/to/<node>-mount.json --state-dir /path/to/<node>-mount-state \
+for scope in "${TARGET_MOUNT_SCOPES[@]}"; do MOUNT_ARGS+=(--remote-path "$scope"); done
+mount_fingerprint() { printf '%s\n' "$TARGET_WS" "$TARGET_MIRROR" "${TARGET_MOUNT_SCOPES[@]}"; }
+if command -v shasum >/dev/null 2>&1; then
+  MOUNT_ID=$(mount_fingerprint | shasum -a 256 | awk '{print $1}')
+elif command -v sha256sum >/dev/null 2>&1; then
+  MOUNT_ID=$(mount_fingerprint | sha256sum | awk '{print $1}')
+else
+  echo 'Need shasum or sha256sum to derive a per-mount state directory' >&2; exit 2
+fi
+TARGET_STATE_DIR="/path/to/relayfile-state/$MOUNT_ID"  # unique to workspace + mirror + exact scope set
+relayfile workspace join "$TARGET_WS" --name shared-ws # add --write only if it must mutate
+relayfile mount "$TARGET_WS" "$TARGET_MIRROR" --background --local-layout scoped \
+  --creds-file '/path/to/<node>-mount.json' --state-dir "$TARGET_STATE_DIR" \
   "${MOUNT_ARGS[@]}"
 
-# 4. GATE: prove every mounted scope the agent may read before placement.
-for scope in "${MOUNT_SCOPES[@]}"; do
-  ./assert-mirror-current.sh "$WS" "$MIRROR" "$scope" "$PROJECTION_MODE" || exit 1
+# 4. TARGET-HOST GATE: all three assertions must pass before placement.
+ASSERT_DIR=/path/to/installed-skill/scripts
+ASSERT_MIRROR_CURRENT="$ASSERT_DIR/assert-mirror-current.sh"
+ASSERT_KNOWN_TRUE_NOW="$ASSERT_DIR/assert-known-true-now.sh"
+ASSERT_CROSS_HOST="$ASSERT_DIR/assert-cross-host-write-visible.sh"
+for assertion in "$ASSERT_MIRROR_CURRENT" "$ASSERT_KNOWN_TRUE_NOW" "$ASSERT_CROSS_HOST"; do
+  [[ -x "$assertion" ]] || { echo "Missing packaged assertion: $assertion" >&2; exit 2; }
+done
+for scope in "${TARGET_MOUNT_SCOPES[@]}"; do
+  "$ASSERT_MIRROR_CURRENT" "$TARGET_WS" "$TARGET_MIRROR" "$scope" "$PROJECTION_MODE" || exit 1
 done
 
-# 5. On the control host, read the agent token without printing it. A targeted
-#    fleet spawn requires this credential; enrollment tokens cannot substitute.
+# Assertion C: choose an anchor that is independently true now and in a mounted scope.
+KNOWN=2949  # replace after confirming in the provider UI
+"$ASSERT_KNOWN_TRUE_NOW" "$TARGET_WS" "$TARGET_MIRROR" \
+  /github/repos/<owner>__<repo>/issues/by-id "$KNOWN" || exit 1
+
+# Assertion B: HOST A must mount /linear too and have --write. It writes the
+# exact schema-valid probe shown above; run this poll on the TARGET host (B).
+# For an intentionally read-only target, assert its attempted reverse probe is
+# rejected at that exact resource path instead of expecting B→A visibility.
+HOST_A_MIRROR=/path/to/host-a-mirror
+MARK='<paste marker from host A>'
+PROBE_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$MARK"
+"$ASSERT_CROSS_HOST" "$TARGET_WS" "$HOST_A_MIRROR" "$TARGET_MIRROR" \
+  /linear "$PROBE_FILE" "$MARK" || exit 1
+
+# This target joined read-only. Its reverse direction must reject the exact
+# schema-valid write; use a dedicated throwaway resource because a FAIL below
+# means the write unexpectedly succeeded and can become a real mutation.
+REJECT_MARK="xhost-reject-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+REJECT_FILE="/linear/issues/<issue-id>__<uuid>/comments/wb-$REJECT_MARK.json"
+if jq -n --arg body "must be rejected: $REJECT_MARK" '{body: $body}' \
+  > "$TARGET_MIRROR$REJECT_FILE"; then
+  echo 'ASSERT cross-host-write-rejected: FAIL — read-only target accepted a write' >&2
+  exit 1
+fi
+echo "ASSERT cross-host-write-rejected: PASS"
+echo "  mount: workspace=$TARGET_WS mirror=$TARGET_MIRROR scope=/linear file=$REJECT_FILE"
+
+# If the target instead joined with --write, run the same schema-valid probe in
+# the reverse direction on HOST A and require assert-cross-host-write-visible.sh
+# there to pass before returning to this placement step.
+
+# 5. On the CONTROL host, declare the target manifest again. These are target
+#    paths and scopes, not variables inherited from the target shell.
+TARGET_NODE='<node>'
+TARGET_CWD=/path/to/mirror
+TARGET_SCOPE_LIST=(/digests /github /linear)
+(( ${#TARGET_SCOPE_LIST[@]} )) || { echo 'Refusing placement: target scopes missing' >&2; exit 2; }
+case "$TARGET_CWD" in /*) ;; *) echo 'Target cwd must be absolute' >&2; exit 2;; esac
+for scope in "${TARGET_SCOPE_LIST[@]}"; do
+  case "$scope" in /*) ;; *) echo "Invalid target scope: $scope" >&2; exit 2;; esac
+done
+
+# Read the agent token without printing it. A targeted fleet spawn requires this
+# credential; enrollment tokens cannot substitute.
 read -r -s -p 'Agent token: ' RELAY_AGENT_TOKEN; printf '\n'
 export RELAY_AGENT_TOKEN
 
 # Only now place the agent, with --cwd inside the live mount.
-agent-relay fleet spawn claude --name worker-1 --node <node> --channel general \
-  --cwd "$MIRROR" \
-  --task "Work inside the mounted tree at $MIRROR. Read only these mounted scopes: ${MOUNT_SCOPES[*]}. Do not clone any repository."
+agent-relay fleet spawn claude --name worker-1 --node "$TARGET_NODE" --channel general \
+  --cwd "$TARGET_CWD" \
+  --task "Work inside the mounted tree at $TARGET_CWD. Read only these mounted scopes: ${TARGET_SCOPE_LIST[*]}. Do not clone any repository."
 ```
 
 > **Never skip `preflight` on a machine that already runs brokers.**
@@ -713,7 +795,7 @@ projection of a shared cloud workspace, not a checkout.
 | `relayfile tree` shows fewer files than exist | It is paginated and capped per response; higher `--depth` returns *fewer* rows. Use `--json` (only it exposes `nextCursor`), walk `--depth 1` per directory, and never treat one call as a complete listing. `--cursor` is not implemented. |
 | A currency assertion "passed" but the mirror was stale | It verified a truncated page. Always print and read the `coverage:` line — `checked` well below the local file count means the pass covers a corner of the tree. |
 | Coverage walk hangs or repeats files | A symlink points back to an ancestor (or aliases an already-walked directory). The assertion follows mount symlinks but records repeated resolved directories as fatal instead of looping or double-counting. |
-| Bulk `MISSING` on a mount that is working fine | It is an on-demand/event-scoped surface, not a full projection. Absence is by design there; make `missing` non-fatal only in `on-demand` mode, while stale content, incomplete listings, and errors still fail. |
+| Bulk `MISSING` on a mount that is working fine | It is an on-demand/event-scoped surface, not a full projection. Absence is by design there; make `missing` non-fatal only in `on-demand` mode, while stale content, incomplete listings, and errors still fail. At least one local/cloud byte comparison must still occur. |
 | Two mounts in one repo disagree about the same provider | They project different workspaces (`rw_*` and bare UUIDs both occur, sometimes on one host). Certify per (workspace, mirror root) pair, never per machine. |
 | Placed agent cloned a repo anyway | Task prompt did not forbid it. Use the prompt block above. |
 | Node missing from `agent-relay fleet nodes` | Default view omits live spawn-capable nodes. Use `--all --capability spawn:<harness>`, redirected to a file. |
@@ -727,13 +809,13 @@ rather than implying it passed.
 |---|---|---|
 | `workspace-joined-not-created` | host registers the *existing* `rw_*` id | `relayfile workspace list` shows a new id |
 | `scope-declared` | this host's `--remote-path` set is known and intentional | scope inferred rather than read from the live daemon argv |
-| `mirror-matches-cloud` | local bytes equal the artifact returned by cloud `relayfile read` for the complete scoped path set | a content mismatch, extra local path, cloud-list/read error, or incomplete listing; `MISSING` also fails in `full` mode |
+| `mirror-matches-cloud` | local bytes equal the artifact returned by cloud `relayfile read` for the complete scoped path set | a content mismatch, extra local path, non-regular local entry, cloud-list/read error, or incomplete listing; `MISSING` also fails in `full` mode, and `on-demand` needs at least one byte comparison |
 | `listing-coverage-reported` | the currency check states how much of the tree it actually verified | any directory returned `nextCursor`, or coverage went unreported |
 | `known-true-now` | mounted content contains a fact confirmed true out-of-band right now | the anchor record is absent — the projection is behind the provider |
 | `uncertified-scopes-named` | every scope the agent will read was asserted, or is explicitly listed as unknown | an unasserted scope is reported as current (or as stale) |
 | `mount-identified` | each result names the exact (workspace id, mirror root) pair it ran against | a repo holds several mounts and the result says only "the mount" |
 | `projection-mode-known` | the mount is known to be a full projection vs on-demand/event-scoped before `MISSING` is called a defect | bulk `MISSING` on an on-demand mount reported as staleness, or stale/incomplete/error results ignored in either mode |
-| `cross-host-write-visible` | A→B and B→A visibility through the cloud, bounded | marker not observed within the ceiling |
+| `cross-host-write-visible` | visibility through the cloud in every permitted direction, bounded; exact write rejection in forbidden directions | marker not observed at its expected path within the ceiling, or a read-only target accepts the probe |
 | `write-permission-matches-intent` | `--write` granted exactly to hosts meant to mutate | a read-only host mutates, or a writer silently cannot |
 | `placement-target-live` | target carries `spawn:<harness>` and `live: true` | read from the default `fleet nodes` view |
 | `placement-executed` | `dispatchedNodeId` == target `id` **and** `pgrep` on the target host | either half alone |
