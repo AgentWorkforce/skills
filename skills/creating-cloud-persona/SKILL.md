@@ -271,10 +271,17 @@ took the same agent's bootstrap to a clean 127s.
 
 Two corollaries worth internalizing:
 
-- **A write does not need the mirror — only the grant.** The posting agent above
-  kept posting fine in the degraded runs where the sync never finished. If the
-  handler only writes to a path, scope that one path; mirroring the collection to
-  send one message is pure cost.
+- **Scope the one path you write to — not the collection around it.** The agent
+  above kept posting through the runs that logged `scoped initial sync failed;
+  continuing without preloaded reads`: the mount was up, only the *preload* had
+  been skipped, and the writeback receipt still came back. Mirroring 6,000
+  entries to send one message bought nothing.
+
+  Do not read that as "writes don't need the mount". They do. A mirror that is
+  genuinely *stuck* — as opposed to merely un-preloaded — cannot acknowledge a
+  writeback either, which returns `ts: ''` and marks the whole run FAILED on the
+  teardown flush (see §1). The narrow scope is the fix for both: it is cheap
+  enough to actually converge.
 - **`scope` does NOT interpolate inputs, though trigger `paths` DO.** You can
   write `paths: ['/slack/channels/${SLACK_CHANNEL}/**']` in `defineAgent`, but the
   same `${…}` in `scope` is not substituted. Hoist the id to a module constant
@@ -282,10 +289,11 @@ Two corollaries worth internalizing:
   that they agree — otherwise overriding the input at deploy time silently points
   the agent at a channel it has no write grant for.
 
-`deploy` runs `lintScopes()` over these globs and warns (non-fatally) on the
-history-sized collections above, on provider-root mirrors, and on globs the mount
-would reject outright. Warnings are advice, not a gate: if the agent genuinely
-reads the whole collection, keep it.
+Once persona-kit ships `lintScopes()` (AgentWorkforce/workforce#311), `deploy`
+warns non-fatally on the history-sized collections above, on provider-root
+mirrors, and on `/`-leading globs the mount would reject outright. Until then
+this is on you to check by eye. Warnings will be advice, not a gate: if the agent
+genuinely reads the whole collection, keep it.
 
 The full mechanics and the labelled-mirror sub-trap are in the
 production-correctness checklist below (§1).
