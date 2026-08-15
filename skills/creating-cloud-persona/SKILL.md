@@ -247,14 +247,24 @@ a broad `/provider/**` is valid but mounts the whole provider, and a mid-path
 `*` mounts nothing (see §1):
 
 ```ts
-const SLACK_CHANNEL_ID = 'C0B9Z4CLG1J';
-
 integrations: {
-  // Posts findings to ONE channel and never reads Slack, so scope that channel
-  // — not `/slack/channels/**`. See "scope is a boot cost" below.
-  slack: { scope: { channel: `/slack/channels/${SLACK_CHANNEL_ID}/**` } },
+  // Picker-narrowed: cloud rewrites this to /slack/channels/<resolved id>/** at
+  // deploy. Needs `enabledByInput` AND a matching `picker` on that input — see
+  // "scope is a boot cost" below. Leave the scope string as the bare collection.
+  slack: {
+    optional: true,
+    enabledByInput: 'SLACK_CHANNEL',
+    scope: { channels: '/slack/channels/**' }
+  },
   // Read-only Linear context — scope the concrete subpaths the handler reads.
   linear: { scope: { projects: '/linear/projects/**', issues: '/linear/issues/**' } }
+},
+inputs: {
+  SLACK_CHANNEL: {
+    description: 'Channel the agent posts to.',
+    env: 'SLACK_CHANNEL',
+    picker: { provider: 'slack', resource: 'channels' }   // ← what enables the rewrite
+  }
 }
 ```
 
@@ -284,14 +294,33 @@ Two corollaries worth internalizing:
   enough to actually converge.
 - **`scope` does NOT interpolate inputs, though trigger `paths` DO.** You can
   write `paths: ['/slack/channels/${SLACK_CHANNEL}/**']` in `defineAgent`, but the
-  same `${…}` in `scope` is not substituted. Hoist the id to a module constant
-  used by both the scope and the input `default` (as above) and assert in a test
-  that they agree — otherwise overriding the input at deploy time silently points
-  the agent at a channel it has no write grant for.
+  same `${…}` in `scope` is not substituted — it is matched literally and mounts
+  nothing.
+
+  **Do not work around this by hard-coding the id in `scope`.** That pins one
+  channel and takes the choice away from whoever deploys; override the input and
+  the agent silently writes to a channel it has no grant for. Use the gate above
+  instead: cloud's `pickerTargetPath` (in `persona-deploy.ts`) rewrites a
+  picker-gated collection scope to the single record the input resolves to, for
+  reads and writebacks alike. Requirements, all four:
+
+  1. `optional: true` (persona-kit requires it alongside the gate),
+  2. `enabledByInput: '<INPUT>'` on the integration,
+  3. a `picker` on that input whose `provider` matches the integration and whose
+     `resource` matches the collection segment,
+  4. the scope left as the bare collection (`/slack/channels/**`) — the rewrite
+     matches that exact path and nothing else.
+
+  Miss any one and it silently falls back to mirroring the whole collection.
+  A hard-coded constant is the fallback only for an agent whose channel genuinely
+  is fixed and not operator-chosen; if you do that, drive the input `default` from
+  the same constant and assert in a test that the two agree.
 
 Once persona-kit ships `lintScopes()` (AgentWorkforce/workforce#311), `deploy`
 warns non-fatally on the history-sized collections above, on provider-root
-mirrors, and on `/`-leading globs the mount would reject outright. Until then
+mirrors, and on `/`-leading globs the mount would reject outright. A correctly
+picker-gated collection is not flagged — the lint stays quiet exactly where cloud
+narrows for you. Until then
 this is on you to check by eye. Warnings will be advice, not a gate: if the agent
 genuinely reads the whole collection, keep it.
 
