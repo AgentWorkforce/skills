@@ -247,13 +247,45 @@ a broad `/provider/**` is valid but mounts the whole provider, and a mid-path
 `*` mounts nothing (see §1):
 
 ```ts
+const SLACK_CHANNEL_ID = 'C0B9Z4CLG1J';
+
 integrations: {
-  // Replies in-thread (writeback to /slack/channels/{id}/messages), so scope channels.
-  slack: { scope: { channels: '/slack/channels/**' } },
+  // Posts findings to ONE channel and never reads Slack, so scope that channel
+  // — not `/slack/channels/**`. See "scope is a boot cost" below.
+  slack: { scope: { channel: `/slack/channels/${SLACK_CHANNEL_ID}/**` } },
   // Read-only Linear context — scope the concrete subpaths the handler reads.
   linear: { scope: { projects: '/linear/projects/**', issues: '/linear/issues/**' } }
 }
 ```
+
+**Scope is a boot cost, not just a permission.** The mount is *traversed* when
+the sandbox starts, so its size is paid on every run. Collections that grow with
+workspace *history* rather than with configuration — `/slack/channels/**`,
+`/google-mail/messages/**`, `/google-mail/threads/**` — get big enough to matter:
+`/slack/channels/**` measured ~5,950 entries (2,008 files, 3,940 directories) in
+one real workspace. That mount could not converge inside its budget, so runs
+either came up degraded (`scoped initial sync failed; continuing without
+preloaded reads`) or, once cloud began cancelling non-converging mounts at the
+hard deadline, failed outright with exit 124. Narrowing to the single channel
+took the same agent's bootstrap to a clean 127s.
+
+Two corollaries worth internalizing:
+
+- **A write does not need the mirror — only the grant.** The posting agent above
+  kept posting fine in the degraded runs where the sync never finished. If the
+  handler only writes to a path, scope that one path; mirroring the collection to
+  send one message is pure cost.
+- **`scope` does NOT interpolate inputs, though trigger `paths` DO.** You can
+  write `paths: ['/slack/channels/${SLACK_CHANNEL}/**']` in `defineAgent`, but the
+  same `${…}` in `scope` is not substituted. Hoist the id to a module constant
+  used by both the scope and the input `default` (as above) and assert in a test
+  that they agree — otherwise overriding the input at deploy time silently points
+  the agent at a channel it has no write grant for.
+
+`deploy` runs `lintScopes()` over these globs and warns (non-fatally) on the
+history-sized collections above, on provider-root mirrors, and on globs the mount
+would reject outright. Warnings are advice, not a gate: if the agent genuinely
+reads the whole collection, keep it.
 
 The full mechanics and the labelled-mirror sub-trap are in the
 production-correctness checklist below (§1).
@@ -281,6 +313,9 @@ integrations: {
   slack: {
     optional: true,
     enabledByInput: 'SLACK_CHANNEL',          // set SLACK_CHANNEL → Slack connects
+    // Broad here only because this agent replies wherever it is mentioned. If
+    // yours targets known channels, scope them individually (§3) — `scope` is a
+    // boot cost and does not interpolate `SLACK_CHANNEL`.
     scope: { channels: '/slack/channels/**' }
   },
   telegram: {
@@ -449,7 +484,10 @@ Use this shape unless there is a strong reason not to.
 > **writes** through needs a non-empty `scope`
 > (`"slack": { "scope": { "paths": "/slack/channels/**" } }`); github/linear
 > writes are the exception only because their trigger and writeback paths share
-> one bare-id form. `github` is still scoped here so the reviewer's **reads**
+> one bare-id form. The scope is broad here because this reviewer answers
+> mentions anywhere; an agent that posts to known channels should scope them
+> individually, since the whole mirror is traversed at boot (§3).
+> `github` is still scoped here so the reviewer's **reads**
 > (the PR records and `/github/LAYOUT.md` it walks beyond its trigger subtree)
 > are mounted — an unscoped `"github": {}` mirror is dropped. `scope: {}` is
 > discarded by persona-kit, and scope values must be strings. Full rules are in
