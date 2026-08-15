@@ -316,13 +316,13 @@ Two corollaries worth internalizing:
   is fixed and not operator-chosen; if you do that, drive the input `default` from
   the same constant and assert in a test that the two agree.
 
-Once persona-kit ships `lintScopes()` (AgentWorkforce/workforce#311), `deploy`
-warns non-fatally on the history-sized collections above, on provider-root
-mirrors, and on `/`-leading globs the mount would reject outright. A correctly
-picker-gated collection is not flagged — the lint stays quiet exactly where cloud
-narrows for you. Until then
-this is on you to check by eye. Warnings will be advice, not a gate: if the agent
-genuinely reads the whole collection, keep it.
+`deploy` runs `lintScopes()` (persona-kit >= 4.1.42) over these globs and warns
+non-fatally on the history-sized collections above, on provider-root mirrors, and
+on `/`-leading globs the mount would reject outright. A correctly picker-gated
+collection is **not** flagged — the lint stays quiet exactly where cloud narrows
+for you, so a warning on one means the narrowing is not actually wired up.
+Warnings are advice, not a gate: if the agent genuinely reads the whole
+collection, keep it.
 
 The full mechanics and the labelled-mirror sub-trap are in the
 production-correctness checklist below (§1).
