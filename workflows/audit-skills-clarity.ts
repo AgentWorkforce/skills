@@ -1,4 +1,4 @@
-import { workflow } from '@agent-relay/sdk/workflows';
+import { workflow } from '@relayflows/core';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 const CHANNEL = 'wf-audit-skills-clarity';

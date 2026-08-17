@@ -12,7 +12,7 @@ The Agent Relay SDK (`@agent-relay/sdk`) supports 24 swarm patterns via a single
 #### TypeScript SDK runner
 
 ```ts
-import { runWorkflow } from '@agent-relay/sdk/workflows';
+import { runWorkflow } from '@relayflows/core';
 
 const run = await runWorkflow('workflows/feature-dev.yaml', {
   vars: { task: 'Add OAuth login' },
