@@ -13,6 +13,8 @@ The relay broker-sdk workflow system orchestrates multiple AI agents (Claude, Co
 
 **Pattern selection:** Do not default to `dag` blindly. If the job needs a different swarm/workflow type, consult the `choosing-swarm-patterns` skill when available and select the pattern that best matches the coordination problem.
 
+**Package:** import from **`@relayflows/core`**. `@agent-relay/sdk/workflows` was **removed** and `@relayflows/core` replaces it (see `cloud/scripts/smoke-sandbox-image.mjs`, which asserts `@relayflows/core` is present in the sandbox image). `@agent-relay/sdk` exports `.`, `./messaging`, `./delivery`, `./actions`, `./session`, and `./capabilities` — there is no `./workflows` subpath, so the old specifier cannot resolve. If you find a workflow importing it, or a hand-written ambient `declare module '@agent-relay/sdk/workflows'` stub standing in for the missing types, both are stale: repoint them at `@relayflows/core` and delete the stub. The same package works locally and inside the cloud workflow runner, so `ctx.workflow.run(...)`-dispatched workflows use it too.
+
 ## When to Use
 
 - Building multi-agent workflows with step dependencies
@@ -61,6 +63,13 @@ Relayflows can block on humans and provider events without shelling out to Slack
 Use `swarm.humanAssistance.slack` when an interactive agent may need a human answer before continuing. The channel may be a Slack channel name (`proj-cloud` or `#proj-cloud`) or a channel ID (`C...`). Prefer names in checked-in workflows; the Relayfile Slack channel index resolves them to IDs at runtime.
 
 With `integrations.relayfile: {}`, the workflow uses the existing Relayfile connection and mount. Do not add `workspaceId`, Relayfile token, Slack bot token, or provider tokens to the workflow. Mounting is enabled by default; set `mount: false` only for a controlled test runtime that intentionally does not need `.integrations`.
+
+**The asking agent MUST be interactive.** Human assistance is wired only into the interactive PTY path. The non-interactive subprocess path — every `preset: 'worker' | 'reviewer' | 'analyst'` agent — has no `HUMAN_QUESTION` handling whatsoever. Put a gate on one of those presets and the run never parks, nothing reaches Slack, and the agent prints its own approval token because the non-interactive wrapper prompt demands the task finish in a single pass with no follow-up. **An approval gate that fails open is worse than no gate.** Leave `preset` off the asking agent (the default is interactive), or set `interactive: true`.
+
+**Two more ways this fails silently:**
+
+- **Do not set `humanAssistance` on the step.** A step-level value *replaces* the swarm-level one rather than merging with it, so `humanAssistance: { slack: true }` on a gate step discards the channel and timeout configured on `swarm` and falls back to `SLACK_DEFAULT_CHANNEL`. Configure it once, on `swarm`.
+- **The workspace credential needs a writable `/slack` grant, and a mount covering it.** A credential scoped to only some providers takes the write, logs `Wrote Slack question through local Relayfile mount: <path>`, and then dead-letters the op with **HTTP 401** — so the run parks on a question nobody was ever asked. Check before a first real run: `relayfile writeback status --json` (a growing `deadLettered` list with `lastStatus: 401` is this), `relayfile integration list --json` (slack `ready`), and `ps aux | grep relayfile-mount` for `--remote-path /slack`.
 
 Agent contract:
 
@@ -260,7 +269,7 @@ The two shapes can mix within one workflow: pipeline-style deterministic preflig
 > **Note:** examples use ESM `import` syntax, but workflow execution is always wrapped in an async function. See **Failure Prevention → Do not use raw top-level `await`** before copy-pasting into CJS or executor-generated files.
 
 ```typescript
-import { workflow } from '@agent-relay/sdk/workflows';
+import { workflow } from '@relayflows/core';
 
 async function runWorkflow() {
   const result = await workflow('my-workflow')
@@ -384,7 +393,7 @@ runWorkflow().catch((error) => {
 > Use this for any non-trivial work — peer review, multi-file edits, cross-agent feedback, dynamic re-planning. Lead and workers spawn **in parallel** on a shared channel and self-organize via messages. The relay primitive does the coordinating; verification gates downstream of the lead close the workflow.
 
 ```typescript
-import { workflow } from '@agent-relay/sdk/workflows';
+import { workflow } from '@relayflows/core';
 import { ClaudeModels, CodexModels } from '@agent-relay/config';
 
 async function runWorkflow() {
@@ -1122,7 +1131,7 @@ You write **one** workflow. The same `createPR` step opens a PR via your local `
 ### The minimal "open a PR" recipe
 
 ```typescript
-import { workflow } from '@agent-relay/sdk/workflows';
+import { workflow } from '@relayflows/core';
 import { createGitHubStep } from '@agent-relay/sdk';
 
 const REPO = 'AgentWorkforce/cloud';
@@ -1389,6 +1398,13 @@ relay.unmute({ agent: string, channel: string }): Promise<void>
 | `analyst`  | no (subprocess) | no         | Reading code/files, writing findings                 |
 
 Non-interactive presets run via one-shot mode (`claude -p`, `codex exec`). Output is clean and available via `{{steps.X.output}}`.
+
+**A preset is not a permission boundary.** `preset: 'reviewer'` only injects prompt text and selects the non-interactive path — it grants nothing and restricts nothing. A workflow whose reviewers rely on the preset alone resolves to `readwrite` for every agent; confirm with `--dry-run`, which prints the resolved access per agent. Read-only comes from the separate `permissions` block (`access: 'readonly'`, plus `network: false` and an `exec` allowlist where useful).
+
+Two caveats before you add `permissions`:
+
+- Declaring it on **any** agent flips the runner onto its per-agent Relayfile provisioning path, which needs a reachable Relayfile and currently posts to `POST <relayfile>/v1/workspaces`. Verify that route exists in your environment before relying on it; when it 404s, the run dies before a single agent spawns.
+- That path reads the base URL from **`RELAYFILE_BASE_URL` only** and defaults it to `http://127.0.0.1:8080` — `integrations.relayfile.baseUrl` does not apply there. Export `RELAYFILE_BASE_URL` or the run fails with a bare `TypeError: fetch failed` that names neither the URL nor the setting.
 
 **Critical rule:** Pre-inject content into non-interactive agents. Don't ask them to read large files — pre-read in a deterministic step and inject via `{{steps.X.output}}`.
 
@@ -2162,7 +2178,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | Raw top-level `await` in workflow files | Executor paths may compile as CJS. Wrap `.run()` in `async function runWorkflow()` for both ESM and CJS files |
 | Using `createWorkflowRenderer` | Does not exist. Use `.run({ cwd: process.cwd() })` |
 | `export default workflow(...)...build()` | No `.build()`. Chain ends with `.run()` — the file must call `.run()`, not just export config |
-| Relative import `'../workflows/builder.js'` | Use `import { workflow } from '@agent-relay/sdk/workflows'` |
+| Relative import `'../workflows/builder.js'` | Use `import { workflow } from '@relayflows/core'` |
 | Hardcoded model strings (`model: 'opus'`) | Use constants: `import { ClaudeModels } from '@agent-relay/config'` → `model: ClaudeModels.OPUS` |
 | Thinking `agent-relay run` inspects exports | It executes the file as a subprocess. Only `.run()` invocations trigger steps |
 | `pattern('single')` on cloud runner | Not supported — use `dag` |
