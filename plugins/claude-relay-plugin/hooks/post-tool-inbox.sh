@@ -5,7 +5,7 @@ set -euo pipefail
 TOKEN="${RELAY_TOKEN:-}"
 [ -z "$TOKEN" ] && exit 0
 
-BASE_URL="${RELAY_BASE_URL:-https://gateway.relaycast.dev}"
+BASE_URL="${RELAY_BASE_URL:-https://cast.agentrelay.com}"
 BASE_URL="${BASE_URL%/}"
 
 if ! MESSAGES="$(

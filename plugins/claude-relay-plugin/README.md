@@ -50,7 +50,7 @@ Other optional variables:
 
 ```bash
 export RELAY_TOKEN="your-agent-token"              # Per-agent bearer token for inbox polling hooks
-export RELAY_BASE_URL="https://gateway.relaycast.dev"  # API base URL (this is the default)
+export RELAY_BASE_URL="https://cast.agentrelay.com"  # API base URL (this is the default)
 export RELAY_AGENT_NAME="my-agent"                 # Fixed agent identity
 ```
 
@@ -197,7 +197,7 @@ Each agent registers with the relay and can message the others through channels 
 |----------|----------|---------|---------|
 | `RELAY_API_KEY` | No | auto-created via `create_workspace` | MCP server (workspace auth) |
 | `RELAY_TOKEN` | No | — | Hook scripts (inbox polling) |
-| `RELAY_BASE_URL` | No | `https://gateway.relaycast.dev` | MCP server + hooks |
+| `RELAY_BASE_URL` | No | `https://cast.agentrelay.com` | MCP server + hooks |
 | `RELAY_AGENT_NAME` | No | `"unknown"` | MCP server + hooks (agent identity) |
 | `RELAY_WORKERS_JSON` | No | — | `pre-compact.sh` (inline worker list) |
 | `RELAY_WORKERS_FILE` | No | `.agentworkforce/relay/team/workers.json` | `pre-compact.sh` (worker file path) |
