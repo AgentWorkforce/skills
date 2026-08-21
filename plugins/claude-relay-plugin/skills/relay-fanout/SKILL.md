@@ -11,49 +11,45 @@ $ARGUMENTS
 
 ## How spawning works
 
-Workers are spawned using Claude Code's built-in **Agent tool**, not the relay MCP tools. The relay is only used for communication between agents.
+Workers are spawned with Claude Code's built-in **Agent tool**. The relay is only used for communication between agents.
 
-- You **must** use `subagent_type: "relay-worker"` when spawning workers. Only `relay-worker` subagents get the Agent Relay MCP server, inbox-polling hooks, and the worker protocol. Regular subagent types (e.g. `researcher`, `general-purpose`) cannot communicate via relay.
-- Run all workers in **background mode** (`run_in_background: true`) so they execute concurrently.
-- Each worker's prompt **must include the workspace key** so the worker can authenticate. See the spawn example below.
-- The `SubagentStart` hook automatically injects relay bootstrap instructions into every spawned worker.
-- Do not introduce extra setup scripts or dependencies in this workflow. Use the existing plugin hooks, Agent Relay MCP tools, and `relay-worker` agent definition only.
-- Use relay MCP tools (`send_dm`, `check_inbox`) to monitor worker progress.
+- Use `subagent_type: "relay-worker"`. Only `relay-worker` subagents get the Agent Relay MCP server, the inbox-polling hooks, and the worker protocol. Other subagent types (`researcher`, `general-purpose`, …) cannot talk over the relay.
+- Run all workers in **background mode** (`run_in_background: true`) so they work concurrently.
+- Workers inherit the workspace automatically — the relay MCP server resolves the workspace pinned to this project. **Do not put the workspace key in a worker prompt.** It is an administrative credential, and copying it into N prompts puts it in N transcripts. If a worker reports no workspace, fix the pin (step 2) rather than pasting the key.
+- The `SubagentStart` hook injects the relay bootstrap (register, check inbox, ACK, DONE) into every worker.
+- Use the relay MCP tools (`send_dm`, `check_inbox`) to monitor progress.
+- Do not add setup scripts or dependencies. Use the plugin's existing hooks, MCP tools, and `relay-worker` agent definition.
 
 ## Protocol
 
-1. Pick a stable coordinator name such as `relay-lead`. On every relay tool call you make as the coordinator, include `as: "relay-lead"` so your messages, inbox checks, and reactions stay attributed to the lead.
-2. **Set up the workspace.** Try calling `register_agent` with a coordinator name like `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace` to generate one, then call `set_workspace_key` with the returned key, then `register_agent`. Save the workspace key — you will pass it to every worker.
-3. **Tell the user they can follow along with the conversation.** Print the full observer URL with the real key value: `https://agentrelay.com/observer?key=<the actual key>`. Do not print a placeholder — print the real URL the user can click. This is mandatory.
-4. Confirm the work is truly parallelizable. Every worker should be able to finish without waiting on another worker's output.
-5. Decide the worker count from the task shape. Prefer 2 to 8 workers, but keep the count low enough that you can still monitor ACKs and completions reliably.
-6. Partition the work into independent units. Each unit should have its own files, target, or scope boundary and should not require shared intermediate state.
-7. Spawn one worker per unit using the Agent tool. **You must include the workspace key in the prompt**:
+1. Pick a stable coordinator name — `relay-lead`. Pass `as: "relay-lead"` on **every** relay tool call you make, so your messages, inbox reads, and reactions stay attributed to the lead.
+2. **Set up the workspace.** Call `register_agent` with `relay-lead`. If it fails with "Workspace key not configured", call `create_workspace`, then `register_agent` again. Both `create_workspace` and `set_workspace_key` pin the workspace to this project, which is how workers pick it up.
+3. **Give the user a link to follow along.** Call `get_observer_url` and print the URL it returns. It is backed by a read-only token that expires, so it is safe to share. Never build an observer URL from the workspace key, and never print the key.
+4. Confirm the work is genuinely parallelizable. Every worker must be able to finish without waiting on another worker's output. If that is not true, use the pipeline pattern instead.
+5. Pick the worker count from the task shape. Prefer 2–8, and stay low enough that you can still track every ACK and DONE.
+6. Partition the work into independent units — each with its own files, target, or scope boundary, and no shared intermediate state.
+7. Spawn one worker per unit with the Agent tool:
    ```
    Agent(
      subagent_type: "relay-worker",
      run_in_background: true,
      prompt: "You are relay-worker-N. Your lead is relay-lead.
-              Workspace key: <the actual key>.
-              CRITICAL: On every relay tool call, include as: \"relay-worker-N\". Without as, your messages can be attributed to another agent.
+              CRITICAL: pass as: \"relay-worker-N\" on every relay tool call, or your messages
+              can be attributed to another agent.
               Your unit: [specific target/scope].
               Files: [list of files/directories].
-              Deliver: [concrete output]."
+              Deliver: [concrete output].
+              Do NOT release yourself when done — report DONE and stay idle for review."
    )
    ```
-8. Each worker's prompt must include:
-   - the workspace key
-   - the unit it owns
-   - the exact files, directories, or target it should handle
-   - its assigned relay name and who its lead is
-   - a reminder to use `as: "<worker-name>"` on every relay tool call
-9. Wait for ACK from every worker via relay inbox with `check_inbox(as: "relay-lead")`. Missing ACK means the worker is not ready.
-10. Let workers run independently. Only send follow-up DMs for blockers, missing ACKs, or a global decision that changes all units, always using `as: "relay-lead"` for coordinator messages.
-11. Collect all DONE messages, verify the outputs, and merge the final summary. Call out any units that finished partially or encountered blockers.
+8. Wait for an ACK from every worker with `check_inbox(as: "relay-lead")`. A missing ACK means that worker is not working — re-DM it.
+9. Keep a live worker table in your notes: name, unit, ACK, blocked, DONE.
+10. Let workers run independently. Only DM them for blockers, missing ACKs, or a global decision that changes every unit.
+11. Collect every DONE, verify the outputs yourself, and merge the summary. Call out units that finished partially or hit blockers.
 
 ## Rules
 
 - Do not use this pattern when stage N depends on stage N-1. That is a pipeline.
-- Do not give multiple workers the same files unless duplicate review is intentional.
-- Keep the task wording uniform so worker outputs are easy to compare and merge.
-- Workers cannot spawn their own subagents — only the lead can spawn workers.
+- Do not give two workers the same files unless duplicate review is the point.
+- Keep the task wording uniform across units so the outputs are easy to compare and merge.
+- Workers cannot spawn their own subagents — only the lead spawns.

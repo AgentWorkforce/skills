@@ -24,14 +24,14 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.6 | Create or update a Workforce cloud persona with `persona.json`/`persona.ts`, `agent.ts`, integration scope and adapter config guidance, vendored examples, and production-correctness checks. |
 | [factory-config](skills/factory-config/SKILL.md) | 1.0.2 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, babysitter mode, and Relayflows dispatch wiring boundaries. |
-| [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 1.0.0 | Run headless multi-agent orchestration sessions via Agent Relay — spawn teams across Claude/Codex/Gemini/Pi/Droid, create channels, and manage agent lifecycle. |
+| [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 2.0.0 | OpenClaw-specific setup and completion reporting for a headless Agent Relay team; defers to `orchestrating-agent-relay` for broker, spawn, and coordination mechanics. |
 
 ## Slash Commands
 
 | Command | Version | Description |
 |---------|---------|-------------|
-| [/create-workflow](commands/create-workflow.md) | 1.0.4 | Scaffold a model-agnostic Agent Relay workflow using the workflow and swarm-pattern skills, including selected review-depth review/fix loops with test hardening. |
-| [/spawn](commands/spawn.md) | 1.0.0 | Bootstrap the broker and spawn a worker for `claude`, `codex`, `opencode`, `droid`, `gemini`, or `pi`. |
+| [/create-workflow](commands/create-workflow.md) | 1.0.5 | Scaffold a model-agnostic Agent Relay workflow using the workflow and swarm-pattern skills, including selected review-depth review/fix loops with test hardening. |
+| [/spawn](commands/spawn.md) | 1.1.0 | Bootstrap the broker (`agent-relay node up`) and spawn a worker for `claude`, `codex`, `opencode`, `droid`, `gemini`, or `pi`. |
 | [/review-loop](commands/review-loop.md) | 1.0.1 | Run a dual-reviewer code-review loop with repair and fresh-context signoff. |
 
 ## Claude Relay Plugin
