@@ -36,10 +36,11 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 
 ## Claude Relay Plugin
 
-Install the [`agent-relay`](plugins/claude-relay-plugin) Claude Code plugin from the marketplace:
+Install the [`claude-relay-plugin`](plugins/claude-relay-plugin) Claude Code plugin from the `agent-relay` marketplace, which is published from this repo:
 
 ```bash
-/plugin marketplace add Agentworkforce/relay
+/plugin marketplace add AgentWorkforce/skills
+/plugin install claude-relay-plugin@agent-relay
 ```
 
 ## Install Packages

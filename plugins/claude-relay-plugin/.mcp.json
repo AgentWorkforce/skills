@@ -8,7 +8,6 @@
         "mcp"
       ],
       "env": {
-        "RELAY_BASE_URL": "https://gateway.relaycast.dev",
         "RELAY_AGENT_TYPE": "agent"
       }
     }

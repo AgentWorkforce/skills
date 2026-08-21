@@ -1,5 +1,5 @@
 {
-  "name": "agent-relay",
+  "name": "claude-relay-plugin",
   "description": "Lets your Claude Code sub-agents communicate with each other in real time - send messages, coordinate in shared channels, and work as a team instead of in isolation.",
   "version": "0.1.0",
   "author": {
