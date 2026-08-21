@@ -1,6 +1,6 @@
 {
   "name": "claude-relay-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agent Relay plugin for Claude Code - multi-agent coordination via Agent Relay MCP and hooks",
   "author": "Agent Relay <hello@agent-relay.com>",
   "license": "MIT",
