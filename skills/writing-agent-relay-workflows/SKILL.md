@@ -314,7 +314,7 @@ async function runWorkflow() {
       agent: 'worker',
       task: `Implement based on this plan:\n{{steps.plan.output}}`,
       dependsOn: ['plan'],
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('claude-review', {
       agent: 'claude-reviewer',
@@ -322,7 +322,7 @@ async function runWorkflow() {
       task: `Fresh-eyes review the completed workflow output. Read the actual files, diff, repo rules, and available evidence.
 Write findings to .workflow-artifacts/my-workflow/claude-review.md.
 If there are no actionable issues, write NO_ISSUES_FOUND.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('claude-fix', {
       agent: 'claude-fixer',
@@ -330,14 +330,14 @@ If there are no actionable issues, write NO_ISSUES_FOUND.`,
       task: `Read .workflow-artifacts/my-workflow/claude-review.md.
 Fix every valid issue, add or update appropriate tests/proofs for the fix, rerun relevant checks, and update .workflow-artifacts/my-workflow/claude-fix.md.
 If the review says NO_ISSUES_FOUND, record that no fix was needed.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('claude-review-final', {
       agent: 'claude-reviewer',
       dependsOn: ['claude-fix'],
       task: `Fresh-eyes review the post-fix state from scratch. Do not rely on the prior review or fix summary.
 Write .workflow-artifacts/my-workflow/claude-review-final.md with either actionable findings or NO_ISSUES_FOUND.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('claude-fix-final', {
       agent: 'claude-fixer',
@@ -345,7 +345,7 @@ Write .workflow-artifacts/my-workflow/claude-review-final.md with either actiona
       task: `If .workflow-artifacts/my-workflow/claude-review-final.md contains findings, fix them, add or update appropriate tests/proofs, and rerun relevant checks.
 If no fix is possible, write .workflow-artifacts/my-workflow/BLOCKED_NO_COMMIT.md with exact evidence.
 If it says NO_ISSUES_FOUND, record Claude review signoff.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('codex-review', {
       agent: 'codex-reviewer',
@@ -353,7 +353,7 @@ If it says NO_ISSUES_FOUND, record Claude review signoff.`,
       task: `Second-pass fresh-eyes review of the post-Claude-fix state. Read the actual files, diff, repo rules, and available evidence.
 Write findings to .workflow-artifacts/my-workflow/codex-review.md.
 If there are no actionable issues, write NO_ISSUES_FOUND.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('codex-fix', {
       agent: 'codex-fixer',
@@ -361,14 +361,14 @@ If there are no actionable issues, write NO_ISSUES_FOUND.`,
       task: `Read .workflow-artifacts/my-workflow/codex-review.md.
 Fix every valid issue, add or update appropriate tests/proofs for the fix, rerun relevant checks, and update .workflow-artifacts/my-workflow/codex-fix.md.
 If the review says NO_ISSUES_FOUND, record that no fix was needed.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('codex-review-final', {
       agent: 'codex-reviewer',
       dependsOn: ['codex-fix'],
       task: `Fresh-eyes review the post-Codex-fix state from scratch. Do not rely on the prior review or fix summary.
 Write .workflow-artifacts/my-workflow/codex-review-final.md with either actionable findings or NO_ISSUES_FOUND.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('codex-fix-final', {
       agent: 'codex-fixer',
@@ -376,7 +376,7 @@ Write .workflow-artifacts/my-workflow/codex-review-final.md with either actionab
       task: `If .workflow-artifacts/my-workflow/codex-review-final.md contains findings, fix them, add or update appropriate tests/proofs, and rerun relevant checks.
 If no fix is possible, write .workflow-artifacts/my-workflow/BLOCKED_NO_COMMIT.md with exact evidence.
 If it says NO_ISSUES_FOUND, record final review signoff.`,
-      verification: { type: 'exit_code' },
+      verification: { type: 'exit_code', value: '0' },
     })
     .step('acceptance-after-review', {
       type: 'deterministic',
@@ -512,7 +512,7 @@ Implement your assigned file. Post a completion message. Address feedback.`,
     task: `If verification passed, summarize evidence.
 If it failed, use this output to assign and fix issues, then rerun the command until green:
 {{steps.verify.output}}`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('verify-final', {
     type: 'deterministic',
@@ -531,7 +531,7 @@ Read the actual changed files, git diff, repo instructions, task spec, and verif
 Write .workflow-artifacts/my-feature/claude-review.md with:
 - actionable findings, each with file paths and required fix
 - or NO_ISSUES_FOUND if there are no remaining issues`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('claude-fix', {
     agent: 'claude-fixer',
@@ -541,7 +541,7 @@ If there are findings, fix every valid one and add or update appropriate tests/p
 Keep iterating locally until this round has no remaining valid issues.
 Write .workflow-artifacts/my-feature/claude-fix.md with fixes and commands run.
 If the review says NO_ISSUES_FOUND, write that no fix was needed.`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('claude-review-final', {
     agent: 'claude-reviewer',
@@ -549,7 +549,7 @@ If the review says NO_ISSUES_FOUND, write that no fix was needed.`,
     task: `Perform a fresh post-fix review from scratch. Do not rely on previous review text or the fixer's summary.
 Read files, diff, repo rules, task spec, and evidence. Write .workflow-artifacts/my-feature/claude-review-final.md.
 Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('claude-fix-final', {
     agent: 'claude-fixer',
@@ -557,7 +557,7 @@ Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
     task: `If the final Claude review found issues, fix them, add or update appropriate tests/proofs, and rerun the relevant checks until green.
 If no fix is possible, write .workflow-artifacts/my-feature/BLOCKED_NO_COMMIT.md with exact evidence and do not commit.
 If the final review says NO_ISSUES_FOUND, record signoff in .workflow-artifacts/my-feature/claude-signoff.md.`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('verify-after-claude-review', {
     type: 'deterministic',
@@ -576,7 +576,7 @@ Read the actual changed files, git diff, repo instructions, task spec, and verif
 Write .workflow-artifacts/my-feature/codex-review.md with:
 - actionable findings, each with file paths and required fix
 - or NO_ISSUES_FOUND if there are no remaining issues`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('codex-fix', {
     agent: 'codex-fixer',
@@ -586,7 +586,7 @@ If there are findings, fix every valid one and add or update appropriate tests/p
 Keep iterating locally until this round has no remaining valid issues.
 Write .workflow-artifacts/my-feature/codex-fix.md with fixes and commands run.
 If the review says NO_ISSUES_FOUND, write that no fix was needed.`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('codex-review-final', {
     agent: 'codex-reviewer',
@@ -594,7 +594,7 @@ If the review says NO_ISSUES_FOUND, write that no fix was needed.`,
     task: `Perform a fresh post-Codex-fix review from scratch. Do not rely on previous review text or the fixer's summary.
 Read files, diff, repo rules, task spec, and evidence. Write .workflow-artifacts/my-feature/codex-review-final.md.
 Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('codex-fix-final', {
     agent: 'codex-fixer',
@@ -602,7 +602,7 @@ Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
     task: `If the final Codex review found issues, fix them, add or update appropriate tests/proofs, and rerun the relevant checks until green.
 If no fix is possible, write .workflow-artifacts/my-feature/BLOCKED_NO_COMMIT.md with exact evidence and do not commit.
 If the final review says NO_ISSUES_FOUND, record signoff in .workflow-artifacts/my-feature/codex-signoff.md.`,
-    verification: { type: 'exit_code' },
+    verification: { type: 'exit_code', value: '0' },
   })
   .step('verify-after-review', {
     type: 'deterministic',
@@ -670,6 +670,12 @@ For small doc/spec workflows, a lead + author + the selected review-depth review
 2. `relayflows run <file.ts>` executes the file as a standalone subprocess — it does NOT inspect exports. The file MUST call `.run()`.
 3. Use `.run({ cwd: process.cwd() })` — `createWorkflowRenderer` does not exist
 4. Validate with `--dry-run` before running: `relayflows run --dry-run workflow.ts`
+5. **`.run({ dryRun: true })` returns a different type than `.run()`.** `.run()` resolves to a `WorkflowRunRow` (which has `status`); `.run({ dryRun: true })` resolves to a `DryRunReport`, which has **no `status` field at all**. So the usual `if (result.status !== 'completed') process.exit(1)` guard is `true` on a *passing* dry run and exits 1. Branch on `valid` instead:
+
+```typescript
+const report = await builder.run({ dryRun: true });
+if (!report.valid) { console.error(report.errors); process.exit(1); }
+```
 
 ## ⚡ Parallelism — Design for Speed
 
@@ -1290,13 +1296,16 @@ Use `{{steps.STEP_NAME.output}}` in a downstream step's task to inject the prior
 ### Verification Gates
 
 ```typescript
-verification: { type: 'exit_code' }                        // preferred for code-editing steps
+verification: { type: 'exit_code', value: '0' }             // preferred for code-editing steps
 verification: { type: 'output_contains', value: 'DONE' }   // optional accelerator
 verification: { type: 'file_exists', value: 'src/out.ts' } // deterministic file check
+verification: { type: 'custom', value: 'npm test' }        // shell command, or regex:<pattern>
 verification: { type: 'pr_url', value: 'owner/repo' }      // step must leave behind a PR
 ```
 
 Only these five types are valid: `exit_code`, `output_contains`, `file_exists`, `custom`, `pr_url`. Invalid types are silently ignored and fall through to process-exit auto-pass.
+
+**`value` is required on every type, `exit_code` included.** It is `value: string` on `VerificationCheck`, not optional, so `{ type: 'exit_code' }` fails to typecheck with `TS2741: Property 'value' is missing`. Write `{ type: 'exit_code', value: '0' }` — verified: the gate passes a step that exits 0 and fails one that exits 3. For `pr_url` alone, an empty `value: ''` is meaningful (accept any GitHub PR URL); everywhere else an empty value is a mistake.
 
 **Use `pr_url` for any step whose deliverable is a published change** — opening a PR, merging a branch, publishing a package. It blocks the common failure mode where a worker produces green tests and posts `OWNER_DECISION: COMPLETE` but never actually opened a PR. Pass `<owner>/<repo>` to require the URL belongs to a specific repository, or leave `value: ''` to accept any GitHub PR URL in the step output.
 
@@ -1499,7 +1508,7 @@ Two caveats before you add `permissions`:
   task: `If verify-files failed, create or fix the missing file and rerun the check.
 Output:
 {{steps.verify-files.output}}`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('verify-files-final', {
   type: 'deterministic',
@@ -1552,7 +1561,7 @@ Read the task spec, AGENTS.md / CLAUDE.md, changed files, final diff, artifacts,
 Write .workflow-artifacts/<workflow>/claude-review.md.
 Use actionable findings with file paths, severity, and required fixes.
 If there are no issues, write NO_ISSUES_FOUND.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('claude-fix', {
   agent: 'claude-fixer',
@@ -1562,7 +1571,7 @@ If it contains findings, fix every valid issue and add or update appropriate tes
 Keep iterating locally until this round has no remaining valid issues.
 Write .workflow-artifacts/<workflow>/claude-fix.md with fixes and commands run.
 If the review says NO_ISSUES_FOUND, record that no fix was needed.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('claude-review-final', {
   agent: 'claude-reviewer',
@@ -1570,7 +1579,7 @@ If the review says NO_ISSUES_FOUND, record that no fix was needed.`,
   task: `Review the post-Claude-fix state from scratch. Do not rely on prior review text or fixer summaries.
 Read the files, diff, rules, spec, and evidence. Write .workflow-artifacts/<workflow>/claude-review-final.md.
 Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('claude-fix-final', {
   agent: 'claude-fixer',
@@ -1578,7 +1587,7 @@ Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
   task: `If the final Claude review contains findings, fix them, add or update appropriate tests/proofs, rerun relevant checks, and write .workflow-artifacts/<workflow>/claude-fix-final.md.
 If a finding cannot be fixed, write .workflow-artifacts/<workflow>/BLOCKED_NO_COMMIT.md with exact evidence.
 If the final review says NO_ISSUES_FOUND, write .workflow-artifacts/<workflow>/claude-signoff.md.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('verify-after-claude-review', {
   type: 'deterministic',
@@ -1597,7 +1606,7 @@ Read the task spec, AGENTS.md / CLAUDE.md, changed files, final diff, artifacts,
 Write .workflow-artifacts/<workflow>/codex-review.md.
 Use actionable findings with file paths, severity, and required fixes.
 If there are no issues, write NO_ISSUES_FOUND.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('codex-fix', {
   agent: 'codex-fixer',
@@ -1607,7 +1616,7 @@ If it contains findings, fix every valid issue and add or update appropriate tes
 Keep iterating locally until this round has no remaining valid issues.
 Write .workflow-artifacts/<workflow>/codex-fix.md with fixes and commands run.
 If the review says NO_ISSUES_FOUND, record that no fix was needed.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('codex-review-final', {
   agent: 'codex-reviewer',
@@ -1615,7 +1624,7 @@ If the review says NO_ISSUES_FOUND, record that no fix was needed.`,
   task: `Review the post-fix state from scratch. Do not rely on prior review text or fixer summaries.
 Read the files, diff, rules, spec, and evidence. Write .workflow-artifacts/<workflow>/codex-review-final.md.
 Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('codex-fix-final', {
   agent: 'codex-fixer',
@@ -1623,7 +1632,7 @@ Use NO_ISSUES_FOUND only if there are no actionable issues left.`,
   task: `If the final review contains findings, fix them, add or update appropriate tests/proofs, rerun relevant checks, and write .workflow-artifacts/<workflow>/codex-fix-final.md.
 If a finding cannot be fixed, write .workflow-artifacts/<workflow>/BLOCKED_NO_COMMIT.md with exact evidence.
 If the final review says NO_ISSUES_FOUND, write .workflow-artifacts/<workflow>/codex-signoff.md.`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('acceptance-after-codex-review', {
   type: 'deterministic',
@@ -2102,7 +2111,7 @@ test -f packages/core/src/runtime/router.ts || echo "MISSING_ROUTER"`,
   agent: 'qa',
   dependsOn: ['implementation-reconcile'],
   task: `Finish anything missing before gates run:\n{{steps.implementation-reconcile.output}}`,
-  verification: { type: 'exit_code' },
+  verification: { type: 'exit_code', value: '0' },
 })
 .step('run-e2e', {
   type: 'deterministic',

@@ -87,6 +87,15 @@ node --input-type=module -e "
   console.log(GITHUB_ACTIONS.length, GITHUB_ACTIONS.join(', '))"
 ```
 
+Typecheck them first — this catches the class of defect where a required field
+is omitted (`verification.value` is required on every check type, `exit_code`
+included; `{ type: 'exit_code' }` alone fails with `TS2741`):
+
+```bash
+npx tsc --noEmit --skipLibCheck --strict \
+  --module nodenext --moduleResolution nodenext --target es2022 *.ts
+```
+
 The two local examples need a `ship`-labelled open issue in the target repo and
 a git checkout to work in:
 

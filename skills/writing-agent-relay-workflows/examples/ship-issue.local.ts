@@ -56,7 +56,21 @@ const config = workflow('ship-issue-local')
 // `cwd` MUST be set on the runner: verification checks run in the runner's cwd
 // (runner.js runVerification -> `{ ...options, cwd: this.cwd }`), NOT the step's
 // `cwd`. Omitting it ran `git ls-remote origin` outside any git checkout.
-const row = await new WorkflowRunner({ cwd: WORKDIR }).execute(config);
-console.log(`status=${row.status} run=${row.id}`);
-if (row.error) console.log('ERROR:', row.error);
-if (row.status !== 'completed') process.exitCode = 1;
+const runner = new WorkflowRunner({ cwd: WORKDIR });
+
+if (process.env.DRY_RUN) {
+  // A DryRunReport is NOT a WorkflowRunRow: it has no `status` field, so the
+  // usual `status !== 'completed'` guard is true on a PASSING dry run and exits
+  // 1. Branch on `valid`.
+  const report = await runner.dryRun(config);
+  console.log(`valid=${report.valid} steps=${report.totalSteps} waves=${report.estimatedWaves}`);
+  if (!report.valid) {
+    console.error(report.errors);
+    process.exitCode = 1;
+  }
+} else {
+  const row = await runner.execute(config);
+  console.log(`status=${row.status} run=${row.id}`);
+  if (row.error) console.log('ERROR:', row.error);
+  if (row.status !== 'completed') process.exitCode = 1;
+}
