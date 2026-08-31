@@ -70,7 +70,8 @@ Every claim in these files was checked against the published packages on
 ## Reproducing
 
 ```bash
-npm i @relayflows/core@1.1.0 @agent-relay/sdk@11.8.7   # package.json needs "type": "module"
+npm i @relayflows/core@1.1.0 @relayflows/cli@1.1.0 @agent-relay/sdk@11.8.7
+# package.json needs "type": "module"
 
 # 1. subpath is gone
 node --input-type=module -e "await import('@agent-relay/sdk/workflows')"

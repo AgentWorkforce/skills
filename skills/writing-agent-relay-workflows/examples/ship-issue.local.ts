@@ -1,15 +1,20 @@
 /**
  * ship-issue (local variant) — agent steps + `gh` deterministic steps.
  *
- * Integration steps (createGitHubStep) CANNOT run in a local workflow: the
- * runner throws "Integration steps require a cloud executor", and supplying
- * `executor` to satisfy it hijacks agent steps as well. So local iteration
- * uses deterministic `gh` steps; the cloud variant uses createGitHubStep.
+ * Integration steps (createGitHubStep) cannot run in a workflow that also has
+ * agent steps: the runner throws "Integration steps require a cloud executor",
+ * and supplying `executor` to satisfy it hijacks agent steps as well — and the
+ * cloud executor does not implement executeIntegrationStep either. So any
+ * workflow that mixes agent work with GitHub work uses deterministic `gh`
+ * steps. See integration-steps-need-an-executor.ts.
  */
 import { workflow, WorkflowRunner } from '@relayflows/core';
+import { assertBranch, assertRepo } from './assert-repo.js';
 
-const REPO = process.env.SHIP_ISSUE_REPO ?? 'AgentWorkforce/cloud-e2e-sandbox';
-const BRANCH = process.env.SHIP_ISSUE_BRANCH ?? `agent/ship-issue-${Date.now()}`;
+// REPO is interpolated into `gh` shell commands, so it is validated rather
+// than trusted — an unvalidated env var here is a command-injection hole.
+const REPO = assertRepo(process.env.SHIP_ISSUE_REPO ?? 'AgentWorkforce/cloud-e2e-sandbox');
+const BRANCH = assertBranch(process.env.SHIP_ISSUE_BRANCH ?? `agent/ship-issue-${Date.now()}`);
 const WORKDIR = process.env.SHIP_ISSUE_CWD ?? process.cwd();
 
 const config = workflow('ship-issue-local')

@@ -14,8 +14,9 @@
 import { workflow, WorkflowRunner } from '@relayflows/core';
 import { createGitHubStep, GitHubStepExecutor } from '@relayflows/core/integrations/github';
 import type { RelayYamlConfig, WorkflowStep } from '@relayflows/core';
+import { assertRepo } from './assert-repo.js';
 
-const REPO = 'AgentWorkforce/cloud-e2e-sandbox';
+const REPO = assertRepo(process.env.SHIP_ISSUE_REPO ?? 'AgentWorkforce/cloud-e2e-sandbox');
 
 const config: RelayYamlConfig = workflow('gh-local')
   .description('Integration steps executed locally via GitHubStepExecutor')
