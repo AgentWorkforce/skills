@@ -1307,6 +1307,8 @@ Only these five types are valid: `exit_code`, `output_contains`, `file_exists`, 
 
 **`value` is required on every type, `exit_code` included.** It is `value: string` on `VerificationCheck`, not optional, so `{ type: 'exit_code' }` fails to typecheck with `TS2741: Property 'value' is missing`. Write `{ type: 'exit_code', value: '0' }` — verified: the gate passes a step that exits 0 and fails one that exits 3. For `pr_url` alone, an empty `value: ''` is meaningful (accept any GitHub PR URL); everywhere else an empty value is a mistake.
 
+**In YAML there is no typechecker, and nothing else catches it either.** `validateWorkflow()` returns zero issues for `verification: {type: exit_code}` with no `value`, so it passes validation and passes a dry run — then fails at run time on a step that did everything right. The check is `Number(check.value) === exitCode`, and `Number(undefined)` is `NaN`, so the comparison can never be true: `Verification failed for "edit": recorded exit code "0" did not match "undefined"`. Every YAML recipe below carries `value: '0'` for this reason.
+
 **Use `pr_url` for any step whose deliverable is a published change** — opening a PR, merging a branch, publishing a package. It blocks the common failure mode where a worker produces green tests and posts `OWNER_DECISION: COMPLETE` but never actually opened a PR. Pass `<owner>/<repo>` to require the URL belongs to a specific repository, or leave `value: ''` to accept any GitHub PR URL in the step output.
 
 **Put the gate on a step whose output actually contains a URL.** A `createGitHubStep({ action: 'createPR' })` output does **not** — the mapped `PullRequest` has no URL field, so a `pr_url` gate on the create step can never fire. Either gate a deterministic `gh pr create` step (its stdout is the URL), or capture `path: 'number'` from the integration step and gate the `echo`ed URL:
@@ -1863,6 +1865,7 @@ steps:
       Only edit this one file.
     verification:
       type: exit_code
+      value: '0'
 
   - name: verify-types
     type: deterministic
@@ -1880,6 +1883,7 @@ steps:
       {{steps.verify-types.output}}
     verification:
       type: exit_code
+      value: '0'
 
   - name: verify-types-final
     type: deterministic
@@ -1904,6 +1908,7 @@ steps:
       Only edit this one file.
     verification:
       type: exit_code
+      value: '0'
 
   - name: verify-service
     type: deterministic
@@ -1921,6 +1926,7 @@ steps:
       {{steps.verify-service.output}}
     verification:
       type: exit_code
+      value: '0'
 
   - name: verify-service-final
     type: deterministic
@@ -1933,7 +1939,7 @@ steps:
   - name: commit
     type: deterministic
     dependsOn: [verify-service-final]
-    command: npm run typecheck && npm test && git add src/types.ts src/service.ts && git commit -m "feat: add pending status"
+    command: 'npm run typecheck && npm test && git add src/types.ts src/service.ts && git commit -m "feat: add pending status"'
     captureOutput: true
     failOnError: false
 
@@ -1947,6 +1953,7 @@ steps:
       {{steps.commit.output}}
     verification:
       type: exit_code
+      value: '0'
 
   - name: verify-commit-created
     type: deterministic
@@ -1990,6 +1997,7 @@ After any step that creates files, add a deterministic `file_exists` check befor
     {{steps.verify-files.output}}
   verification:
     type: exit_code
+    value: '0'
 
 - name: verify-files-final
   type: deterministic
@@ -2042,6 +2050,7 @@ the first gate repairable:
     If it already passed, do nothing.
   verification:
     type: exit_code
+    value: '0'
 
 - name: provider-edit-gate-final
   type: deterministic
@@ -2067,6 +2076,7 @@ the first gate repairable:
     {{steps.provider-edit-gate-final.output}}
   verification:
     type: exit_code
+    value: '0'
 ```
 
 Both gates capture evidence and give an agent a chance to fix. A still-red
@@ -2183,6 +2193,7 @@ steps:
       Implement the file as directed.
     verification:
       type: exit_code
+      value: '0'
 
   - name: next-step
     dependsOn: [track-lead-coord]  # downstream depends on lead, not workers
@@ -2254,6 +2265,7 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 | `pattern('single')` on cloud runner | Not supported — use `dag` |
 | `pattern('supervisor')` with one agent | Same agent is owner + specialist. Use `dag` |
 | Invalid verification type (`type: 'deterministic'`) | Only `exit_code`, `output_contains`, `file_exists`, `custom`, `pr_url` are valid |
+| `verification` with no `value` (`{type: exit_code}`) | Passes validation and dry run, then fails every step at run time — `Number(undefined)` is `NaN`. Always write `value: '0'` |
 | Chaining `{{steps.X.output}}` from interactive agents | PTY output is garbled. Use deterministic steps or `preset: 'worker'` |
 | Single step editing 4+ files | Agents modify 1-2 then exit. Split to one file per step with verify gates |
 | Relying on agents to `git commit` | Agents emit markers without running git. Use deterministic commit step |
@@ -2314,6 +2326,7 @@ workflows:
         dependsOn: [plan]
         verification:
           type: exit_code
+          value: '0'
       - name: claude-review
         agent: claude-reviewer
         dependsOn: [implement]
