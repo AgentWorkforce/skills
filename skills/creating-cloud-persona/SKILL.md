@@ -1193,6 +1193,43 @@ progress with `linearClient().agentActivity(sessionId, { type: 'thought' |
 body)`, and `acknowledge(sessionId)`. Key session-scoped memory on the
 `sessionId`.
 
+## 8b. THE STATIC RESOLVE TRAP — `persona.ts` is parsed, not executed
+
+The Launch Agent button in every agent README opens
+`agentrelay.com/cloud/deploy?persona=<github blob url>`, which **reads your
+`persona.ts` as text**. It never runs it, so every value must be readable
+without evaluating anything.
+
+**The failure is silent.** One unsupported node aborts the whole resolve — not
+just the field using it — and the page then shows demo data claiming
+"This persona does not require external integrations". A user following the
+one-click flow deploys an agent with no provider connected. Compile, typecheck
+and tests all pass; the only signal is a banner reading
+`live resolve failed: persona.<field> uses unsupported dynamic syntax (<Node>)`.
+
+**Write literals.** Strings, numbers, objects, arrays. Also fine: backticks
+with no `${}`, `['a', 'b'].join(' ')`, a `const` declared in `persona.ts`, a
+`readFileSync(new URL('./SPEC.md', import.meta.url))` sibling, and a named
+import of a `const` literal from a relative sibling (one level, cloud#3245).
+
+**Never build a value.** No interpolation (`` `text ${X}` ``), no concatenation
+(`'a' + b`), no calls of your own, no `.map`, no ternaries. The two calls above
+are specific exceptions the resolver implements, not a general permission. A
+derived value — say a prompt line generated from your capability manifest —
+cannot survive here: inline the result and pin it with a test that fails when
+the source changes.
+
+**Guard it.** Compiling proves nothing: `persona.json` comes from *executing*
+the module, which is what the page will not do. Parse the persona object and
+reject those node kinds — see askable-gtm's
+`persona.ts stays statically resolvable for the launch page` test. Compare
+`ts.SyntaxKind` **numerically**; it is a reverse-mapped enum, so
+`SyntaxKind[NoSubstitutionTemplateLiteral]` is `"FirstTemplateToken"` and a
+name-based check silently passes a plain backtick.
+
+Cheapest real check: open your Launch Agent URL and confirm the "It will
+connect" panel lists your providers.
+
 ## 9. Relayfile — how provider clients actually resolve
 
 `slackClient()` / `linearClient()` / `githubClient()` / `providerClient(p)`
@@ -1242,7 +1279,10 @@ Consequences:
    early-returned, defensive meta reads with explicit fail-open/closed choices,
    no schedule-name gate on `cron.tick` (there is no `event.name` — §7, G2).
 7. Writeback receipts checked where delivery matters (§9).
-
+8. `persona.ts` is statically resolvable: no interpolation, no string
+   concatenation, no computed values (§8b). Compiling does not prove this —
+   open the Launch Agent URL and confirm the providers panel lists your
+   integrations.
 
 ## Field gotchas (verified against workforce 4.1.34; agents repo pins runtime/persona-kit/cli 4.1.23)
 
