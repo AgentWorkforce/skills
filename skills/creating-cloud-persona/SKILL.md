@@ -1193,74 +1193,40 @@ progress with `linearClient().agentActivity(sessionId, { type: 'thought' |
 body)`, and `acknowledge(sessionId)`. Key session-scoped memory on the
 `sessionId`.
 
-## 8b. THE STATIC RESOLVE TRAP — the launch page parses `persona.ts`, it does not run it
+## 8b. THE STATIC RESOLVE TRAP — `persona.ts` is parsed, not executed
 
-The one-click deploy page (`agentrelay.com/cloud/deploy?persona=<github blob url>`,
-the Launch Agent button in every agent README) **parses your `persona.ts` as
-text**. It never executes it. Anything it cannot evaluate statically aborts the
-resolve.
+The Launch Agent button in every agent README opens
+`agentrelay.com/cloud/deploy?persona=<github blob url>`, which **reads your
+`persona.ts` as text**. It never runs it, so every value must be readable
+without evaluating anything.
 
-**The failure is silent and it is not a cosmetic one.** The page does not error.
-It falls back to demo data and renders:
+**The failure is silent.** One unsupported node aborts the whole resolve — not
+just the field using it — and the page then shows demo data claiming
+"This persona does not require external integrations". A user following the
+one-click flow deploys an agent with no provider connected. Compile, typecheck
+and tests all pass; the only signal is a banner reading
+`live resolve failed: persona.<field> uses unsupported dynamic syntax (<Node>)`.
 
-> This persona does not require external integrations.
+**Write literals.** Strings, numbers, objects, arrays. Also fine: backticks
+with no `${}`, `['a', 'b'].join(' ')`, a `const` declared in `persona.ts`, a
+`readFileSync(new URL('./SPEC.md', import.meta.url))` sibling, and a named
+import of a `const` literal from a relative sibling (one level, cloud#3245).
 
-which is a lie for any persona with `integrations`. A user following the
-one-click flow then deploys an agent with **no provider connected** and no way
-to do its job. Nothing in CI notices, because compile, typecheck and tests all
-pass — the persona is valid TypeScript. The only signal is a thin banner:
+**Never build a value.** No interpolation (`` `text ${X}` ``), no concatenation
+(`'a' + b`), no helper calls, `.map`, or ternaries. A derived value — say a
+prompt line generated from your capability manifest — cannot survive here:
+inline the result and pin it with a test that fails when the source changes.
 
-```
-Showing demo data - live resolve failed: persona.<field> uses unsupported dynamic syntax (<NodeType>)
-```
+**Guard it.** Compiling proves nothing: `persona.json` comes from *executing*
+the module, which is what the page will not do. Parse the persona object and
+reject those node kinds — see askable-gtm's
+`persona.ts stays statically resolvable for the launch page` test. Compare
+`ts.SyntaxKind` **numerically**; it is a reverse-mapped enum, so
+`SyntaxKind[NoSubstitutionTemplateLiteral]` is `"FirstTemplateToken"` and a
+name-based check silently passes a plain backtick.
 
-One unsupported node kills the **whole** persona, not just the field using it.
-
-### What the resolver accepts
-
-Verified against `packages/web/lib/proactive-runtime/persona-resolve.ts`:
-
-| construct | resolves? |
-| --- | --- |
-| string / number / boolean literal | yes |
-| object and array literals | yes |
-| `` `plain backticks` `` with **no** `${}` | yes |
-| `['a', 'b'].join(' ')` | yes |
-| `const X = { ... }` **declared in `persona.ts`** and referenced | yes |
-| `readFileSync(new URL('./file.md', import.meta.url))` | yes — sibling is fetched |
-| `` `text ${VALUE}` `` — any interpolation | **no** (`TemplateLiteral`) |
-| `'a' + b` — any concatenation | **no** (`BinaryExpression`) |
-| an **imported** identifier | **no** (`Identifier`) |
-| a helper function call, `.map`, ternaries | **no** |
-
-The constant scope is built from **that one file**. `import { X } from './x.js'`
-puts `X` out of reach even though the compile is perfectly happy.
-
-### Rules
-
-1. Every value in `definePersona({...})` is a literal, or a `const` declared in
-   the same file.
-2. Never build a string. No interpolation, no `+`. Write the sentence out.
-3. Do not import a value the persona object references — including a capability
-   manifest. Declare it in `persona.ts`; if a handler needs it too, re-export
-   from `persona.ts` rather than importing into it.
-4. Derived values (a prompt line generated from the manifest) cannot survive
-   here. Inline the result and pin it with a test that fails when the source of
-   truth changes.
-
-### Guard it
-
-Compiling proves nothing — `persona.json` is produced by executing the module,
-which is exactly what the launch page will not do. Parse the persona object and
-reject the node kinds above; see `askable-gtm`'s
-`persona.ts stays statically resolvable for the launch page` test.
-
-Compare `SyntaxKind` **numerically**, not by name: it is a reverse-mapped enum
-with aliases, so `ts.SyntaxKind[NoSubstitutionTemplateLiteral]` returns
-`"FirstTemplateToken"` and a name-based check silently passes `` `plain` ``.
-
-Cheapest real check: open the Launch Agent URL for your persona and confirm the
-"It will connect" panel lists your providers.
+Cheapest real check: open your Launch Agent URL and confirm the "It will
+connect" panel lists your providers.
 
 ## 9. Relayfile — how provider clients actually resolve
 
@@ -1312,9 +1278,9 @@ Consequences:
    no schedule-name gate on `cron.tick` (there is no `event.name` — §7, G2).
 7. Writeback receipts checked where delivery matters (§9).
 - [ ] `persona.ts` is statically resolvable: no interpolation, no string
-      concatenation, no imported identifier referenced by the persona object
-      (§8b). Compiling does not prove this — open the Launch Agent URL and
-      confirm the providers panel lists your integrations.
+      concatenation, no computed values (§8b). Compiling does not prove this —
+      open the Launch Agent URL and confirm the providers panel lists your
+      integrations.
 
 ## Field gotchas (verified against workforce 4.1.34; agents repo pins runtime/persona-kit/cli 4.1.23)
 
