@@ -1213,9 +1213,11 @@ with no `${}`, `['a', 'b'].join(' ')`, a `const` declared in `persona.ts`, a
 import of a `const` literal from a relative sibling (one level, cloud#3245).
 
 **Never build a value.** No interpolation (`` `text ${X}` ``), no concatenation
-(`'a' + b`), no helper calls, `.map`, or ternaries. A derived value — say a
-prompt line generated from your capability manifest — cannot survive here:
-inline the result and pin it with a test that fails when the source changes.
+(`'a' + b`), no calls of your own, no `.map`, no ternaries. The two calls above
+are specific exceptions the resolver implements, not a general permission. A
+derived value — say a prompt line generated from your capability manifest —
+cannot survive here: inline the result and pin it with a test that fails when
+the source changes.
 
 **Guard it.** Compiling proves nothing: `persona.json` comes from *executing*
 the module, which is what the page will not do. Parse the persona object and
@@ -1277,10 +1279,10 @@ Consequences:
    early-returned, defensive meta reads with explicit fail-open/closed choices,
    no schedule-name gate on `cron.tick` (there is no `event.name` — §7, G2).
 7. Writeback receipts checked where delivery matters (§9).
-- [ ] `persona.ts` is statically resolvable: no interpolation, no string
-      concatenation, no computed values (§8b). Compiling does not prove this —
-      open the Launch Agent URL and confirm the providers panel lists your
-      integrations.
+8. `persona.ts` is statically resolvable: no interpolation, no string
+   concatenation, no computed values (§8b). Compiling does not prove this —
+   open the Launch Agent URL and confirm the providers panel lists your
+   integrations.
 
 ## Field gotchas (verified against workforce 4.1.34; agents repo pins runtime/persona-kit/cli 4.1.23)
 
