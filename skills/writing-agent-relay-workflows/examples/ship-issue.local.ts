@@ -58,7 +58,12 @@ const config = workflow('ship-issue-local')
 // `cwd`. Omitting it ran `git ls-remote origin` outside any git checkout.
 const runner = new WorkflowRunner({ cwd: WORKDIR });
 
-if (process.env.DRY_RUN) {
+// `process.env.DRY_RUN` is a string, so a bare truthiness check sends
+// DRY_RUN=false and DRY_RUN=0 down the dry-run path and exits 0 without ever
+// running the workflow. Parse it.
+const dryRun = /^(1|true|yes)$/i.test(process.env.DRY_RUN?.trim() ?? '');
+
+if (dryRun) {
   // A DryRunReport is NOT a WorkflowRunRow: it has no `status` field, so the
   // usual `status !== 'completed'` guard is true on a PASSING dry run and exits
   // 1. Branch on `valid`.
