@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -8,6 +8,25 @@
   "repository": "https://github.com/AgentWorkforce/skills",
   "homepage": "https://agentrelay.com",
   "packages": [
+    {
+      "name": "migrating-persona-to-relayflow",
+      "version": "1.0.0",
+      "description": "Use when migrating an existing defineAgent persona (in AgentWorkforce/agents or AgentWorkforce/internal-agents) to run its LLM-heavy work through a Relayflow v1 workflow via ctx.workflow.run(). Covers scope decisions, the 4-step durable-workflow shape, colocation with the persona, ctx.workflow.run() invocation, red-first + resume tests, useSubscription semantics for realtime triggers, and the agentworkforce >= 4.1.44 CI-deploy bump. Reference migration: hn-monitor PR #126.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "relayflow",
+        "migration",
+        "persona",
+        "defineAgent",
+        "workflow",
+        "durable-execution",
+        "agents-repo"
+      ],
+      "files": [
+        "skills/migrating-persona-to-relayflow/SKILL.md"
+      ]
+    },
     {
       "name": "choosing-swarm-patterns",
       "version": "1.1.5",
