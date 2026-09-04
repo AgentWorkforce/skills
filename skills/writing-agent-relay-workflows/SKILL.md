@@ -70,6 +70,8 @@ Relayflows can block on humans and provider events without shelling out to Slack
 
 ### Slack Human Assistance
 
+**Requires `@relayflows/core` >= 1.1.0.** `humanAssistance` and the `HUMAN_QUESTION` protocol do not exist at all in 1.0.x — verified by unpacking the published tarballs: 1.0.1 contains zero occurrences of either symbol, 1.1.0 is the first release that ships them. On a 1.0.x runner the key is simply ignored, so the gate never parks, nothing reaches Slack, and the run behaves as if you had configured no gate. Check what your runner actually resolves (`node -e "console.log(require('@relayflows/core/package.json').version)"`) before relying on this section; on 1.0.x, escalate through a Relayfile-mount file instead.
+
 Use `swarm.humanAssistance.slack` when an interactive agent may need a human answer before continuing. The channel may be a Slack channel name (`proj-cloud` or `#proj-cloud`) or a channel ID (`C...`). Prefer names in checked-in workflows; the Relayfile Slack channel index resolves them to IDs at runtime.
 
 With `integrations.relayfile: {}`, the workflow uses the existing Relayfile connection and mount. Do not add `workspaceId`, Relayfile token, Slack bot token, or provider tokens to the workflow. Mounting is enabled by default; set `mount: false` only for a controlled test runtime that intentionally does not need `.integrations`.
