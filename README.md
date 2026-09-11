@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.5`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.6`.
 
 ## Published Skills
 
@@ -11,6 +11,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.5 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
 | [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.24 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, Relayfile-backed Slack human assistance, integration subscriptions, waitFor gates, review-depth review/fix loops, channels, and chat-native coordination recipes. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.1 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
+| [writing-relayflows](skills/writing-relayflows/SKILL.md) | 1.0.0 | Author a Relayflows v2 flow (`@relayflows/surface`/`@relayflows/sdk`, the `flows` CLI) in TypeScript or YAML/JSON — the run/llm/agent ladder, verification gates, cli/model resolution, flows.json, and real `flows check`/`run` refusal shapes. Not the older `@relayflows/core` WorkflowBuilder engine. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.4.0 | Participant-side MCP reference for a **registered** relay agent (spawned worker / registered lead): messaging, channels, threads, reactions, search, inbox, actions, and worker spawn/release. Counterpart to `orchestrating-agent-relay`. |
 | [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.3.1 | The canonical way to run agent-relay: self-bootstrap the broker (`agent-relay node up`) and autonomously spawn, monitor, and coordinate a worker team over the relay MCP without human intervention. |
 | [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.9 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, review-depth review/fix with test hardening, and commit gates. |

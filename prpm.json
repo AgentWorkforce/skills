@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -91,6 +91,29 @@
       ],
       "files": [
         "skills/setting-up-relayfile/SKILL.md"
+      ]
+    },
+    {
+      "name": "writing-relayflows",
+      "version": "1.0.0",
+      "description": "Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine \u2014 the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the three-rung ladder (run/llm/agent), the resident verbs (human/dispatch/done), verification gates, TypeScript vs YAML authoring, per-step cli/model selection and its resolution order, flows.json, and `flows check`/`run`/`resume` with their real refusal shapes and exit codes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) that `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` cover \u2014 that's a different product despite the similar name.",
+      "format": "claude",
+      "subtype": "skill",
+      "languages": [
+        "typescript",
+        "yaml"
+      ],
+      "tags": [
+        "relayflows",
+        "flows",
+        "journal",
+        "workflow",
+        "agent",
+        "typescript",
+        "yaml"
+      ],
+      "files": [
+        "skills/writing-relayflows/SKILL.md"
       ]
     },
     {
