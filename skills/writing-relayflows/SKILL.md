@@ -72,7 +72,7 @@ steps:
     model: claude-sonnet-4-6
 ```
 
-Both examples above were run for real against a built `2.0.8`-line checkout (`flows check`, exit 0 both) — see **Verified against**.
+**Version note:** the published `@relayflows/surface@2.0.8` on npm predates `AgentOptions.cli`/`.model` (flows#310) — it does not define them, and using them against that installed version throws at authoring time. These examples require `AgentWorkforce/flows@86a2ec2` or a later/compatible published release; if your installed `@relayflows/surface` still reads `2.0.8` and doesn't export these fields, omit `cli`/`model` from `f.agent`/`f.llm` calls until it's updated. Both examples above were run for real against a source build of that commit (`flows check`, exit 0 both) — see **Verified against**.
 
 ## The real `Ctx` contract (TypeScript)
 
@@ -218,7 +218,7 @@ REFUSED [model_unknown] Step "greeter" declares model "claude-sonnet-4-6" for CL
 ```
 (Verified for real — see **Verified against**.)
 
-## Human approval, dispatch, and Slack (TypeScript resident verbs)
+## Human approval and dispatch (TypeScript resident verbs)
 
 ```ts
 import { flow } from '@relayflows/surface';
@@ -233,11 +233,13 @@ export default flow('ship-feature', async (f) => {
   if (!ok) return f.done('canceled');
 
   const pr = await f.dispatch('garden/implement', plan);   // hands off to a child flow
-  await f.slack.reply(event, `Shipped: ${pr.url}`);
+  f.done('success');
 });
 ```
 
-`f.human` is a durable, journaled approval gate — the run parks until the human answers, and resumes exactly where it left off. `f.dispatch` hands input to a named child flow and returns its typed result; the parent doesn't inline the child's steps. (Source: `docs/SURFACE.md` §2 rule 6 region, lines ~40-53 as of `origin/main@86a2ec2` — this snippet is cited, not independently re-run, since it needs a live daemon + Slack mount.)
+`f.human` is a durable, journaled approval gate — the run parks until the human answers, and resumes exactly where it left off. `f.dispatch` hands input to a named child flow and returns its typed result; the parent doesn't inline the child's steps. (Source: `docs/SURFACE.md` §2 rule 6 region, lines ~40-53 as of `origin/main@86a2ec2` — this snippet is cited, not independently re-run, since it needs a live daemon.)
+
+`f.slack` is a separate helper namespace, and its real calling convention doesn't fit a plain `flow(name, async (f) => ...)` body: in the real source, `f.slack.reply(event, ...)` only appears inside a trigger handler registered via `.on(slack.mention('#exec'), async (f, event) => { ... })`, where `event` is the trigger's second callback argument — not something a step-based flow like the one above ever has in scope. Triggers and `f.slack` are out of this skill's scope (see **What this skill does NOT cover**); don't copy a bare `f.slack.reply(event, ...)` call into a `flow()` body like the one above, it will throw `event is not defined`.
 
 ## Running it: `flows check` / `run` / `resume`
 
@@ -250,7 +252,7 @@ flows run [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local
 flows resume [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] <run-id>
 ```
 
-`check` is a pure compile-and-preflight — no daemon, no socket, no data dir. It's the fast, safe way to validate a flow before ever running it. `--json` works on `check`/`run`/`resume`; it does **not** exist on `tick start`, `hn-monitor start`, or `observer`.
+`check` is a pure compile-and-preflight — no daemon, no socket, no data dir. It's the fast, safe way to validate a flow before ever running it. `--json` works on `check`/`run`/`resume`; it does **not** exist on `tick start`, `hn-monitor start`, or `observer`. The printed usage above only lists `<flow.yaml|spec.json>` for `check`, but it accepts `.flow.ts` too — verified in this skill's own **Verified against** section (`flows check hello.flow.ts` passes); the tool's own `--help` text is just incomplete on this point.
 
 A `.flow.ts` run via `flows run` requires `--input <inline-json-or-file>` even when the flow body ignores its input argument — `flows run hello.flow.ts` alone refuses `REFUSED [input_missing]`.
 
