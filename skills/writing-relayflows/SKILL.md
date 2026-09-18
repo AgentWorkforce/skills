@@ -381,6 +381,11 @@ A `.flow.ts` run via `flows run` requires `--input <inline-json-or-file>` even w
 flows run pr-reviewer.flow.ts --local-agent --data-dir /somewhere/outside/the/repo --input '{...}'
 ```
 
+**Before `flows deploy` will do anything, two things have to already be true — a correct command still fails without them:**
+
+1. **You (or whoever's driving this) are logged in.** `agent-relay cloud login` once; check with `agent-relay cloud whoami`. There's no separate `flows`-specific login — it shares the `agent-relay` Cloud session.
+2. **The workspace has a GitHub App installation covering `--repo`, and the `--on` provider is actually a connected integration** — not just declared in the command. `flows deploy` looks up the workspace's GitHub installation before it will activate a listener; with none, it refuses `flow_repository_not_connected` rather than deploying a broken one (`prepare-flow-deploy.ts` in `AgentWorkforce/cloud`). Check what's connected with `agent-relay cloud integration connections --workspace <id>` — a provider showing `degraded` instead of `ready` is not deploy-safe, even though the CLI won't tell you that until you try. This is a separate concern from your own local git push access (a personal git/`gh` credential thing, needed only for testing a flow's own `git push`/`gh pr create` steps locally) — don't conflate the two when debugging a refusal.
+
 **`flows deploy`** creates a persistent listener: each matching ticket (`--on github:labels=agent`, `linear:team=ENG`, `jira:project=OPS`, `shortcut:workspace=…`, `slack:channel=#eng`) launches one Cloud run. `flows deployments` lists what's listening; `flows undeploy <id>` stops it — verified for real this session (deployed `software-factory` against a real repo with `--on linear:team=…`, got back `{"status":"listening", ...}`, then cleanly undeployed).
 
 **`flows schedule`** puts a flow on a cron instead of a ticket trigger — newer (shipped after the `2.0.16` release line) and not yet reflected everywhere in older examples that instead show `flows run --cloud` for the same use case.
@@ -433,7 +438,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `flows.json`: `cli, executors, models, mcp, deploy` | project config | exact accepted key set — nothing else |
 | `flows check <file>` | CLI | pure validate + preflight, no daemon |
 | `flows run <file> --local-agent [--input ...]` | CLI | actually executes; `.flow.ts` needs `--input`, agent/llm steps need `--local-agent` |
-| `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; works today |
+| `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; needs `agent-relay cloud login` plus a connected GitHub App + `--on` provider first, or `flow_repository_not_connected` |
 | `flows run --cloud <flow.ts> --input ...` | CLI | broken for TS today, [flows#461](https://github.com/AgentWorkforce/flows/issues/461) |
 | `flows schedule <flow.ts> --cron ...` | CLI | cron-based cloud run |
 
