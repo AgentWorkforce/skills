@@ -73,7 +73,7 @@ steps:
     model: claude-sonnet-4-6
 ```
 
-**Version note.** This skill was refreshed against `@relayflows/surface@2.0.16` and `@relayflows/sdk@2.0.16` — the current published npm packages, not a source build. Both examples above pass `flows check` for real against those versions (see **Verified against**).
+**Version note.** This skill was refreshed against `@relayflows/surface@2.0.16` and `@relayflows/sdk@2.0.16` — the current published npm packages, not a source build. Both examples above pass `flows check` for real against those versions (see **Verified against**). `2.0.17` shipped since, fixing the `flows run --cloud` bug documented below (**Running it**) — that one claim is re-verified against `2.0.17`; everything else in this document was checked against `2.0.16` and hasn't been independently re-run on `2.0.17`, though nothing in its release notes suggests the other claims changed.
 
 ## The real `Ctx` contract (TypeScript)
 
@@ -390,7 +390,7 @@ flows run pr-reviewer.flow.ts --local-agent --data-dir /somewhere/outside/the/re
 
 **`flows schedule`** puts a flow on a cron instead of a ticket trigger — newer (shipped after the `2.0.16` release line) and not yet reflected everywhere in older examples that instead show `flows run --cloud` for the same use case.
 
-**Known current bug, filed and open at time of writing** ([flows#461](https://github.com/AgentWorkforce/flows/issues/461)): the one-shot `flows run --cloud [--sync-code] <flow.ts> --input <json>` form is broken for authored TypeScript flows — it either misroutes into the declarative-spec loader (`invalid_input: Cannot read or compile the declarative flow`) or refuses with a bare `http_error: HTTP 400`, regardless of flag order or a real git remote. `flows deploy` (the persistent-listener form) works correctly. If you need one-shot cloud execution of a TS flow today, expect this to fail and check whether #461 has landed before spending time on flag combinations.
+**Now fixed, was broken through `2.0.16`** ([flows#461](https://github.com/AgentWorkforce/flows/issues/461), closed): the one-shot `flows run --cloud [--sync-code] <flow.ts> --input <json>` form used to misroute authored TypeScript flows into the declarative-spec loader (`invalid_input: Cannot read or compile the declarative flow`) or refuse with a bare `http_error: HTTP 400`. Root cause: Cloud pinned an older `@relayflows/surface` than the CLI authored against, and refused the version mismatch with those opaque errors instead of naming it. Fixed in `2.0.17` (CLI side) — verified for real: `flows run --cloud --wait <flow.ts> --input '{}'` now submits successfully and returns a real run ID instead of refusing immediately. If you still hit a bare `HTTP 400`/`invalid_input` on this path, you're likely on a CLI older than `2.0.17` — update first before assuming something else is wrong. (Cloud-side reporting of the exact version mismatch, when one still exists, was tracked as a separate follow-up PR at the time of writing — the CLI's own refusal is fixed either way.)
 
 ### Exit codes and refusal shapes
 
@@ -413,7 +413,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 - **Letting a git-hygiene flow's cleanup step delete your daemon's own data dir.** Pass `--data-dir` outside the checkout for any flow that runs `git clean`/`git checkout --force` on its own working tree.
 - **Not awaiting a step, or manually `.then()`-chaining one.** Refused (`unawaited_step`) rather than silently ignored.
 - **Running a `.flow.ts` without `--input`.** Required even for flows that don't use their input argument.
-- **Trying `flows run --cloud` for a one-shot TypeScript flow run.** Broken today — see [flows#461](https://github.com/AgentWorkforce/flows/issues/461). Use `flows deploy` for a persistent listener instead.
+- **Assuming `flows run --cloud` for a one-shot TypeScript flow run is still broken.** It was through `2.0.16` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461), now closed) — fixed in `2.0.17`. If you're on an older CLI, update rather than reach for a workaround; `flows deploy` remains the right choice for a persistent listener regardless.
 
 ## What this skill does NOT cover
 
@@ -439,7 +439,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `flows check <file>` | CLI | pure validate + preflight, no daemon |
 | `flows run <file> --local-agent [--input ...]` | CLI | actually executes; `.flow.ts` needs `--input`, agent/llm steps need `--local-agent` |
 | `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; needs `agent-relay cloud login` plus a connected GitHub App + `--on` provider first, or `flow_repository_not_connected` |
-| `flows run --cloud <flow.ts> --input ...` | CLI | broken for TS today, [flows#461](https://github.com/AgentWorkforce/flows/issues/461) |
+| `flows run --cloud <flow.ts> --input ...` | CLI | fixed in `2.0.17` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461)); update if you still see `http_error`/`invalid_input` |
 | `flows schedule <flow.ts> --cron ...` | CLI | cron-based cloud run |
 
 ## Verified against
