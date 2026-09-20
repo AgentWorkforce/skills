@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -95,7 +95,7 @@
     },
     {
       "name": "writing-relayflows",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the v2 journal-based engine, CLI `flows`) in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, human/dispatch/done, verification gates, cli/model resolution, flows.json, and flows check/run/resume refusal shapes. Not for the older @relayflows/core WorkflowBuilder (chained .pattern('dag')/.agent()/.step() calls) \u2014 see writing-agent-relay-workflows / migrating-persona-to-relayflow instead.",
       "format": "claude",
       "subtype": "skill",
@@ -154,8 +154,8 @@
     },
     {
       "name": "relay-80-100-workflow",
-      "version": "1.0.9",
-      "description": "Use when writing agent-relay workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with review-depth fresh-eyes review/fix loops with test hardening, PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
+      "version": "1.1.0",
+      "description": "Use when writing agent-relay or Relayflows v2 workflows that must fully validate features end-to-end before merging - covers the 80-to-100 pattern with review-depth fresh-eyes review/fix loops with test hardening, the v1-to-v2 translation (no failOnError/captureOutput/{{steps.X.output}}) and its evidence-recorder replacement, PGlite in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates, and full lifecycle from implementation through passing tests to commit",
       "format": "claude",
       "subtype": "skill",
       "tags": [

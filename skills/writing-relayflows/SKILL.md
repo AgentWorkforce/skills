@@ -23,7 +23,7 @@ Relayflows turns a coding-agent task into steps a journal can inspect, verify, a
 
 Three step verbs, one per rung — never more (`packages/sdk/src/spec.ts`, `export type StepType = 'deterministic' | 'llm' | 'agent';`):
 
-1. **`run` / `deterministic`** — a shell command. No model. Implicit gate is `exit_code == 0`.
+1. **`run` / `deterministic`** — a shell command. No model. Implicit gate is `exit_code == 0`. It takes options: `f.run(cmd, { timeout: '5m' })`. **The default lease is 30 seconds and the maximum is 15 minutes** (`packages/surface/src/context.ts:60`) — invisible in most documentation and long enough to bite any command that touches the network. `git fetch`, `cargo build` and `gh pr create` all exceed it in their bad case, which is exactly when you least want an intermittent failure.
 2. **`llm` / `llm`** — a bare model call. Prompt in, verified output out. No workspace, no tool use.
 3. **`agent` / `agent`** — a harnessed coding agent in a workspace. Returns `{ summary, artifacts }`, not raw text.
 
@@ -110,6 +110,22 @@ Do not add fields to `AgentOptions`/`Ctx` that aren't in this list — they don'
 
 `done(reason)` takes exactly one of the closed run-completion set (`packages/surface/src/completion.ts`): `'success' | 'step_failed' | 'canceled' | 'budget_exceeded'`. There's no fifth option — don't invent one (e.g. `'partial'`, `'skipped'`).
 
+### `flow()` takes a header, and that is where a TypeScript budget goes
+
+`flow()` has three overloads (`packages/surface/src/flow.ts:57-61`), and the three-argument one is the one you want for anything long-running:
+
+```ts
+export default flow<Input>(
+  'relay.ci.pr-proof',
+  { budget: { wallclock: '110m' } },   // FlowHeader
+  async (f, input) => { ... }
+);
+```
+
+`FlowHeader` carries `budget`, `workspace`, `tools` and `use?: string[]`. It does **not** carry `agents` — that throws `TypeError: flow header has unknown fields: agents` at authoring time.
+
+The header budget (`wallclock: '110m'`) and the spec budget (`budget: { maxWallclockMs: 6_600_000 }`) are different shapes for the same thing: `BudgetSpec | HeaderBudget` in `packages/sdk/src/spec.ts`. Write the duration form in TypeScript and the millisecond form in a generated spec.
+
 ## The real step shapes (YAML/JSON, `packages/sdk/src/spec.ts`)
 
 ```ts
@@ -162,9 +178,28 @@ interface FlowSpec {
 
 Verification is control flow, not decoration — a gate decides whether a step actually completed, not just whether the process exited cleanly (`packages/sdk/src/spec.ts`, `VerificationGateType`):
 
+There are **eight**, not three (`packages/sdk/src/spec.ts`; the full list is also in `validate.ts`'s `unknown_gate_kind` refusal):
+
 - `exit_code` — implicit default for `deterministic` steps. `exit_code == 0`. Not configurable in v0.
 - `output_contains` — step output (stdout tail or LLM value, stringified) contains `value`.
 - `json_schema` — step output validates against a JSON Schema (`boolean | Record<string, unknown>`). Used for structured LLM/agent output.
+- `regex_match` — `{ pattern, in_output_at?, flags? }`. RE2-safe (no catastrophic backtracking), inspectable before execution. The one to reach for when an agent must emit a specific receipt line.
+- `artifact_exists` — `{ path }`, a working-directory-relative POSIX path. Passes when the step's **journaled** `artifacts` list names the path. Nothing on disk is consulted, so replay and resume see the recorded verdict. This is the right gate for "the agent must have written X".
+- `subprocess_gate` — `{ command, from_output? }`. Runs a shell command; see the warning below before using it.
+- `references_input` — `{ input_key, in_output_at? }`. The output must quote a value from the run input.
+- `word_count_bounds` — `{ min?, max? }`.
+
+In TypeScript these attach **postfix**, with `.gate()` on the returned `Step<T>` (`packages/surface/src/step.ts`) — one per step:
+
+```ts
+await f
+  .agent('prover', { task: '...', cli: 'claude' })
+  .gate({ type: 'regex_match', pattern: 'PROOF_COMPLETE arm=base', in_output_at: ['summary'] });
+
+await f.agent('writer', { task: '...' }).gate({ type: 'artifact_exists', path: 'review/security.md' });
+```
+
+`.gate()` also takes a predicate — `.gate(v => v.length > 0, 'must not be empty')` — but the closure cannot be inspected by `flows check` before the run. Prefer a `NamedGate` when the check should be visible up front.
 
 ```yaml
 - id: classify
@@ -180,6 +215,34 @@ Verification is control flow, not decoration — a gate decides whether a step a
 Verified for real: `flows check` on exactly this step passed (`CHECK PASSED`, exit 0) — see **Verified against**.
 
 An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. Always give an `agent`/`llm` step a real `verification`, not just the default.
+
+### A failing `subprocess_gate` tells you nothing
+
+`subprocess_gate` looks like the general-purpose escape hatch. It has a trap worth knowing before you build a flow around it.
+
+The lowering (`packages/sdk/src/named-gate-lowering.ts`) spawns your command with `stdio: 'inherit'`, and the daemon's stdio is captured nowhere. When the gate fails you get, in the journal:
+
+```json
+{"completionReason":"retries_exhausted","output":{"exit_code":1,"stderr_tail":"","stdout_tail":""}}
+```
+
+`relayflowd.log` is empty too, and nothing reaches the `flows run` output. A gate command that prints a detailed diagnosis on every path prints it into the void. Tracked at [flows#511](https://github.com/AgentWorkforce/flows/issues/511).
+
+Two consequences for how you author:
+
+- **Prefer `artifact_exists` or `regex_match` on agent steps.** Both decide in-process from the journal, so their verdicts are legible and replay-stable.
+- **If you must use `subprocess_gate`, make the command write its own verdict to a file** under your artifact directory. That file is the only record you will get.
+
+More generally: put enforcement in a deterministic step *after* the agent rather than in a gate *on* the agent. A dropped agent transport then reads as "nothing was written" — a repairable fact — instead of as a crashed run.
+
+### There is no `failOnError: false`
+
+v2 gates every `deterministic` step on exit code with no opt-out. If you are porting a v1 flow, or writing a repair-before-failure flow where a red check is *work for an agent* rather than the end of the run, you need a pattern for it. The two in use:
+
+- `{ <command> } || true` — the group braces are load-bearing, because `||` cannot begin a line, so appending `\n|| true` to a multi-line command is a shell syntax error rather than a fallback. This discards the exit code, so a later gate has nothing to read.
+- **An evidence recorder** — a small script that runs the command, writes `{command, exitCode, verdict, tail}` to a file, and always exits 0; a later deterministic step reads those files back and decides. Verbose, but it is the only shape where a repair agent can see *why* a check was red and a final gate can recompute green from recordings rather than from an agent's report.
+
+Tracked at [flows#509](https://github.com/AgentWorkforce/flows/issues/509).
 
 ## `cli` / `model`: what a step actually runs on
 
@@ -252,7 +315,30 @@ flows run [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local
 flows resume [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] <run-id>
 ```
 
+### A flow with an agent step needs `--local-agent`
+
+`flows run <spec>` on a flow containing **any** `agent` step parks immediately at that step unless you pass `--local-agent`:
+
+```
+PARKED [run_parked] Run "01M2Z..." parked at step "implement-rust" (agent): no worker is attached for step type "agent".
+RUN 01M2Z... parked (3 steps)                                      # exit 3
+```
+
+The flag is in the usage string but nothing says it is *required*; the message reads as "your infrastructure is missing a worker", not "pass this flag". Budget a wasted run for it the first time, or just always pass it for a local run with agents.
+
+Three details worth having in advance:
+
+- **The remedy is only named sometimes.** The hint `To start a new run with a local agent worker: flows run --local-agent '<path>'` is appended only for `flows run` on a YAML/JSON spec path. A `.flow.ts` gets the bare message with no remedy, and `flows resume` never gets one (`packages/sdk/src/cli/run.ts:627-640`).
+- **`flows resume --local-agent <run-id>` is a trap on a spec run.** The flag is accepted and then ignored: `resumeFlow` attaches a worker only on the authored-TS path, so a YAML/JSON run parks again with the identical message. Start a new run instead. ([flows#504](https://github.com/AgentWorkforce/flows/issues/504))
+- **`flows schedule` has no `--local-agent` at all.** A scheduled flow with an agent step parks forever, silently, on a timer. Drive it from cron with `flows run --local-agent` until that changes. ([flows#503](https://github.com/AgentWorkforce/flows/issues/503))
+
+### `flows check` passing does not mean the flow will run
+
 `check` is a pure compile-and-preflight — no daemon, no socket, no data dir. It's the fast, safe way to validate a flow before ever running it. `--json` works on `check`/`run`/`resume`; it does **not** exist on `tick start`, `hn-monitor start`, or `observer`. The printed usage above only lists `<flow.yaml|spec.json>` for `check`, but it accepts `.flow.ts` too — verified in this skill's own **Verified against** section (`flows check hello.flow.ts` passes); the tool's own `--help` text is just incomplete on this point.
+
+That is what makes it fast and worth running constantly. It also means **the one validation tool the product ships structurally cannot catch spec/daemon skew**: the npm packages and the runtime binary can carry the same version number and disagree about the schema, and you learn it as a mid-run `protocol_error` after the flow has already done work ([flows#489](https://github.com/AgentWorkforce/flows/issues/489), [flows#502](https://github.com/AgentWorkforce/flows/issues/502)).
+
+Practical consequence for authoring: **budget a shakedown run against a throwaway target, and treat green unit tests plus `CHECK PASSED` as necessary but not remotely sufficient.** The failures that actually block a flow live in the seams between the packages, the daemon, the CLI flags and the forge, and none of those are reachable without a real run.
 
 A `.flow.ts` run via `flows run` requires `--input <inline-json-or-file>` even when the flow body ignores its input argument — `flows run hello.flow.ts` alone refuses `REFUSED [input_missing]`.
 
@@ -272,12 +358,17 @@ Both are real, both are exit 2 — just from different code paths, so don't be s
 - **Assuming `flows.json`'s `models` sets a default model.** It only validates models already declared elsewhere; it never selects one.
 - **Not awaiting a step, or manually `.then()`-chaining one.** Both are refused (`unawaited_step` / `unsupported_verb`) rather than silently ignored — the executor closes every root operation's lifecycle explicitly.
 - **Running a `.flow.ts` without `--input`.** Required even for flows that don't use their input argument.
-- **Expecting a fifth `done()` reason.** The set is closed: `success | step_failed | canceled | budget_exceeded`. Don't invent `partial` or `skipped`.
+- **Expecting a fifth `done()` reason.** The set is closed in this skill's examples as `success | step_failed | canceled | budget_exceeded`; the installed runtime has since added `needs_human` and `declined`. Check `RunCompletionReason` in the version you have rather than trusting either list.
+- **Running a flow with agent steps without `--local-agent`.** It parks at the first agent step. See above.
+- **Gating an agent step on `subprocess_gate`.** When it fails you get `exit=1` and nothing else. See above.
+- **Assuming `f.run` has no timeout.** It leases for 30 seconds by default.
 
 ## What this skill does NOT cover
 
 - **Named-agent maps in TypeScript** (`agents: { reviewer: { cli, model } }` + reuse across steps by name) — YAML/JSON only today. Tracked for TS composition via `use:` at [flows#300](https://github.com/AgentWorkforce/flows/issues/300).
-- **`recoveryMode`, `permissions`, `surfaces`, `budget`, `memory`** on agent steps — real YAML/JSON fields with no TypeScript equivalent. Author that step in YAML and reach it from TypeScript with `f.dispatch` if you need them.
+- **`recoveryMode`, `surfaces`, `memory`** on agent steps — real YAML/JSON fields with no TypeScript equivalent. Author that step in YAML and reach it from TypeScript with `f.dispatch` if you need them. (`budget` *does* have a TypeScript home — the `FlowHeader` — and `AgentOptions` has grown `permissions`, `cwd` and `transport` since this skill was first written.)
+- **Whether `permissions` does anything.** It is validated and journaled and **not enforced** — the kernel says so itself: *"Carried as data in gate 1; enforcement lands with agent dispatch."* Declare it so the intent is reviewable, but do not treat a `flows run` as sandboxed; an agent step can read and write the whole checkout. ([flows#487](https://github.com/AgentWorkforce/flows/issues/487), [flows#442](https://github.com/AgentWorkforce/flows/issues/442))
+- **`options.cwd` on an agent step.** Declared by `@relayflows/surface` and `@relayflows/sdk`, rejected by the runtime binary at the same version, with `invalid_spec: unknown field "cwd"`. Do not plan a per-step worktree around it yet. ([flows#489](https://github.com/AgentWorkforce/flows/issues/489))
 - **Cloud execution** (`flows run --cloud`), **triggers/webhooks**, **memory retrieval**, and the **`f.mcp`**/**`f.slack`** helper namespaces — each is its own surface with its own gotchas; see the [Relayflows product docs](https://agentrelay.com/docs/relayflows) for what's shipped versus designed-but-not-yet-implemented.
 - The **older `@relayflows/core` `WorkflowBuilder`** engine — see `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` in this repo.
 
@@ -297,10 +388,15 @@ Both are real, both are exit 2 — just from different code paths, so don't be s
 | `flows check <file>` | CLI | pure validate + preflight, no daemon |
 | `flows run <file> [--input ...]` | CLI | actually executes; `.flow.ts` needs `--input` |
 | `flows resume <run-id>` | CLI | resume a parked/crashed run |
+| `.gate(config)` on a `Step<T>` | TS | postfix named gate; one per step |
+| `--local-agent` | CLI | **required** for any local run with an `agent` step |
+| `f.run(cmd, { timeout })` | TS | **default lease 30s, max 15m** — set it for anything touching the network |
 
 ## Verified against
 
-`AgentWorkforce/flows@86a2ec2` (origin/main). Built `packages/surface` and `packages/sdk` from source in a clean worktree (published npm `@relayflows/surface@2.0.8` is stale — it predates flows#310 and lacks `cli`/`model` on `AgentOptions`; local build was symlinked in instead), then ran the real CLI:
+**Updated 2026-09-20** against `AgentWorkforce/flows@e73b315e` (origin/main, CLI 2.0.22) while authoring a 58-step campaign flow for `AgentWorkforce/relay` (`flows/migrate/native-delivery.spec.ts`). The `--local-agent` park, the silent `subprocess_gate` failure, the eight gate types, the `.gate()` postfix form, the three-argument `flow()` and the `f.run` 30-second lease were each read from the source cited beside them or observed in a real run — the park and the gate silence cost one run each. The `f.gitlab`/`f.github` writeback asymmetry, the `cwd` skew and the `retries_exhausted` behaviour come from the *Relayflows v2 Field Report* (2026-09-18, Julian Fann), corroborated against the same tree.
+
+Original verification, `AgentWorkforce/flows@86a2ec2` (origin/main). Built `packages/surface` and `packages/sdk` from source in a clean worktree (published npm `@relayflows/surface@2.0.8` is stale — it predates flows#310 and lacks `cli`/`model` on `AgentOptions`; local build was symlinked in instead), then ran the real CLI:
 
 ```
 $ flows check hello.flow.yaml         # this skill's YAML example, cli/model added, flows.json models allowlist set

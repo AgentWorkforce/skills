@@ -1,6 +1,6 @@
 ---
 name: relay-80-100-workflow
-description: Use when writing agent-relay workflows that must fully validate features end-to-end before merging. Covers the 80-to-100 pattern - going beyond "code compiles" to "feature works, tested E2E locally." Includes repair-before-failure validation gates, review-depth fresh-eyes review/fix loops with test hardening, PGlite for in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates after every edit, and the full lifecycle from implementation through passing tests to commit.
+description: Use when writing agent-relay or Relayflows v2 workflows that must fully validate features end-to-end before merging. Covers the 80-to-100 pattern - going beyond "code compiles" to "feature works, tested E2E locally." Includes the v1-to-v2 translation (v2 has no failOnError, captureOutput or {{steps.X.output}}) and the evidence-recorder pattern that replaces them, repair-before-failure validation gates, review-depth fresh-eyes review/fix loops with test hardening, PGlite for in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates after every edit, and the full lifecycle from implementation through passing tests to commit.
 ---
 
 # Writing 80-to-100 Validated Workflows
@@ -15,6 +15,68 @@ Most agent workflows get features to ~80%: code written, types check, maybe a bu
 - Features that touch databases, APIs, or infrastructure that can be tested locally
 - Any workflow where "it compiles" is not sufficient proof of correctness
 - When you want confidence that the commit actually works before deploying
+
+## Which engine are you writing for?
+
+**Every code example below is the v1 builder** — `@agent-relay/sdk/workflows`'s `workflow(...).step(...)`, with `failOnError`, `captureOutput`, `{{steps.X.output}}` and `.onError()`. The patterns are engine-independent; those four knobs are not. If you are writing a **Relayflows v2** flow (`@relayflows/surface` / `@relayflows/sdk`, CLI `flows`), read the next section before copying anything — a v2 spec has none of them and following these examples literally produces something that will not compile.
+
+See `writing-relayflows` for the v2 authoring surface itself.
+
+## The v2 translation
+
+v2 has three step verbs (`deterministic` / `llm` / `agent`) and gates every deterministic step on exit code **with no opt-out**. That single fact is what every translation below works around.
+
+| v1 | v2 |
+| --- | --- |
+| `.timeout(ms)` | `budget.maxWallclockMs`, or `{ budget: { wallclock: '110m' } }` in a TS `FlowHeader` |
+| `retries: n` | `maxIterations: n + 1` |
+| `failOnError: false` | **nothing** — see the recorder below |
+| `captureOutput: true` | **nothing** — output is journaled, but not addressable from a later step's command |
+| `{{steps.X.output}}` | **nothing** — no template interpolation between steps |
+| `verification: { type: 'file_exists' }` | the `artifact_exists` named gate |
+| `verification: { type: 'exit_code' }` on an agent step | no equivalent — see "don't gate agent steps" |
+| `.pattern('dag')`, `.maxConcurrency(n)` | nothing; `dependsOn` is the only ordering |
+| `.onError('retry')` | nothing; a failed step fails the run (it is resumable with `flows resume`) |
+| `.channel(...)`, `.idleNudge(...)`, `preset`/`role` | nothing |
+
+### The evidence recorder replaces `failOnError` + `captureOutput` + `{{steps.X.output}}`
+
+All three v1 knobs existed to serve one pattern: run a check, let it be red, hand its output to the agent built to answer it. In v2 you rebuild that with a small script of your own:
+
+```js
+// gates.mjs record --name <n> --command-base64 <b64>
+// Runs the command, writes {name, command, exitCode, verdict, tail} to
+// evidence/<name>.json, and ALWAYS exits 0.
+//
+// gates.mjs require-green --names a,b,c
+// Reads those files back. This is the only thing that says "green".
+```
+
+The flow then reads:
+
+```ts
+det('unit-tests', record('unit-tests', 'npx vitest run'));          // always exits 0
+agentStep({ id: 'repair-ts', agent: 'fixer', dependsOn: ['unit-tests'],
+  task: ['Read evidence/unit-tests.json. Green means do nothing.',
+         'Red means fix it and rerun until the recorder writes green.'] });
+det('ts-final', record('unit-tests', 'npx vitest run'), ['repair-ts']);
+det('ts-assert', gate('require-green', '--names unit-tests'), ['ts-final']);   // this one may fail
+```
+
+It is more machinery than `failOnError: false`, and it buys something v1 did not have: the repair agent reads a **file**, not an interpolated string, so it sees the whole tail; and final acceptance recomputes the verdict from recordings rather than trusting any agent's report. Base64-encode the command — it will contain `&&`, pipes and quotes, and the calling shell must not reinterpret them.
+
+`|| true` is the other option. It works and it throws the exit code away, which means a later gate has nothing to read and a forgotten gate ships red work silently. Tracked upstream at [flows#509](https://github.com/AgentWorkforce/flows/issues/509).
+
+### Don't gate agent steps in v2
+
+v1's `verification: { type: 'exit_code' }` on an agent step has no v2 equivalent, and the closest thing — `subprocess_gate` — is a trap: the lowering runs the command under `stdio: 'inherit'` and the daemon's stdio is captured nowhere, so a failure arrives as `exit=1` with empty `stdout_tail` **and** empty `stderr_tail`, nothing in `relayflowd.log`, and nothing in the CLI output ([flows#511](https://github.com/AgentWorkforce/flows/issues/511)). A 58-step campaign flow lost a full run to exactly this: the agent succeeded, its gate failed three times, and the verdict its gate command printed on every path reached nowhere.
+
+Use `artifact_exists` (journal-based, replay-stable) where a file is the deliverable, and otherwise **no gate on the agent step at all** — put the enforcement in the deterministic recorded gate that follows it. That is the same advice as *Keep Repairable Gates On The Critical Path* below, and v2 makes it mandatory rather than merely wise.
+
+### Two more v2 facts that will cost you a run each
+
+- **`flows run` parks at the first agent step without `--local-agent`.** The message reads as a missing worker, not a missing flag.
+- **`permissions` on an agent step is journaled and not enforced.** Declare it for reviewability; do not treat a `flows run` as sandboxed. Your implementation agents share one checkout, so partition their lanes by path *and* sequence them, and make an `edit-gate` that rejects out-of-scope changes.
 
 ## Core Principle: Test In The Workflow
 
@@ -551,3 +613,5 @@ Output:
 | No verify gate after agent edits | Agent exits 0 without writing anything | Add `git diff --quiet` check after every edit, then route failures to a repair step |
 | `git diff --quiet` for new package/test directories | Untracked files are invisible, so valid new artifacts can look like "no changes" | Use `git status --short -- <paths>` and a repairable capture → fix → final gate pattern |
 | Committing after `failOnError: false` without checking exits | Broken work can be committed because the shell step returned successfully | In `commit-if-green`, record each exit code and skip commit unless all are zero |
+| Copying a v1 `.step({ failOnError, captureOutput })` example into a v2 flow | Those fields do not exist in v2; the spec will not compile | Use the evidence recorder; see **The v2 translation** |
+| Gating a v2 agent step on `subprocess_gate` | A failure reports `exit=1` with empty stdout and stderr, and the verdict is unrecoverable | `artifact_exists`, or no gate plus a deterministic gate after the step |
