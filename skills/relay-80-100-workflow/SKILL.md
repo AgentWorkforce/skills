@@ -84,6 +84,16 @@ Nothing validates that the assertions you write are mutually satisfiable, and ag
 
 If one gate names a path, assert at authoring time that every other gate permits it. That check is a few lines and it found a real contradiction immediately.
 
+## Green gates are necessary and nowhere near sufficient
+
+Before the mechanics, the finding that reframes all of them.
+
+A 67-step workflow of this exact shape produced a tree on which **every deterministic gate was green** — scope, feature-manifest routing, targeted-verification selection, invariant tests with a mutation transcript, `cargo fmt`/`clippy -D warnings`/release build, typecheck, 3,395 unit tests, and all five end-to-end parity suites. A fresh adversarial reviewer then read that tree and returned **15 findings, 2 of them disqualifying**, with the verdict *"do not seal"*: a mutation probe shipping on a live delivery path that could panic the process, a seam whose coordinator was rebuilt per call so three of its four contract invariants had no production effect, and an adapter that had stopped observing whether its write landed — so a dead writer read as a successful delivery.
+
+None of that is reachable by a gate. Gates check *properties you thought to name*. The review catches *the thing you did not think to name* — and on this run, that was most of the risk.
+
+So: build the gates, and do not treat them as the finish line. The review/fix rounds below are not a formality bolted onto a working pipeline; on the evidence, they are where the defects were actually found.
+
 ## Core Principle: Test In The Workflow
 
 The key insight: **run tests as deterministic steps inside the workflow itself**. Don't just write test files — execute them, verify they pass, fix failures, and re-run. The workflow doesn't commit until tests are green.
@@ -593,6 +603,46 @@ Output:
   .onError('retry', { maxRetries: 2, retryDelayMs: 10_000 })
   .run({ cwd: process.cwd() });
 ```
+
+## A requirement that induces a hazard must gate that hazard
+
+This one cost a near-miss, and it generalises further than it looks.
+
+The workflow required proof that tests bite: *mutate the guarded code, capture the failing transcript, restore it.* An implementer did the first two steps and skipped the third, leaving this in shipping product code on a live delivery path:
+
+```rust
+// MUTATION: drop the addressee and truncate the body.
+if std::env::var("RELAY_MUTATION_LOSSY_FORMAT").is_ok() {
+    return format!("Relay message from {}:\n\n{}", delivery.from, &delivery.body[..1]);
+}
+```
+
+`&body[..1]` panics on a multi-byte first character.
+
+**Every deterministic gate passed that tree.** The edit gate saw a changed file in scope; the invariant gate saw four correctly-named tests and a mutation transcript; typecheck, clippy, the release build and all five end-to-end parity suites were green. Only the adversarial reviewer caught it.
+
+The instruction "prove the test fails," read literally by an agent, is an instruction to damage production code. If you ask for that proof, you must also gate the residue:
+
+```js
+// refuse mutation scaffolding anywhere in product source
+for (const file of walk('src').filter(f => f.endsWith('.rs'))) {
+  if (/MUTATION|_MUTATION_/.test(readFileSync(file, 'utf8'))) problems.push(`residue in ${file}`);
+}
+```
+
+Then prove *that* gate bites, by reinstating a one-line probe and watching it go red.
+
+Generalise it: **any instruction that tells an agent to temporarily break something needs a matching check that it was put back.** Temporarily lowering a timeout, stubbing a provider, disabling a guard — same shape, same hazard.
+
+## Four smaller rules, each learned the expensive way
+
+**Give every repair owner an explicit "if the gate is green, do nothing" clause.** A repair agent handed a green gate will invent work rather than conclude there is none — one burned 21 minutes on a gate reporting `not-required` against a 2–7 minute norm, because its prompt said "make the scenario real" with no branch for the passing case. Audit them: 4 of 7 in a mature workflow were missing it.
+
+**Seal the product tree, not just the evidence directory.** If your signoff step binds a reviewer to an artifact digest, digest the changed source files too. Otherwise the reviewer is bound to a hash of *evidence files* while the code those files describe can change underneath them. Prove it bites: a one-line source edit must change the digest.
+
+**Verify at the granularity the risk lives at.** Checking "256 test functions before, 256 after" and concluding nothing was deleted is wrong — roughly 90 assertions had been removed from *inside* those functions. Count what can actually be weakened, not the container it sits in.
+
+**Retry a flaky gate once, and record which attempt passed.** Contention between suites is not a regression; a run 35 steps deep died to a `Verified: 2/3, Failed: 0` that passed 3/3 standalone three times. A retry does not weaken the gate — the command must still pass — but the recorded tail has to say `passed on attempt 2`, so a suite that only ever passes on retry stays visible instead of being quietly laundered green.
 
 ## Checklist: Is Your Workflow 80-to-100?
 
