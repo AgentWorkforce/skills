@@ -216,32 +216,11 @@ Verified for real: `flows check` on exactly this step passed (`CHECK PASSED`, ex
 
 An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. Always give an `agent`/`llm` step a real `verification`, not just the default.
 
-### A failing `subprocess_gate` tells you nothing
+### Don't gate an agent step — check it in the step after
 
-`subprocess_gate` looks like the general-purpose escape hatch. It has a trap worth knowing before you build a flow around it.
+Neither named gate is usable on an agent step today: `subprocess_gate`'s output is not captured, and `artifact_exists` cannot see a dot-directory. Both are open bugs — see **Open bugs you must author around** below for the detail and the issue links.
 
-The lowering (`packages/sdk/src/named-gate-lowering.ts`) spawns your command with `stdio: 'inherit'`, and the daemon's stdio is captured nowhere. When the gate fails you get, in the journal:
-
-```json
-{"completionReason":"retries_exhausted","output":{"exit_code":1,"stderr_tail":"","stdout_tail":""}}
-```
-
-`relayflowd.log` is empty too, and nothing reaches the `flows run` output. A gate command that prints a detailed diagnosis on every path prints it into the void. Tracked at [flows#511](https://github.com/AgentWorkforce/flows/issues/511).
-
-Two consequences for how you author:
-
-- **Prefer `artifact_exists` or `regex_match` on agent steps.** Both decide in-process from the journal, so their verdicts are legible and replay-stable.
-- **If you must use `subprocess_gate`, make the command write its own verdict to a file** under your artifact directory. That file is the only record you will get.
-
-More generally: put enforcement in a deterministic step *after* the agent rather than in a gate *on* the agent. A dropped agent transport then reads as "nothing was written" — a repairable fact — instead of as a crashed run.
-
-### `artifact_exists` cannot see a dot-directory
-
-The other named gate you reach for on an agent step has its own blind spot. It reads the worker's journaled `artifacts` list, and that list **omits paths under dot-directories** — which is where artifact conventions usually put things.
-
-Measured in one run: an agent journaled 6,837 artifacts, `{target: 6832, crates: 5}`, and **zero** under `.workflow-artifacts/`, while provably having written a file there. A later step then died gating on a 25 KB review sitting on disk. It is not a `.gitignore` effect — `target/` is gitignored too and is included in full. ([flows#513](https://github.com/AgentWorkforce/flows/issues/513))
-
-So with both named gates unusable on an agent step, the shape that works is the same one: **a deterministic step after the agent that checks the disk and records its verdict.** Which is where enforcement belongs anyway.
+The durable lesson outlives both fixes: **put enforcement in a deterministic step after the agent, not in a gate on it.** A dropped agent transport then reads as "nothing was written" — a repairable fact — instead of as a crashed run, and the verdict is legible because a deterministic step journals its output. This is the same advice `relay-80-100-workflow` gives as *keep repairable gates on the critical path*; v2 makes it mandatory rather than merely wise.
 
 ### There is no `failOnError: false`
 
@@ -340,17 +319,13 @@ Three details worth having in advance:
 - **`flows resume --local-agent <run-id>` is a trap on a spec run.** The flag is accepted and then ignored: `resumeFlow` attaches a worker only on the authored-TS path, so a YAML/JSON run parks again with the identical message. Start a new run instead. ([flows#504](https://github.com/AgentWorkforce/flows/issues/504))
 - **`flows schedule` has no `--local-agent` at all.** A scheduled flow with an agent step parks forever, silently, on a timer. Drive it from cron with `flows run --local-agent` until that changes. ([flows#503](https://github.com/AgentWorkforce/flows/issues/503))
 
-### Watching a run: `flows status`, and nothing else
+### Watching a run
 
-`flows status <run-id>` is the observability surface, and it is good — a live step table with per-step attempts, durations, gate verdicts, spend and transcript paths, plus per-attempt transcripts under `.relayflowd/runs/<run-id>/steps/<step>/`. Poll it with `watch`.
+`flows status <run-id>` is the observability surface, and it is good: a live step table with per-step attempts, durations, gate verdicts, spend and transcript paths, plus per-attempt transcripts under `.relayflowd/runs/<run-id>/steps/<step>/`. Poll it with `watch`.
 
-Three things to know:
+Two durable facts. **The step count will not match your spec** — the kernel adds a lowered `.gate` step per gated step, so a 58-step spec reports 67. And **a side-effect log written by your own gate scripts is not a progress signal**: agents run those same commands on themselves while working, so the log mixes flow steps, agent self-checks and your own manual runs. `flows status` is the only caller-accurate view.
 
-- **There is no observer link for a local run** and no channel to watch it in. v2 has no relaycast channel concept at all, and the `--local-agent` observer URL is empty or fails to mint ([flows#341](https://github.com/AgentWorkforce/flows/issues/341), [flows#264](https://github.com/AgentWorkforce/flows/issues/264)).
-- **`flows logs <run-id>` is documented but refused** `invalid_invocation` in 2.0.22. Don't build a workflow around it.
-- **`LEASE OVERDUE by Nm` is usually a display artifact**, not a stall — the lease is not renewed while an agent is mid-turn. Check the worker process before concluding anything.
-
-And the step count will not match your spec: the kernel adds a lowered `.gate` step per gated step, so a 58-step spec reports 67.
+For what is missing (observer link, `flows logs`) see the open-bugs section.
 
 ### `flows check` passing does not mean the flow will run
 
@@ -387,8 +362,7 @@ Both are real, both are exit 2 — just from different code paths, so don't be s
 
 - **Named-agent maps in TypeScript** (`agents: { reviewer: { cli, model } }` + reuse across steps by name) — YAML/JSON only today. Tracked for TS composition via `use:` at [flows#300](https://github.com/AgentWorkforce/flows/issues/300).
 - **`recoveryMode`, `surfaces`, `memory`** on agent steps — real YAML/JSON fields with no TypeScript equivalent. Author that step in YAML and reach it from TypeScript with `f.dispatch` if you need them. (`budget` *does* have a TypeScript home — the `FlowHeader` — and `AgentOptions` has grown `permissions`, `cwd` and `transport` since this skill was first written.)
-- **Whether `permissions` does anything.** It is validated and journaled and **not enforced** — the kernel says so itself: *"Carried as data in gate 1; enforcement lands with agent dispatch."* Declare it so the intent is reviewable, but do not treat a `flows run` as sandboxed; an agent step can read and write the whole checkout. ([flows#487](https://github.com/AgentWorkforce/flows/issues/487), [flows#442](https://github.com/AgentWorkforce/flows/issues/442))
-- **`options.cwd` on an agent step.** Declared by `@relayflows/surface` and `@relayflows/sdk`, rejected by the runtime binary at the same version, with `invalid_spec: unknown field "cwd"`. Do not plan a per-step worktree around it yet. ([flows#489](https://github.com/AgentWorkforce/flows/issues/489))
+- **`permissions` and `options.cwd`** — both are accepted and neither works as written. See **Open bugs you must author around**.
 - **Cloud execution** (`flows run --cloud`), **triggers/webhooks**, **memory retrieval**, and the **`f.mcp`**/**`f.slack`** helper namespaces — each is its own surface with its own gotchas; see the [Relayflows product docs](https://agentrelay.com/docs/relayflows) for what's shipped versus designed-but-not-yet-implemented.
 - The **older `@relayflows/core` `WorkflowBuilder`** engine — see `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` in this repo.
 
@@ -411,6 +385,24 @@ Both are real, both are exit 2 — just from different code paths, so don't be s
 | `.gate(config)` on a `Step<T>` | TS | postfix named gate; one per step |
 | `--local-agent` | CLI | **required** for any local run with an `agent` step |
 | `f.run(cmd, { timeout })` | TS | **default lease 30s, max 15m** — set it for anything touching the network |
+
+## Open bugs you must author around
+
+**Verified against CLI 2.0.22 on 2026-09-20.** Everything in this section describes a bug, not a design. Each row says when to delete it — check the issue before trusting the workaround, and remove the row once it closes. Nothing else in this skill depends on these.
+
+| Symptom | Workaround | Delete when |
+| --- | --- | --- |
+| A failing `subprocess_gate` journals `exit=1` with **empty** stdout and stderr; `relayflowd.log` is empty too. The lowering runs your command under `stdio: 'inherit'` and the daemon's stdio is captured nowhere. | Don't gate agent steps. If you must, have the command write its verdict to a file — that file is the only record you get. | [flows#511](https://github.com/AgentWorkforce/flows/issues/511) |
+| `artifact_exists` can never pass for a path under a dot-directory. The worker's journaled `artifacts` list omits them — one run journaled 6,837 paths, `{target: 6832, crates: 5}`, and zero under `.workflow-artifacts/` it had demonstrably written to. Not a `.gitignore` effect; `target/` is ignored too and included in full. | Check the disk from a deterministic step instead. | [flows#513](https://github.com/AgentWorkforce/flows/issues/513) |
+| `flows resume --local-agent <run-id>` accepts the flag and ignores it on a spec run, parking again identically. | Start a new run. Use `flows run --reuse-from <run-id>` to reuse completed steps — it keys on `step_spec_hash` plus resolved input, so an edited step re-executes and the rest do not. | [flows#504](https://github.com/AgentWorkforce/flows/issues/504) |
+| `flows schedule` has no `--local-agent`, so a scheduled agent flow parks forever, silently, on a timer. | Drive it from cron with `flows run --local-agent`. | [flows#503](https://github.com/AgentWorkforce/flows/issues/503) |
+| `flows logs <run-id>` is documented but refused `invalid_invocation`. | `flows status`, and the transcripts under `.relayflowd/runs/`. | — |
+| No observer link and no channel for a local run. | `flows status`; there is no shareable live view. | [flows#341](https://github.com/AgentWorkforce/flows/issues/341), [flows#264](https://github.com/AgentWorkforce/flows/issues/264) |
+| `LEASE OVERDUE by Nm` in `flows status` usually means an agent is mid-turn, not that anything is stuck. | Check the worker process before concluding a stall. | — |
+| `permissions` on an agent step is validated and journaled and **never enforced**. A `flows run` is not sandboxed; agent steps can read and write the whole checkout. | Declare it for reviewability. Partition agents by path *and* sequence them, and gate on out-of-scope changes yourself. | [flows#487](https://github.com/AgentWorkforce/flows/issues/487) |
+| `options.cwd` on an agent step is declared by surface+sdk and rejected by the runtime at the same version. | Don't plan a per-step worktree around it. | [flows#489](https://github.com/AgentWorkforce/flows/issues/489) |
+| `retries_exhausted` reports only the last attempt, hiding the first — which is usually the one that explains the failure. | Read the journal directly. | [flows#506](https://github.com/AgentWorkforce/flows/issues/506) |
+| `flows check` never contacts the daemon, so a green check says nothing about whether the daemon will accept the spec, and it stays silent on run-time properties it can already compute. | Budget a shakedown run against a throwaway target. Treat green unit tests plus `CHECK PASSED` as necessary and nowhere near sufficient. | [flows#502](https://github.com/AgentWorkforce/flows/issues/502), [flows#514](https://github.com/AgentWorkforce/flows/issues/514) |
 
 ## Verified against
 

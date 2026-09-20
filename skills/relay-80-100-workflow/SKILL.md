@@ -69,16 +69,20 @@ It is more machinery than `failOnError: false`, and it buys something v1 did not
 
 ### Don't gate agent steps in v2
 
-v1's `verification: { type: 'exit_code' }` on an agent step has no v2 equivalent, and the closest thing — `subprocess_gate` — is a trap: the lowering runs the command under `stdio: 'inherit'` and the daemon's stdio is captured nowhere, so a failure arrives as `exit=1` with empty `stdout_tail` **and** empty `stderr_tail`, nothing in `relayflowd.log`, and nothing in the CLI output ([flows#511](https://github.com/AgentWorkforce/flows/issues/511)). A 58-step campaign flow lost a full run to exactly this: the agent succeeded, its gate failed three times, and the verdict its gate command printed on every path reached nowhere.
+v1's `verification: { type: 'exit_code' }` on an agent step has no v2 equivalent, and as of CLI 2.0.22 neither named gate is usable in its place: `subprocess_gate`'s output is not captured ([flows#511](https://github.com/AgentWorkforce/flows/issues/511)) and `artifact_exists` cannot see a dot-directory ([flows#513](https://github.com/AgentWorkforce/flows/issues/513)). `writing-relayflows` carries the detail and the delete-when conditions.
 
-`artifact_exists` is not the escape hatch either: it reads the worker's journaled `artifacts` list, which **omits dot-directories** — so it can never pass for a file under `.workflow-artifacts/` or similar ([flows#513](https://github.com/AgentWorkforce/flows/issues/513)). Measured in one run: 6,837 artifacts journaled, zero under the artifact directory the agent had demonstrably written to.
-
-With both named gates unusable on an agent step, the answer is **no gate on the agent step at all** — put enforcement in the deterministic recorded step that follows it, checking the disk. That is the same advice as *Keep Repairable Gates On The Critical Path* below, and v2 makes it mandatory rather than merely wise.
+Those two will be fixed. The rule that outlives them will not: **put enforcement in the deterministic recorded step that follows the agent, not in a gate on it.** It is the same rule as *Keep Repairable Gates On The Critical Path* below — a dropped agent transport should read as "nothing was written", which is repairable, rather than as a crashed run. v2 currently makes it mandatory; it was always the better shape.
 
 ### Two more v2 facts that will cost you a run each
 
 - **`flows run` parks at the first agent step without `--local-agent`.** The message reads as a missing worker, not a missing flag.
 - **`permissions` on an agent step is journaled and not enforced.** Declare it for reviewability; do not treat a `flows run` as sandboxed. Your implementation agents share one checkout, so partition their lanes by path *and* sequence them, and make an `edit-gate` that rejects out-of-scope changes.
+
+### Cross-check your gates against each other
+
+Nothing validates that the assertions you write are mutually satisfiable, and agents pay for it when they are not. In one campaign a `seam-rules` gate **required** a file to be edited while an `edit-gate` **rejected** that same file as out-of-scope. No implementation could pass both; the agent began reverting correct work to appease the contradiction, and it read as the agent failing.
+
+If one gate names a path, assert at authoring time that every other gate permits it. That check is a few lines and it found a real contradiction immediately.
 
 ## Core Principle: Test In The Workflow
 
