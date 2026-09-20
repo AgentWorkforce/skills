@@ -235,6 +235,14 @@ Two consequences for how you author:
 
 More generally: put enforcement in a deterministic step *after* the agent rather than in a gate *on* the agent. A dropped agent transport then reads as "nothing was written" — a repairable fact — instead of as a crashed run.
 
+### `artifact_exists` cannot see a dot-directory
+
+The other named gate you reach for on an agent step has its own blind spot. It reads the worker's journaled `artifacts` list, and that list **omits paths under dot-directories** — which is where artifact conventions usually put things.
+
+Measured in one run: an agent journaled 6,837 artifacts, `{target: 6832, crates: 5}`, and **zero** under `.workflow-artifacts/`, while provably having written a file there. A later step then died gating on a 25 KB review sitting on disk. It is not a `.gitignore` effect — `target/` is gitignored too and is included in full. ([flows#513](https://github.com/AgentWorkforce/flows/issues/513))
+
+So with both named gates unusable on an agent step, the shape that works is the same one: **a deterministic step after the agent that checks the disk and records its verdict.** Which is where enforcement belongs anyway.
+
 ### There is no `failOnError: false`
 
 v2 gates every `deterministic` step on exit code with no opt-out. If you are porting a v1 flow, or writing a repair-before-failure flow where a red check is *work for an agent* rather than the end of the run, you need a pattern for it. The two in use:
@@ -331,6 +339,18 @@ Three details worth having in advance:
 - **The remedy is only named sometimes.** The hint `To start a new run with a local agent worker: flows run --local-agent '<path>'` is appended only for `flows run` on a YAML/JSON spec path. A `.flow.ts` gets the bare message with no remedy, and `flows resume` never gets one (`packages/sdk/src/cli/run.ts:627-640`).
 - **`flows resume --local-agent <run-id>` is a trap on a spec run.** The flag is accepted and then ignored: `resumeFlow` attaches a worker only on the authored-TS path, so a YAML/JSON run parks again with the identical message. Start a new run instead. ([flows#504](https://github.com/AgentWorkforce/flows/issues/504))
 - **`flows schedule` has no `--local-agent` at all.** A scheduled flow with an agent step parks forever, silently, on a timer. Drive it from cron with `flows run --local-agent` until that changes. ([flows#503](https://github.com/AgentWorkforce/flows/issues/503))
+
+### Watching a run: `flows status`, and nothing else
+
+`flows status <run-id>` is the observability surface, and it is good — a live step table with per-step attempts, durations, gate verdicts, spend and transcript paths, plus per-attempt transcripts under `.relayflowd/runs/<run-id>/steps/<step>/`. Poll it with `watch`.
+
+Three things to know:
+
+- **There is no observer link for a local run** and no channel to watch it in. v2 has no relaycast channel concept at all, and the `--local-agent` observer URL is empty or fails to mint ([flows#341](https://github.com/AgentWorkforce/flows/issues/341), [flows#264](https://github.com/AgentWorkforce/flows/issues/264)).
+- **`flows logs <run-id>` is documented but refused** `invalid_invocation` in 2.0.22. Don't build a workflow around it.
+- **`LEASE OVERDUE by Nm` is usually a display artifact**, not a stall — the lease is not renewed while an agent is mid-turn. Check the worker process before concluding anything.
+
+And the step count will not match your spec: the kernel adds a lowered `.gate` step per gated step, so a 58-step spec reports 67.
 
 ### `flows check` passing does not mean the flow will run
 

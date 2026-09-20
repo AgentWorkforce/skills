@@ -71,7 +71,9 @@ It is more machinery than `failOnError: false`, and it buys something v1 did not
 
 v1's `verification: { type: 'exit_code' }` on an agent step has no v2 equivalent, and the closest thing — `subprocess_gate` — is a trap: the lowering runs the command under `stdio: 'inherit'` and the daemon's stdio is captured nowhere, so a failure arrives as `exit=1` with empty `stdout_tail` **and** empty `stderr_tail`, nothing in `relayflowd.log`, and nothing in the CLI output ([flows#511](https://github.com/AgentWorkforce/flows/issues/511)). A 58-step campaign flow lost a full run to exactly this: the agent succeeded, its gate failed three times, and the verdict its gate command printed on every path reached nowhere.
 
-Use `artifact_exists` (journal-based, replay-stable) where a file is the deliverable, and otherwise **no gate on the agent step at all** — put the enforcement in the deterministic recorded gate that follows it. That is the same advice as *Keep Repairable Gates On The Critical Path* below, and v2 makes it mandatory rather than merely wise.
+`artifact_exists` is not the escape hatch either: it reads the worker's journaled `artifacts` list, which **omits dot-directories** — so it can never pass for a file under `.workflow-artifacts/` or similar ([flows#513](https://github.com/AgentWorkforce/flows/issues/513)). Measured in one run: 6,837 artifacts journaled, zero under the artifact directory the agent had demonstrably written to.
+
+With both named gates unusable on an agent step, the answer is **no gate on the agent step at all** — put enforcement in the deterministic recorded step that follows it, checking the disk. That is the same advice as *Keep Repairable Gates On The Critical Path* below, and v2 makes it mandatory rather than merely wise.
 
 ### Two more v2 facts that will cost you a run each
 
@@ -303,6 +305,8 @@ grep "my_new_table" packages/web/lib/db/schema.ts >/dev/null && echo "OK" || (ec
 - For new directories, package trees, generated files, or mixed tracked/untracked
   edits: use `git status --short -- <paths>`, because `git diff --quiet`
   ignores untracked files
+
+**Gate the hazard, not a tool's mode.** A gate that asserts *"the selector reported `targeted`"* rather than *"no runtime path is unmapped"* can be unsatisfiable by construction — in our case registering a feature required editing the manifest, and editing the manifest forced the selector into `full-smoke` unconditionally. The gate failed correct work, and it would have read as the agent's fault. Assert the condition you actually care about, from the tool's structured output, not its summary verdict.
 
 **What NOT to verify:**
 - Exact content (too brittle — agents format differently)
