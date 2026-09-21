@@ -1,6 +1,6 @@
 ---
 name: writing-relayflows
-description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the three-rung ladder (run/llm/agent), the resident verbs (human/dispatch/done), verification gates, TypeScript vs YAML authoring, per-step cli/model selection and its resolution order, flows.json, and `flows check`/`run`/`resume` with their real refusal shapes and exit codes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) that `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` cover — that's a different product despite the similar name.
+description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the three-rung ladder (run/llm/agent), the resident verbs (human/dispatch/done), verification gates (including which ones actually run today), per-step cli/model selection, flows.json, parallel agents, the agent-relay dispatch transport, and `flows check`/`run`/`deploy`/`schedule` with their real refusal shapes and exit codes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) that `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` cover — that's a different product despite the similar name.
 ---
 
 # Writing Relayflows
@@ -15,19 +15,20 @@ Relayflows turns a coding-agent task into steps a journal can inspect, verify, a
 
 - Writing a new `.flow.ts` or `.flow.yaml`/`.flow.json` for the `flows` CLI (package `@relayflows/sdk`, binary name `flows`).
 - Deciding whether a step needs `run` (shell), `llm` (bare model call), or `agent` (harnessed coding agent in a workspace).
+- Choosing a verification gate that will actually run — a wrong choice here compiles fine and fails at `flows run` time, not authoring time.
 - Wiring up `cli`/`model` for an `agent` or `llm` step, in either language.
 - Debugging a `REFUSED [...]` message from `flows check` or `flows run`.
-- Choosing between TypeScript and YAML for a given flow.
+- Deciding between running a flow locally, deploying it to listen for tickets, or scheduling it on a cron.
 
 ## The ladder
 
-Three step verbs, one per rung — never more (`packages/sdk/src/spec.ts`, `export type StepType = 'deterministic' | 'llm' | 'agent';`):
+Three step verbs, one per rung (`@relayflows/sdk`'s `StepType = 'deterministic' | 'llm' | 'agent'`):
 
-1. **`run` / `deterministic`** — a shell command. No model. Implicit gate is `exit_code == 0`. It takes options: `f.run(cmd, { timeout: '5m' })`. **The default lease is 30 seconds and the maximum is 15 minutes** (`packages/surface/src/context.ts:60`) — invisible in most documentation and long enough to bite any command that touches the network. `git fetch`, `cargo build` and `gh pr create` all exceed it in their bad case, which is exactly when you least want an intermittent failure.
+1. **`run` / `deterministic`** — a shell command. No model. Implicit gate is `exit_code == 0`.
 2. **`llm` / `llm`** — a bare model call. Prompt in, verified output out. No workspace, no tool use.
 3. **`agent` / `agent`** — a harnessed coding agent in a workspace. Returns `{ summary, artifacts }`, not raw text.
 
-Plus four resident verbs that aren't ladder rungs: `human` (durable approval), `dispatch` (hand off to a child flow), `done` (typed finish), and in YAML, `on`/triggers (event entry points — out of scope for this skill).
+Plus resident verbs that aren't ladder rungs: `human` (durable approval) and `dispatch` (hand off to a child flow) — both declared in the type, **neither executable yet**, see **Human approval and dispatch** — `done` (typed finish, works), the generated **helper** namespace (`f.slack`, `f.github`, `f.linear`, `f.notion`, `f.jira`, and 30+ others — see **Helpers**), and in YAML, `on`/triggers (event entry points — out of scope for this skill, see the [Cloud docs](https://agentrelay.com/docs/relayflows/cloud)).
 
 Most flows only need `run` and `llm`. Climb to `agent` once a step needs hands on a real workspace.
 
@@ -40,7 +41,7 @@ Most flows only need `run` and `llm`. Climb to `agent` once a step needs hands o
 ```ts
 import { flow } from '@relayflows/surface';
 
-export default flow('hello', async (f) => {
+export default flow('hello', { budget: { wallclock: '10m' } }, async (f) => {
   const greeting = await f.run('echo "Hello from Relayflows"');
   console.log(greeting.trim());
 
@@ -72,11 +73,11 @@ steps:
     model: claude-sonnet-4-6
 ```
 
-**Version note:** the published `@relayflows/surface@2.0.8` on npm predates `AgentOptions.cli`/`.model` (flows#310) — it does not define them, and using them against that installed version throws at authoring time. These examples require `AgentWorkforce/flows@86a2ec2` or a later/compatible published release; if your installed `@relayflows/surface` still reads `2.0.8` and doesn't export these fields, omit `cli`/`model` from `f.agent`/`f.llm` calls until it's updated. Both examples above were run for real against a source build of that commit (`flows check`, exit 0 both) — see **Verified against**.
+**Version note.** This skill was refreshed against `@relayflows/surface@2.0.16` and `@relayflows/sdk@2.0.16` — the current published npm packages, not a source build. Both examples above pass `flows check` for real against those versions (see **Verified against**). `2.0.17` shipped since, fixing the `flows run --cloud` bug documented below (**Running it**) — that one claim is re-verified against `2.0.17`; everything else in this document was checked against `2.0.16` and hasn't been independently re-run on `2.0.17`, though nothing in its release notes suggests the other claims changed.
 
 ## The real `Ctx` contract (TypeScript)
 
-`packages/surface/src/context.ts`, current as of `origin/main@86a2ec2`:
+From the shipped `@relayflows/surface@2.0.16` `.d.ts` files (`dist/context.d.ts`, `dist/step.d.ts`, `dist/flow.d.ts`, `dist/completion.d.ts`):
 
 ```ts
 export interface AgentResult {
@@ -89,117 +90,61 @@ export interface AgentOptions {
   workspace?: string;
   cli?: string;
   model?: string;
+  cwd?: string;                          // working dir for the CLI subprocess; defaults to the flow-runner's cwd
+  transport?: 'direct' | 'relay';        // see Agent-relay transport, below
 }
 
-export interface Ctx {
-  run(command: string): Step<string>;
+export interface LlmOptions {
+  output: Record<string, unknown>;       // JSON Schema, checked before the journal accepts the result
+  cli?: string;
+  model?: string;
+}
+
+export interface Ctx extends Helpers {   // Helpers = f.slack, f.github, f.linear, f.notion, ... — see Helpers
+  readonly mcp: Readonly<Record<string, Readonly<Record<string, (args: unknown) => Step<unknown>>>>>;
+  run(command: string, options?: { timeout?: string | number }): Step<string>;
   llm(strings: TemplateStringsArray, ...values: unknown[]): Step<string>;
-  llm(prompt: string, options: { output: Record<string, unknown>; cli?: string; model?: string }): Step<unknown>;
+  llm(prompt: string, options: LlmOptions): Step<unknown>;
   agent(name: string, options: AgentOptions): Step<AgentResult>;
   human(question: string, options: { to: string }): Promise<boolean>;
   dispatch<T>(flow: string, input: unknown): Promise<T>;
-  done(reason: RunCompletionReason): void;
+  done(reason: FlowCompletionReason): void;
   cloud: CloudHelper;
-  slack: SlackHelper;
+  memory: MemoryHelper;
 }
 ```
 
-Do not add fields to `AgentOptions`/`Ctx` that aren't in this list — they don't exist in the shipped SDK. In particular: **no flow-level `cli`, no named-agent map, no `recoveryMode`/`permissions`/`surfaces`/`budget`** on the TypeScript side. Those are YAML/JSON-only today (see **What this skill does NOT cover**). `FlowHeader` (`packages/surface/src/flow.ts:4-9`) only allows `identity`, `memory`, `budget`, `tools`, `workspace` — no `agents` key. Passing an unknown header field or an unknown `AgentOptions` field throws a `TypeError` at authoring time, before anything is journaled.
+Do not add fields to `AgentOptions`/`Ctx` that aren't in this list — they don't exist in the shipped SDK. In particular: **no flow-level named-agent selector on `f.agent`, no `recoveryMode`/`permissions`/`surfaces`** on the TypeScript call site. Those are YAML/JSON step fields today. `FlowHeader` (`dist/flow.d.ts`) allows `use`, `identity`, `memory`, `budget`, `tools`, `workspace` — no bare `agents` map key (TypeScript composes reusable flows via `use: string[]` instead — see **Named agents and flow composition**). Passing an unknown header field or an unknown `AgentOptions` field throws a `TypeError` at authoring time, before anything is journaled.
 
-`Step<T>` (`packages/surface/src/step.ts`) is a `PromiseLike<T>` with one extra method: `.gate(predicate, because?)`, which fails the step `verification_failed` when the predicate returns false. Every awaited step must actually be awaited — an unawaited or manually-`.then()`-chained step is refused (`unawaited_step` / `unsupported_verb`), not silently dropped.
+`run()`'s second argument is a real, current option: `{ timeout?: string | number }` — a duration string (`"15m"`) or milliseconds. Every real cookbook example that runs something slower than a few seconds sets this explicitly.
 
-`done(reason)` takes exactly one of the closed run-completion set (`packages/surface/src/completion.ts`): `'success' | 'step_failed' | 'canceled' | 'budget_exceeded'`. There's no fifth option — don't invent one (e.g. `'partial'`, `'skipped'`).
-
-### `flow()` takes a header, and that is where a TypeScript budget goes
-
-`flow()` has three overloads (`packages/surface/src/flow.ts:57-61`), and the three-argument one is the one you want for anything long-running:
+### `f.done()`'s closed set is six values, not four
 
 ```ts
-export default flow<Input>(
-  'relay.ci.pr-proof',
-  { budget: { wallclock: '110m' } },   // FlowHeader
-  async (f, input) => { ... }
-);
+export const FLOW_COMPLETION_REASONS = ['success', 'step_failed', 'canceled', 'budget_exceeded', 'needs_human', 'declined'] as const;
 ```
 
-`FlowHeader` carries `budget`, `workspace`, `tools` and `use?: string[]`. It does **not** carry `agents` — that throws `TypeError: flow header has unknown fields: agents` at authoring time.
+An authored body can meaningfully call `f.done('success')`, `f.done('step_failed')`, `f.done('needs_human')` (parks the run — it's not a kernel cancellation), or `f.done('declined')` (a deliberate decision not to act — also not a cancellation). `'canceled'` and `'budget_exceeded'` exist in the same closed set but are the **kernel's** to record; a body calling them itself is calling the wrong verdict for what actually happened. The verdict for a human declining a durable approval is `f.done('declined')`, not `f.done('canceled')` — a human declining is a decision, not the kernel calling off the run. (Correct verdict *if* the approval call reaches that point — `f.human` itself doesn't execute yet; see **Human approval and dispatch**.)
 
-The header budget (`wallclock: '110m'`) and the spec budget (`budget: { maxWallclockMs: 6_600_000 }`) are different shapes for the same thing: `BudgetSpec | HeaderBudget` in `packages/sdk/src/spec.ts`. Write the duration form in TypeScript and the millisecond form in a generated spec.
-
-## The real step shapes (YAML/JSON, `packages/sdk/src/spec.ts`)
-
-```ts
-interface DeterministicStepSpec {
-  type: 'deterministic';
-  id: string;
-  command: string;
-  dependsOn?: string[];
-  timeoutMs?: number;
-  verification?: VerificationSpec;   // omit for implicit exit_code
-}
-
-interface LlmStepSpec {
-  type: 'llm';
-  id: string;
-  prompt: string;
-  dependsOn?: string[];
-  verification?: OutputVerificationSpec;
-  model?: string;
-  cli?: string;
-}
-
-interface AgentStepSpec {
-  type: 'agent';
-  id: string;
-  instruction: string;
-  dependsOn?: string[];
-  verification?: OutputVerificationSpec;
-  agent?: string;      // selects a named FlowSpec.agents entry
-  cli?: string;
-  model?: string;
-  surfaces?: { workspace?: { surface: string }[]; streams?: { stream: string }[]; external?: string[] };
-  recoveryMode?: 'reset' | 'inspect' | 'manual';   // default 'reset'
-  permissions?: { fileGlobs?: string[]; networkAllowlist?: string[]; accessPreset?: 'readonly' | 'readwrite' };
-}
-
-interface FlowSpec {
-  version: string;      // required, e.g. '0.1.0' — not optional
-  name?: string;
-  cli?: string;                          // flow-level CLI default
-  agents?: Record<string, { cli: string; model: string }>;  // both fields required
-  steps: StepSpec[];
-  budget?: { maxTokensIn?: number; maxTokensOut?: number; maxDollars?: string };
-}
-```
-
-`version` is required on every `FlowSpec` — omitting it is a real, common mistake; `flows check` refuses it.
+`Step<T>` (`dist/step.d.ts`) is a `PromiseLike<T>` with one extra method, `.gate(...)` — see **Verification gates**, which has a critical caveat for the predicate form. Every awaited step must actually be awaited — an unawaited or manually-`.then()`-chained step is refused (`unawaited_step` / a manual `.then()` is not an await), not silently dropped.
 
 ## Verification gates
 
-Verification is control flow, not decoration — a gate decides whether a step actually completed, not just whether the process exited cleanly (`packages/sdk/src/spec.ts`, `VerificationGateType`):
+Verification is control flow, not decoration — a gate decides whether a step actually completed, not just whether the process exited cleanly.
 
-There are **eight**, not three (`packages/sdk/src/spec.ts`; the full list is also in `validate.ts`'s `unknown_gate_kind` refusal):
-
-- `exit_code` — implicit default for `deterministic` steps. `exit_code == 0`. Not configurable in v0.
-- `output_contains` — step output (stdout tail or LLM value, stringified) contains `value`.
-- `json_schema` — step output validates against a JSON Schema (`boolean | Record<string, unknown>`). Used for structured LLM/agent output.
-- `regex_match` — `{ pattern, in_output_at?, flags? }`. RE2-safe (no catastrophic backtracking), inspectable before execution. The one to reach for when an agent must emit a specific receipt line.
-- `artifact_exists` — `{ path }`, a working-directory-relative POSIX path. Passes when the step's **journaled** `artifacts` list names the path. Nothing on disk is consulted, so replay and resume see the recorded verdict. This is the right gate for "the agent must have written X".
-- `subprocess_gate` — `{ command, from_output? }`. Runs a shell command; see the warning below before using it.
-- `references_input` — `{ input_key, in_output_at? }`. The output must quote a value from the run input.
-- `word_count_bounds` — `{ min?, max? }`.
-
-In TypeScript these attach **postfix**, with `.gate()` on the returned `Step<T>` (`packages/surface/src/step.ts`) — one per step:
+### YAML/JSON (`@relayflows/sdk`'s `VerificationSpec`)
 
 ```ts
-await f
-  .agent('prover', { task: '...', cli: 'claude' })
-  .gate({ type: 'regex_match', pattern: 'PROOF_COMPLETE arm=base', in_output_at: ['summary'] });
-
-await f.agent('writer', { task: '...' }).gate({ type: 'artifact_exists', path: 'review/security.md' });
+export type VerificationSpec = ExitCodeGate | OutputContainsGate | JsonSchemaGate | NamedDataGate;
+// NamedDataGate = ReferencesInputGate | SubprocessGate | WordCountBoundsGate | RegexMatchGate
 ```
 
-`.gate()` also takes a predicate — `.gate(v => v.length > 0, 'must not be empty')` — but the closure cannot be inspected by `flows check` before the run. Prefer a `NamedGate` when the check should be visible up front.
+- `exit_code` — implicit default for `deterministic` steps. Not configurable; writing it explicitly is allowed and compiles to the same thing as omitting it.
+- `output_contains` — step output (stdout tail, or the LLM value stringified) contains `value`.
+- `json_schema` — step output validates against a JSON Schema (`boolean | Record<string, unknown>`). Used for structured LLM/agent output; `output?: JsonOutputSchema` on an `llm`/`agent` step is sugar that compiles to this.
+- `subprocess_gate` — runs `command` under `/bin/sh`, judged on its exit code. The gate that actually works for "check a file the agent wrote": `{ type: 'subprocess_gate', command: 'test -s review.md' }`. If you also need to inspect the step's own output (via `from_output`), the SDK's generated wrapper reads its internal `FLOWS_INPUT` env var, extracts the value, and passes it to *your* command as `$INPUT` — `FLOWS_INPUT` itself is never visible to the author's command, only `$INPUT` is: `{ type: 'subprocess_gate', command: 'echo "$INPUT" | grep -q PASSED', from_output: ['summary'] }`.
+- `regex_match` — the step's output (or a value at `in_output_at`) matches `pattern`, evaluated by a non-backtracking RE2 engine (only `i`, `m`, `s` flags).
+- `word_count_bounds`, `references_input` — narrower named gates; see `packages/sdk/src/named-gates.ts` in the flows repo for the exact contract.
 
 ```yaml
 - id: classify
@@ -212,219 +157,293 @@ await f.agent('writer', { task: '...' }).gate({ type: 'artifact_exists', path: '
     value: bug
 ```
 
-Verified for real: `flows check` on exactly this step passed (`CHECK PASSED`, exit 0) — see **Verified against**.
+### TypeScript (`Step<T>.gate(...)`) — read this before you write one
 
-An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. Always give an `agent`/`llm` step a real `verification`, not just the default.
+`Step<T>` has **two** overloads, and only one of them works today:
 
-### Don't gate an agent step — check it in the step after
+```ts
+gate(config: NamedGate): Step<T>;
+// NamedGate = ReferencesInputNamedGate | SubprocessNamedGate | WordCountBoundsNamedGate | RegexMatchNamedGate
+// — the surface-visible subset of NamedDataGate above. This one is journal-honest and runs.
 
-Neither named gate is usable on an agent step today: `subprocess_gate`'s output is not captured, and `artifact_exists` cannot see a dot-directory. Both are open bugs — see **Open bugs you must author around** below for the detail and the issue links.
+gate(predicate: (value: T) => boolean, because?: string): Step<T>;
+// The type itself documents why this is dangerous — straight from the shipped .d.ts:
+// "Predicate gates cannot be journaled — the JavaScript closure would not survive
+//  replay — so the executor refuses this branch with unsupported_gate."
+```
 
-The durable lesson outlives both fixes: **put enforcement in a deterministic step after the agent, not in a gate on it.** A dropped agent transport then reads as "nothing was written" — a repairable fact — instead of as a crashed run, and the verdict is legible because a deterministic step journals its output. This is the same advice `relay-80-100-workflow` gives as *keep repairable gates on the critical path*; v2 makes it mandatory rather than merely wise.
+**Verified for real, this session, against `flows@main` (post-v2.0.16, current as of 2026-09-17):** any flow using the predicate form — `.gate((out) => out.trim().length > 0, "some reason")` — fails at `flows run` time with:
 
-### There is no `failOnError: false`
+```
+FAILED [protocol_error] relayflowd could not complete the run request: unsupported_gate:
+postfix .gate(predicate) closures cannot be journaled; use .gate({type: "…", …}) with a
+slice-P named gate instead.
+```
 
-v2 gates every `deterministic` step on exit code with no opt-out. If you are porting a v1 flow, or writing a repair-before-failure flow where a red check is *work for an agent* rather than the end of the run, you need a pattern for it. The two in use:
+This reproduced identically on two different real example flows (`examples/pr-review-pipeline`, `examples/dependency-upgrade-bot` in `AgentWorkforce/flows`) that both used the predicate form — neither got past their first gate. **Always use the config-object form**:
 
-- `{ <command> } || true` — the group braces are load-bearing, because `||` cannot begin a line, so appending `\n|| true` to a multi-line command is a shell syntax error rather than a fallback. This discards the exit code, so a later gate has nothing to read.
-- **An evidence recorder** — a small script that runs the command, writes `{command, exitCode, verdict, tail}` to a file, and always exits 0; a later deterministic step reads those files back and decides. Verbose, but it is the only shape where a repair agent can see *why* a check was red and a final gate can recompute green from recordings rather than from an agent's report.
+```ts
+const outdated = await f.run('npm outdated --json 2>/dev/null || true')
+  .gate({ type: 'subprocess_gate', command: 'test -n "$INPUT"' });   // not .gate((out) => out.length > 0, '…')
 
-Tracked at [flows#509](https://github.com/AgentWorkforce/flows/issues/509).
+const review = await f.agent('review', { task: '…', cli: 'claude' })
+  .gate({ type: 'subprocess_gate', command: 'test -s review.md' });  // checks a file the agent wrote, ignores $INPUT
+```
+
+(Verified for real: `.gate({ type: 'subprocess_gate', command: 'test -n "$INPUT" && echo "$INPUT" | grep -q pkg' })` against a step outputting `{"pkg":"left-pad"}` passes — `$INPUT`, not `$FLOWS_INPUT`, is what the author's command sees. `FLOWS_INPUT` is an env var the SDK's own generated wrapper reads internally to extract the value before invoking your command; it is never visible to `command` itself.)
+
+[flows#449](https://github.com/AgentWorkforce/flows/pull/449) (open at time of writing) adds journaled `artifact_exists` gates and real predicate-gate support (the executor runs the closure once, on the journaled value, and journals the verdict) — check whether it's merged before assuming predicate gates still don't work. Until it lands, `subprocess_gate`/`regex_match`/`word_count_bounds`/`references_input` are the only gates that actually run in TypeScript.
+
+An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. Always give an `agent`/`llm` step a real, config-object gate — never the default, never a predicate.
+
+## Helpers: journaled effects, not just Slack
+
+`Ctx extends Helpers`, and `Helpers` is generated from 40+ provider adapters shipped in `@relayflows/surface` — `slack`, `github`, `linear`, `jira`, `notion`, `salesforce`, `postgres`, `s3`, `redis`, `daytona`, `gmail`, `google-calendar`, `hubspot`, and more (`dist/helpers/index.d.ts` lists them all). A helper call — `f.slack.post(channel, text)`, `f.github.comment(...)` — compiles to a journaled effect: the receipt the helper returns *is* the journal record, so a retried step that already posted doesn't double-post; the second attempt is deduped by `(step_id, idempotency_key, surface_path)`.
+
+Two things every helper call needs:
+
+- **A relayfile mount for that provider**, locally — `flows check` refuses `helper_slack.credential_missing` (or the equivalent for another provider) without one. Cloud provides a mount for every connected provider automatically.
+- **A declared intent** on the flow header: `tools: { slack: true }` in TypeScript, or the equivalent in YAML. Forgetting this is a separate, earlier failure than the mount check.
+
+For local development without standing up a real provider mount, prefix the run with the provider's mock env var — `RELAYFLOWS_SLACK_MOCK=1 flows run ... --local-agent` records the effect (a real file under the daemon's data dir) instead of sending it. This does not exercise live delivery, and should be called out as such wherever you cite it as verification.
+
+**`tools` means two different things depending on where you write it — do not confuse them:**
+
+- `FlowHeader.tools` (TypeScript) / `FlowSpec` top-level `tools` you're declaring intent on: `Partial<Record<keyof Helpers, boolean>> & { relayfile?: string[]; mcp?: string[] }` — e.g. `{ slack: true }`. This is "which helpers this flow uses."
+- `FlowSpec.tools` in the compiled YAML/JSON spec is instead `{ fs?: string | string[] }` — path-scoped **filesystem** grants, mirroring `workspace` for shell/deterministic steps. Not the same field, despite the identical name.
+- `flows.json` (the project config file) has **no** `tools` field at all — see **`flows.json`**, below. Putting a `tools` key there is refused as `config_invalid`; this is an easy, first-try mistake (made once, personally, writing this refresh).
 
 ## `cli` / `model`: what a step actually runs on
 
-Both YAML and TypeScript agent/llm steps can set `cli` and `model` directly (TypeScript since flows#310, `AgentOptions.cli?`/`.model?`). Resolution order for `cli` — checked once per step by `preflight.ts`'s `resolveCli` (`packages/sdk/src/preflight.ts:265-282`), identical regardless of authoring language because both compile to the same `StepSpec`:
+Both YAML and TypeScript agent/llm steps can set `cli` and `model` directly. Resolution order for `cli`, identical regardless of authoring language because both compile to the same `StepSpec`:
 
 1. **step** — `step.cli` (or TS's `options.cli`)
-2. **named** — the flow's `agents[step.agent]` entry, if the step selects one via `agent: <name>` (YAML/JSON only — TypeScript has no named-agent map yet, see below)
-3. **flow** — `FlowSpec.cli`
+2. **named** — the flow's `agents[step.agent]` entry, if the step selects one via `agent: <name>` (YAML/JSON only — TypeScript composes reusable flows via `use:` instead, not a per-step named-agent selector; see **Named agents and flow composition**)
+3. **flow** — `FlowSpec.cli` (YAML) — there is no equivalent flow-level `cli` field on the TypeScript `FlowHeader`
 4. **project** — nearest `flows.json`'s `cli`, found by walking up from the flow file's directory
 
-No resolution found at any level → `REFUSED [cli_unresolved]`, before anything is journaled. Verified for real:
+No resolution found at any level → `REFUSED [cli_unresolved]`, before anything is journaled, e.g.:
 
 ```
 $ flows check hello.flow.yaml   # agent step, no cli anywhere
 REFUSED [cli_unresolved] Step "greeter" has no CLI at step, flow, or project level. No flows.json was found from "..." to the filesystem root.
 ```
-(exit 2 — see **Verified against**)
 
 `model` has **no** flow or project default — only step or named-agent. Omitting it just runs whatever model the resolved CLI defaults to.
 
 ### `flows.json`
 
-Nearest-wins project config, walking from the flow file's directory to the filesystem root (`packages/sdk/src/cli/check.ts`). Exact schema — unknown keys fail closed as `config_invalid`:
-
-```json
-{ "cli": "claude", "executors": ["cron"], "models": ["claude-sonnet-4-6"] }
-```
-
-- `cli` (optional, non-empty string) — the project-wide CLI default (resolution rung 4 above).
-- `executors` (optional, string array) — trigger executors this project has registered. A trigger whose `executor` isn't in this list is `no_executor`.
-- `models` (optional, string array) — **an allowlist, not a default.** Any model declared on any step or named agent anywhere in the flow must appear here, or `flows check` refuses `model_unknown`. Setting `models` does not select a model for anything; there's still no flow/project model default.
-
-```
-$ flows check hello.flow.yaml   # model set on the step, but not in flows.json's models[]
-REFUSED [model_unknown] Step "greeter" declares model "claude-sonnet-4-6" for CLI "claude", but it is not listed in project model registry "..."; add the exact model only after verifying that project is allowed to use it.
-```
-(Verified for real — see **Verified against**.)
-
-## Human approval and dispatch (TypeScript resident verbs)
+Nearest-wins project config, walking from the flow file's directory to the filesystem root. The shipped SDK type (`@relayflows/sdk`'s `FlowsJson`) is exactly:
 
 ```ts
-import { flow } from '@relayflows/surface';
-
-export default flow('ship-feature', async (f) => {
-  const plan = await f.agent('planner', {
-    task: 'Research and plan: add OAuth2 support',
-    workspace: 'acme/api: readonly',   // compiles to relayauth path scopes
-  });
-
-  const ok = await f.human(`Ship this?\n${plan.summary}`, { to: 'khaliq' });
-  if (!ok) return f.done('canceled');
-
-  const pr = await f.dispatch('garden/implement', plan);   // hands off to a child flow
-  f.done('success');
-});
+interface FlowsJson {
+  cli?: string;
+  executors?: string[];
+  models?: string[];
+  mcp?: Record<string, McpServerConfig>;
+  deploy?: { bucket: string };
+}
 ```
 
-`f.human` is a durable, journaled approval gate — the run parks until the human answers, and resumes exactly where it left off. `f.dispatch` hands input to a named child flow and returns its typed result; the parent doesn't inline the child's steps. (Source: `docs/SURFACE.md` §2 rule 6 region, lines ~40-53 as of `origin/main@86a2ec2` — this snippet is cited, not independently re-run, since it needs a live daemon.)
+- `cli` — the project-wide CLI default (resolution rung 4 above).
+- `executors` — trigger executors this project has registered. A trigger whose `executor` isn't in this list is `no_executor`; a flow that declares `.on(...)` triggers but is invoked directly (not via a webhook) still needs its provider named here — e.g. `{ "executors": ["github"] }` for a flow with `.on(github.pull_request(...))` handlers, even when you never hit that code path.
+- `models` — **an allowlist, not a default.** Any model declared on any step or named agent anywhere in the flow must appear here, or `flows check`/`flows run` refuses `model_unknown` / `llm_cli_unresolved`. Setting `models` does not select a model for anything.
+- `mcp` — project-owned MCP server connections.
+- `deploy` — a file-bucket target for `flows deploy <flow>@sha256:<digest> --to <bucket-uri>`.
 
-`f.slack` is a separate helper namespace, and its real calling convention doesn't fit a plain `flow(name, async (f) => ...)` body: in the real source, `f.slack.reply(event, ...)` only appears inside a trigger handler registered via `.on(slack.mention('#exec'), async (f, event) => { ... })`, where `event` is the trigger's second callback argument — not something a step-based flow like the one above ever has in scope. Triggers and `f.slack` are out of this skill's scope (see **What this skill does NOT cover**); don't copy a bare `f.slack.reply(event, ...)` call into a `flow()` body like the one above, it will throw `event is not defined`.
-
-## Running it: `flows check` / `run` / `resume`
-
-Real usage (`packages/sdk/src/cli.ts`):
+**Verified for real:**
 
 ```
-flows check [--json] <flow.yaml|spec.json>
+$ flows run hello.flow.ts --local-agent --input '{}'   # step declares model "claude-opus-5", flows.json has no models[]
+REFUSED [invalid_spec] llm_cli_unresolved: Step "llm-1" declares model "claude-opus-5" for CLI "claude",
+but it is not listed in project model registry "…/flows.json"; add the exact model only after verifying
+that project is allowed to use it.
+
+$ flows run pr-reviewer.flow.ts --local-agent --input '{...}'   # flow declares .on(github....) handlers, no executors[]
+REFUSED [no_executor] webhook trigger "github" is not registered in flows.json
+```
+
+Any other top-level key — `tools`, `budget`, `identity`, `agents` — is refused as `config_invalid`. Those are `FlowHeader`/`FlowSpec` fields on the *flow itself*, not on the project config.
+
+## Named agents and flow composition
+
+**YAML/JSON**: a named-agent map declares each `{ cli, model }` pair once; a step's `agent:` selector resolves to it at compile time, and `flows check` flags a named agent nobody selects, or one a step overrides without using.
+
+```yaml
+agents:
+  planner: { cli: claude, model: claude-opus-5 }
+  implementer: { cli: codex, model: gpt-5.6-codex }
+steps:
+  - id: plan
+    type: agent
+    agent: planner
+    instruction: '…'
+```
+
+**TypeScript** has no equivalent `agents:` map key on `FlowHeader` — the closest idiom is a plain object spread reused across calls:
+
+```ts
+const planner = { cli: 'claude', model: 'claude-opus-5' };
+await f.agent('plan', { ...planner, task: '…' });
+```
+
+What TypeScript *does* have, which the map doesn't give you, is `FlowHeader.use?: string[]` — "relative paths to reusable authored flows composed by this body" ([flows#300](https://github.com/AgentWorkforce/flows/issues/300), closed). This is a real field in the shipped `2.0.16` type; this skill hasn't independently run a flow that exercises it, so treat its exact runtime semantics as a pointer to verify against `docs/SURFACE.md` and the flows repo, not as tested guidance the way the rest of this document is.
+
+## Parallel agents
+
+Running several agent (or any) steps concurrently is first-class, documented authoring — not a workaround:
+
+> "…`Promise.resolve`, `Promise.all`, `Promise.allSettled`, `Promise.any` and `Promise.race` over authored steps" are "ordinary, supported authoring." — `docs/SURFACE.md`, the authored operation lifecycle
+
+```ts
+const LENSES = ['security', 'correctness', 'performance'] as const;
+
+await Promise.all(
+  LENSES.map((lens) =>
+    f.agent(`${lens}-reviewer`, {
+      task: `Review this diff for ${lens} issues ONLY. Write findings to review/${lens}.json.`,
+      cli: 'claude',
+    }).gate({ type: 'subprocess_gate', command: `test -s review/${lens}.json` }),
+  ),
+);
+
+const consensus = await f.agent('consensus', {
+  task: 'Read review/*.json. Resolve disagreement between lenses. Write review/consensus.json.',
+}).gate({ type: 'subprocess_gate', command: 'test -s review/consensus.json' });
+```
+
+This is the exact shape `examples/pr-review-pipeline` in `AgentWorkforce/flows` (and the cookbook's would-be equivalent) uses: fan out, each lane writes its own file, a reconciliation step reads them all. **Disclosure worth knowing before you rely on it**: the flows package replaces the global `Promise.all` intrinsic, process-wide, for the lifetime of any authored flow execution, so the kernel can prove every concurrent step was actually awaited (rather than inferring group membership from callback identity). It delegates to the real intrinsic and restores it when the last concurrent flow closes — but any other code sharing that process sees the replacement during that window.
+
+## Agent-relay transport: dispatch, not live chat
+
+`AgentOptions.transport?: 'direct' | 'relay'` (default `'direct'`, a local subprocess). Setting `transport: 'relay'` dispatches the step to Agent Relay's own task infrastructure instead — per the shipped type's own doc comment: *"posts to agent-relay so the agent registers as a first-class workspace participant that DMs can steer."*
+
+What this actually is, per `docs/AGENT-RELAY-TRANSPORT.md`: the step calls `POST /v1/actions/task.run/invoke` against relaycast, then waits for a durable final receipt — spawn readiness and invocation acceptance do **not** complete the step, only a terminal receipt does. It needs a pre-provisioned `RELAY_AGENT_TOKEN` (a workspace API key cannot substitute) and the Relay provider running with `AGENT_RELAY_TASK_PROVIDER=1`. The dispatched worker submits its result via an injected `agent_result` tool.
+
+Don't describe this as "agents talking to each other" — there's no documented pattern in this skill's scope for two flow steps to hold a live back-and-forth over Relay channels while both are running. What's real: the step's agent becomes a genuine Agent Relay workspace participant while it runs (so a human, or another agent with the right access, can DM it and potentially steer it — per the type's own wording), and the flow still only sees a request-and-durable-receipt shape, not an open channel. Multi-agent *coordination* inside a flow today means sequential handoff (one step's return value feeds the next) or parallel fan-out (**Parallel agents**, above) — not live messaging.
+
+## Human approval and dispatch (declared, not yet runnable)
+
+`Ctx` declares `human(question, {to})` and `dispatch<T>(flow, input)`, and both typecheck and pass `flows check`. **Neither actually runs today.** Verified for real against `@relayflows/surface@2.0.16`:
+
+```
+$ flows run human.flow.ts --local-agent --input '{}'
+FAILED [protocol_error] relayflowd could not complete the run request:
+unsupported_verb: the initial authored executor does not lower f.human
+
+$ flows run dispatch.flow.ts --local-agent --input '{}'
+FAILED [protocol_error] relayflowd could not complete the run request:
+unsupported_verb: the initial authored executor does not lower f.dispatch
+```
+
+Type availability does not establish executable support for either verb — the shipped executor throws `unsupported_verb` for both, identically, regardless of what the rest of the flow does. [flows#400](https://github.com/AgentWorkforce/flows/issues/400) tracks wiring up durable human approval; there's no dedicated tracking issue found yet for `f.dispatch`. Until one of these lands, treat both as authoring-surface-only:
+
+```ts
+// This typechecks and passes `flows check` — it will FAIL at `flows run` time.
+// Do not ship a flow whose only path to done() runs through f.human or f.dispatch.
+const ok = await f.human(`Ship this?\n${plan.summary}`, { to: 'khaliq' });
+if (!ok) return f.done('declined');   // correct verdict, if this call ever executes
+```
+
+If you need durable approval today, do it in YAML with `permissions`/`recoveryMode: manual` (parks the run as `needs_human` with a diff for a person to resolve), or split the decision out to a separate, human-triggered flow run rather than a mid-flow `f.human` call.
+
+**The same "types accept it, the executor doesn't" trap applies to `workspace` on an agent step under `--local-agent`.** Neither an annotated (`'acme/api: readonly'`) nor a bare (`'acme/api'`) value works — both fail identically:
+
+```
+REFUSED [invalid_spec] unsupported_workspace_permission: The local agent worker accepts
+stream-only steps. Remove workspace or attach a worker that holds its revision pins.
+```
+
+It isn't the `: readonly`/`: readwrite` annotation syntax that's rejected — it's that the local-agent worker doesn't hold workspace revision pins at all. Omit `workspace` entirely for a step you intend to run with `--local-agent`; it's a real, working field only against a worker that supports it (Cloud's).
+
+## Running it: `flows check` / `run` / `deploy` / `schedule`
+
+```
+flows check [--json] [--watch] <flow.ts|flow.yaml|spec.json>
 flows run [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local-agent] <flow.yaml|spec.json>
 flows run [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local-agent] <flow.ts> --input <inline-json-or-file>
-flows resume [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] <run-id>
+flows resume [--allow-human-influenced] [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local-agent] <run-id>
+flows deploy <flow.ts> --repo <owner/name> --on <provider>[:key=value,...] [--on ...] --approver <handle> [--agents claude[,codex]] [--name <name>] [--draft] [--json]
+flows deployments [--json]
+flows undeploy [--json] <deployment-id>
+flows schedule <flow.ts> --cron "<expr>" --tz <tz> --input <inline-json-or-file>
 ```
 
-### A flow with an agent step needs `--local-agent`
+`check` is a pure compile-and-preflight — no daemon, no socket, no data dir. It's the fast, safe way to validate a flow before ever running it, and it does accept `.flow.ts` despite older `--help` text implying only YAML/JSON.
 
-`flows run <spec>` on a flow containing **any** `agent` step parks immediately at that step unless you pass `--local-agent`:
+**`--local-agent` is not optional decoration.** Without it, `agent`/`llm` steps have no worker to dispatch to and the run parks indefinitely rather than executing. Every local run in this skill's examples, and every real run in [`AgentWorkforce/flows-cookbook`](https://github.com/AgentWorkforce/flows-cookbook), passes it.
 
+A `.flow.ts` run via `flows run` requires `--input <inline-json-or-file>` even when the flow body ignores its input argument.
+
+**`--data-dir` gotcha, learned the hard way.** If a flow does its own git hygiene on the directory you invoke it from — `pr-reviewer`'s and similar examples' `git clean -fdq -e .workforce` when there's nothing to push — that cleanup deletes *anything else untracked in that directory*, including the daemon's own default `.relayflowd/` state if you didn't move it. The symptom is a bizarre `SQLite journal failed: unable to open database file` on the *next* run in the same checkout, because the previous run's own cleanup step deleted the very journal directory the daemon needed. Fix: put the daemon's data outside the checkout:
+
+```bash
+flows run pr-reviewer.flow.ts --local-agent --data-dir /somewhere/outside/the/repo --input '{...}'
 ```
-PARKED [run_parked] Run "01M2Z..." parked at step "implement-rust" (agent): no worker is attached for step type "agent".
-RUN 01M2Z... parked (3 steps)                                      # exit 3
-```
 
-The flag is in the usage string but nothing says it is *required*; the message reads as "your infrastructure is missing a worker", not "pass this flag". Budget a wasted run for it the first time, or just always pass it for a local run with agents.
+**Before `flows deploy` will do anything, two things have to already be true — a correct command still fails without them:**
 
-Three details worth having in advance:
+1. **You (or whoever's driving this) are logged in.** `agent-relay cloud login` once; check with `agent-relay cloud whoami`. There's no separate `flows`-specific login — it shares the `agent-relay` Cloud session.
+2. **The workspace has a GitHub App installation covering `--repo`, and the `--on` provider is actually a connected integration** — not just declared in the command. `flows deploy` looks up the workspace's GitHub installation before it will activate a listener; with none, it refuses `flow_repository_not_connected` rather than deploying a broken one (`prepare-flow-deploy.ts` in `AgentWorkforce/cloud`). Check what's connected with `agent-relay cloud integration connections --workspace <id>` — a provider showing `degraded` instead of `ready` is not deploy-safe, even though the CLI won't tell you that until you try. This is a separate concern from your own local git push access (a personal git/`gh` credential thing, needed only for testing a flow's own `git push`/`gh pr create` steps locally) — don't conflate the two when debugging a refusal.
 
-- **The remedy is only named sometimes.** The hint `To start a new run with a local agent worker: flows run --local-agent '<path>'` is appended only for `flows run` on a YAML/JSON spec path. A `.flow.ts` gets the bare message with no remedy, and `flows resume` never gets one (`packages/sdk/src/cli/run.ts:627-640`).
-- **`flows resume --local-agent <run-id>` is a trap on a spec run.** The flag is accepted and then ignored: `resumeFlow` attaches a worker only on the authored-TS path, so a YAML/JSON run parks again with the identical message. Start a new run instead. ([flows#504](https://github.com/AgentWorkforce/flows/issues/504))
-- **`flows schedule` has no `--local-agent` at all.** A scheduled flow with an agent step parks forever, silently, on a timer. Drive it from cron with `flows run --local-agent` until that changes. ([flows#503](https://github.com/AgentWorkforce/flows/issues/503))
+**`flows deploy`** creates a persistent listener: each matching ticket (`--on github:labels=agent`, `linear:team=ENG`, `jira:project=OPS`, `shortcut:workspace=…`, `slack:channel=#eng`) launches one Cloud run. `flows deployments` lists what's listening; `flows undeploy <id>` stops it — verified for real this session (deployed `software-factory` against a real repo with `--on linear:team=…`, got back `{"status":"listening", ...}`, then cleanly undeployed).
 
-### Watching a run
+**`flows schedule`** puts a flow on a cron instead of a ticket trigger — newer (shipped after the `2.0.16` release line) and not yet reflected everywhere in older examples that instead show `flows run --cloud` for the same use case.
 
-`flows status <run-id>` is the observability surface, and it is good: a live step table with per-step attempts, durations, gate verdicts, spend and transcript paths, plus per-attempt transcripts under `.relayflowd/runs/<run-id>/steps/<step>/`. Poll it with `watch`.
-
-Two durable facts. **The step count will not match your spec** — the kernel adds a lowered `.gate` step per gated step, so a 58-step spec reports 67. And **a side-effect log written by your own gate scripts is not a progress signal**: agents run those same commands on themselves while working, so the log mixes flow steps, agent self-checks and your own manual runs. `flows status` is the only caller-accurate view.
-
-For what is missing (observer link, `flows logs`) see the open-bugs section.
-
-### `flows check` passing does not mean the flow will run
-
-`check` is a pure compile-and-preflight — no daemon, no socket, no data dir. It's the fast, safe way to validate a flow before ever running it. `--json` works on `check`/`run`/`resume`; it does **not** exist on `tick start`, `hn-monitor start`, or `observer`. The printed usage above only lists `<flow.yaml|spec.json>` for `check`, but it accepts `.flow.ts` too — verified in this skill's own **Verified against** section (`flows check hello.flow.ts` passes); the tool's own `--help` text is just incomplete on this point.
-
-That is what makes it fast and worth running constantly. It also means **the one validation tool the product ships structurally cannot catch spec/daemon skew**: the npm packages and the runtime binary can carry the same version number and disagree about the schema, and you learn it as a mid-run `protocol_error` after the flow has already done work ([flows#489](https://github.com/AgentWorkforce/flows/issues/489), [flows#502](https://github.com/AgentWorkforce/flows/issues/502)).
-
-Practical consequence for authoring: **budget a shakedown run against a throwaway target, and treat green unit tests plus `CHECK PASSED` as necessary but not remotely sufficient.** The failures that actually block a flow live in the seams between the packages, the daemon, the CLI flags and the forge, and none of those are reachable without a real run.
-
-A `.flow.ts` run via `flows run` requires `--input <inline-json-or-file>` even when the flow body ignores its input argument — `flows run hello.flow.ts` alone refuses `REFUSED [input_missing]`.
+**Now fixed, was broken through `2.0.16`** ([flows#461](https://github.com/AgentWorkforce/flows/issues/461), closed): the one-shot `flows run --cloud [--sync-code] <flow.ts> --input <json>` form used to misroute authored TypeScript flows into the declarative-spec loader (`invalid_input: Cannot read or compile the declarative flow`) or refuse with a bare `http_error: HTTP 400`. Root cause: Cloud pinned an older `@relayflows/surface` than the CLI authored against, and refused the version mismatch with those opaque errors instead of naming it. Fixed in `2.0.17` (CLI side) — verified for real: `flows run --cloud --wait <flow.ts> --input '{}'` now submits successfully and returns a real run ID instead of refusing immediately. If you still hit a bare `HTTP 400`/`invalid_input` on this path, you're likely on a CLI older than `2.0.17` — update first before assuming something else is wrong. (Cloud-side reporting of the exact version mismatch, when one still exists, was tracked as a separate follow-up PR at the time of writing — the CLI's own refusal is fixed either way.)
 
 ### Exit codes and refusal shapes
 
-Every refusal before a journal write is exit **2**, printed as `REFUSED [<kind>] <message>`. The `<kind>` differs by *how* the flow was checked, not just *what* was wrong — don't assume one canonical string for "no CLI":
+Every refusal before a journal write is exit **2**, printed as `REFUSED [<kind>] <message>`. The `<kind>` differs by *how* the flow was checked, not just *what* was wrong:
 
-- `flows check` on a YAML/JSON spec, or the declarative-compiler path in general → `preflight.ts`'s own kind directly: `cli_unresolved`, `model_unknown`, `cli_missing`, `cli_unauthenticated`, `no_executor`, etc. (`packages/sdk/src/failure-kinds.ts`, `PREFLIGHT_FAILURE_KINDS`).
-- `flows run` on a **TypeScript** `.flow.ts` whose authored `f.agent`/`f.llm` call can't resolve a CLI at runtime → the executor's internal `agent_cli_unresolved` gets wrapped and printed as `REFUSED [invalid_spec] <message>` (`packages/sdk/src/cli/direct-run.ts:97-119`). The internal `agent_cli_unresolved` string is never itself the printed kind a user sees.
+- `flows check` on a YAML/JSON spec, or the declarative-compiler path in general → the preflight's own kind directly: `cli_unresolved`, `model_unknown`, `cli_missing`, `cli_unauthenticated`, `no_executor`, `config_invalid`, etc.
+- `flows run` on a **TypeScript** `.flow.ts` whose authored `f.agent`/`f.llm` call can't resolve a CLI or model at runtime → wrapped and printed as `REFUSED [invalid_spec] <message>` with the specific reason (`llm_cli_unresolved`, etc.) inside the message text, not as the printed `[kind]` itself.
 
-Both are real, both are exit 2 — just from different code paths, so don't be surprised if the same underlying problem prints a different `[kind]` depending on whether you hit it via `flows check` on YAML or `flows run` on TypeScript.
+Both are real, both are exit 2 — the same underlying problem can print a different `[kind]` depending on whether you hit it via `flows check` on YAML or `flows run` on TypeScript.
 
 ## Common mistakes
 
-- **Forgetting `version` in a YAML/JSON `FlowSpec`.** It's required, not optional — `flows check` refuses a spec without it.
-- **Adding `agents:` to a TypeScript `flow()` header.** `FlowHeader` has no such field; it throws `TypeError: flow header has unknown fields: agents` at authoring time. Named-agent maps + `agent:` selector are YAML/JSON-only (flows#300 tracks TypeScript composition via `use:`, not yet shipped).
+- **Forgetting `version` in a YAML/JSON `FlowSpec`.** Required, not optional.
+- **Using a predicate `.gate((v) => …, reason)` in TypeScript.** Refused at runtime (`unsupported_gate`) until [flows#449](https://github.com/AgentWorkforce/flows/pull/449) lands. Use a config-object gate — see **Verification gates**.
+- **Putting `tools`, `budget`, or any other `FlowHeader` field into `flows.json`.** `flows.json` only accepts `cli`, `executors`, `models`, `mcp`, `deploy` — anything else is `config_invalid`.
 - **Assuming `flows.json`'s `models` sets a default model.** It only validates models already declared elsewhere; it never selects one.
-- **Not awaiting a step, or manually `.then()`-chaining one.** Both are refused (`unawaited_step` / `unsupported_verb`) rather than silently ignored — the executor closes every root operation's lifecycle explicitly.
+- **Declaring `.on(...)` trigger handlers without registering the provider in `flows.json`'s `executors`.** Even a flow you only ever run directly (never via a real webhook) needs this, or it's refused `no_executor` before your input is even read.
+- **Calling `f.done('canceled')` for a human's "no."** That's `f.done('declined')` — `canceled` is the kernel's verdict, not an authored body's.
+- **Running an agent/llm-bearing flow without `--local-agent`.** The run parks with nothing attached to do the work.
+- **Letting a git-hygiene flow's cleanup step delete your daemon's own data dir.** Pass `--data-dir` outside the checkout for any flow that runs `git clean`/`git checkout --force` on its own working tree.
+- **Not awaiting a step, or manually `.then()`-chaining one.** Refused (`unawaited_step`) rather than silently ignored.
 - **Running a `.flow.ts` without `--input`.** Required even for flows that don't use their input argument.
-- **Expecting a fifth `done()` reason.** The set is closed in this skill's examples as `success | step_failed | canceled | budget_exceeded`; the installed runtime has since added `needs_human` and `declined`. Check `RunCompletionReason` in the version you have rather than trusting either list.
-- **Running a flow with agent steps without `--local-agent`.** It parks at the first agent step. See above.
-- **Gating an agent step on `subprocess_gate`.** When it fails you get `exit=1` and nothing else. See above.
-- **Assuming `f.run` has no timeout.** It leases for 30 seconds by default.
+- **Assuming `flows run --cloud` for a one-shot TypeScript flow run is still broken.** It was through `2.0.16` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461), now closed) — fixed in `2.0.17`. If you're on an older CLI, update rather than reach for a workaround; `flows deploy` remains the right choice for a persistent listener regardless.
 
 ## What this skill does NOT cover
 
-- **Named-agent maps in TypeScript** (`agents: { reviewer: { cli, model } }` + reuse across steps by name) — YAML/JSON only today. Tracked for TS composition via `use:` at [flows#300](https://github.com/AgentWorkforce/flows/issues/300).
-- **`recoveryMode`, `surfaces`, `memory`** on agent steps — real YAML/JSON fields with no TypeScript equivalent. Author that step in YAML and reach it from TypeScript with `f.dispatch` if you need them. (`budget` *does* have a TypeScript home — the `FlowHeader` — and `AgentOptions` has grown `permissions`, `cwd` and `transport` since this skill was first written.)
-- **`permissions` and `options.cwd`** — both are accepted and neither works as written. See **Open bugs you must author around**.
-- **Cloud execution** (`flows run --cloud`), **triggers/webhooks**, **memory retrieval**, and the **`f.mcp`**/**`f.slack`** helper namespaces — each is its own surface with its own gotchas; see the [Relayflows product docs](https://agentrelay.com/docs/relayflows) for what's shipped versus designed-but-not-yet-implemented.
+- **Triggers/webhooks** (`.on(github.pull_request(...), ...)`), **memory retrieval**, and the full **helper** catalog's per-provider quirks (`f.mcp`, provider-specific settings) — each is its own surface; see the [Relayflows product docs](https://agentrelay.com/docs/relayflows) and the [flows-cookbook](https://github.com/AgentWorkforce/flows-cookbook) for real, run-verified examples of each.
+- **Named-agent map equivalent in TypeScript beyond `use:`** — `FlowHeader.use` exists in the shipped type but this skill hasn't independently run a flow that exercises it; verify current semantics against `docs/SURFACE.md` before relying on this section alone.
+- **YAML-only agent step fields with no TypeScript equivalent**: `recoveryMode`, `permissions`, `surfaces`, and enforced `workspace` (TypeScript's `workspace` string is accepted by the type but rejected by the local-agent worker — see **Human approval and dispatch**). Author that step in YAML if you need them; `f.dispatch` is not a working escape hatch for this today (see below).
 - The **older `@relayflows/core` `WorkflowBuilder`** engine — see `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` in this repo.
 
 ## Quick reference
 
 | Verb / field | Language | Notes |
 |---|---|---|
-| `f.run(command)` / `type: deterministic` | both | shell command, implicit `exit_code` gate |
+| `f.run(command, {timeout?})` / `type: deterministic` | both | shell command, implicit `exit_code` gate |
 | `f.llm(...)` / `type: llm` | both | bare model call, no workspace |
 | `f.agent(name, opts)` / `type: agent` | both | harnessed coding agent, returns `{summary, artifacts}` |
-| `f.human(question, {to})` | TS only | durable approval; YAML has no equivalent yet |
-| `f.dispatch(flow, input)` | TS only | hand off to a named child flow |
-| `f.done(reason)` / — | TS / kernel | one of `success \| step_failed \| canceled \| budget_exceeded` |
-| `options.cli` / `step.cli` | both | per-call/step CLI override (TS: flows#310) |
-| `options.model` / `step.model` | both | per-call/step model; no flow/project default |
-| `agent: <name>` + `agents: {...}` | YAML/JSON only | named cli/model pair, reused by selector |
+| `f.human(question, {to})` | TS only | **not executable yet** — `unsupported_verb`; typechecks, fails at `flows run`. [flows#400](https://github.com/AgentWorkforce/flows/issues/400) |
+| `f.dispatch(flow, input)` | TS only | **not executable yet** — `unsupported_verb`; typechecks, fails at `flows run` |
+| `f.done(reason)` | TS / kernel | one of `success \| step_failed \| needs_human \| declined` from an authored body; `canceled \| budget_exceeded` are kernel-only |
+| `.gate({type: '...', ...})` | TS | the only `.gate()` form that runs today — config object, never a predicate |
+| `options.transport: 'relay'` | TS/YAML `agent` step | dispatch to Agent Relay's task infra; request+receipt, not live chat |
+| `Promise.all([...steps])` | TS | first-class supported concurrent fan-out |
+| `flows.json`: `cli, executors, models, mcp, deploy` | project config | exact accepted key set — nothing else |
 | `flows check <file>` | CLI | pure validate + preflight, no daemon |
-| `flows run <file> [--input ...]` | CLI | actually executes; `.flow.ts` needs `--input` |
-| `flows resume <run-id>` | CLI | resume a parked/crashed run |
-| `.gate(config)` on a `Step<T>` | TS | postfix named gate; one per step |
-| `--local-agent` | CLI | **required** for any local run with an `agent` step |
-| `f.run(cmd, { timeout })` | TS | **default lease 30s, max 15m** — set it for anything touching the network |
-
-## Open bugs you must author around
-
-**Verified against CLI 2.0.22 on 2026-09-20.** Everything in this section describes a bug, not a design. Each row says when to delete it — check the issue before trusting the workaround, and remove the row once it closes. Nothing else in this skill depends on these.
-
-| Symptom | Workaround | Delete when |
-| --- | --- | --- |
-| A failing `subprocess_gate` journals `exit=1` with **empty** stdout and stderr; `relayflowd.log` is empty too. The lowering runs your command under `stdio: 'inherit'` and the daemon's stdio is captured nowhere. | Don't gate agent steps. If you must, have the command write its verdict to a file — that file is the only record you get. | [flows#511](https://github.com/AgentWorkforce/flows/issues/511) |
-| `artifact_exists` can never pass for a path under a dot-directory. The worker's journaled `artifacts` list omits them — one run journaled 6,837 paths, `{target: 6832, crates: 5}`, and zero under `.workflow-artifacts/` it had demonstrably written to. Not a `.gitignore` effect; `target/` is ignored too and included in full. | Check the disk from a deterministic step instead. | [flows#513](https://github.com/AgentWorkforce/flows/issues/513) |
-| `flows resume --local-agent <run-id>` accepts the flag and ignores it on a spec run, parking again identically. | Start a new run. Use `flows run --reuse-from <run-id>` to reuse completed steps — it keys on `step_spec_hash` plus resolved input, so an edited step re-executes and the rest do not. | [flows#504](https://github.com/AgentWorkforce/flows/issues/504) |
-| `flows schedule` has no `--local-agent`, so a scheduled agent flow parks forever, silently, on a timer. | Drive it from cron with `flows run --local-agent`. | [flows#503](https://github.com/AgentWorkforce/flows/issues/503) |
-| `flows logs <run-id>` is documented but refused `invalid_invocation`. | `flows status`, and the transcripts under `.relayflowd/runs/`. | — |
-| No observer link and no channel for a local run. | `flows status`; there is no shareable live view. | [flows#341](https://github.com/AgentWorkforce/flows/issues/341), [flows#264](https://github.com/AgentWorkforce/flows/issues/264) |
-| `LEASE OVERDUE by Nm` in `flows status` usually means an agent is mid-turn, not that anything is stuck. | Check the worker process before concluding a stall. | — |
-| `permissions` on an agent step is validated and journaled and **never enforced**. A `flows run` is not sandboxed; agent steps can read and write the whole checkout. | Declare it for reviewability. Partition agents by path *and* sequence them, and gate on out-of-scope changes yourself. | [flows#487](https://github.com/AgentWorkforce/flows/issues/487) |
-| `options.cwd` on an agent step is declared by surface+sdk and rejected by the runtime at the same version. | Don't plan a per-step worktree around it. | [flows#489](https://github.com/AgentWorkforce/flows/issues/489) |
-| `retries_exhausted` reports only the last attempt, hiding the first — which is usually the one that explains the failure. | Read the journal directly. | [flows#506](https://github.com/AgentWorkforce/flows/issues/506) |
-| `flows check` never contacts the daemon, so a green check says nothing about whether the daemon will accept the spec, and it stays silent on run-time properties it can already compute. | Budget a shakedown run against a throwaway target. Treat green unit tests plus `CHECK PASSED` as necessary and nowhere near sufficient. | [flows#502](https://github.com/AgentWorkforce/flows/issues/502), [flows#514](https://github.com/AgentWorkforce/flows/issues/514) |
+| `flows run <file> --local-agent [--input ...]` | CLI | actually executes; `.flow.ts` needs `--input`, agent/llm steps need `--local-agent` |
+| `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; needs `agent-relay cloud login` plus a connected GitHub App + `--on` provider first, or `flow_repository_not_connected` |
+| `flows run --cloud <flow.ts> --input ...` | CLI | fixed in `2.0.17` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461)); update if you still see `http_error`/`invalid_input` |
+| `flows schedule <flow.ts> --cron ...` | CLI | cron-based cloud run |
 
 ## Verified against
 
-**Updated 2026-09-20** against `AgentWorkforce/flows@e73b315e` (origin/main, CLI 2.0.22) while authoring a 58-step campaign flow for `AgentWorkforce/relay` (`flows/migrate/native-delivery.spec.ts`). The `--local-agent` park, the silent `subprocess_gate` failure, the eight gate types, the `.gate()` postfix form, the three-argument `flow()` and the `f.run` 30-second lease were each read from the source cited beside them or observed in a real run — the park and the gate silence cost one run each. The `f.gitlab`/`f.github` writeback asymmetry, the `cwd` skew and the `retries_exhausted` behaviour come from the *Relayflows v2 Field Report* (2026-09-18, Julian Fann), corroborated against the same tree.
+`@relayflows/surface@2.0.16` and `@relayflows/sdk@2.0.16` (the published npm packages) — types read directly from the shipped `.d.ts` files, not from documentation or memory. Beyond static type-checking, the claims in this refresh that carry a **real run**, not just `flows check`, are backed by the recipes in [`AgentWorkforce/flows-cookbook`](https://github.com/AgentWorkforce/flows-cookbook) — each recipe's own README states exactly what was run, when, and what the result was (a real local run, a real Cloud deploy, or both), rather than duplicating that evidence here where it will go stale. If a claim in this skill and a cookbook recipe's README disagree, trust whichever was verified more recently — check the README's date.
 
-Original verification, `AgentWorkforce/flows@86a2ec2` (origin/main). Built `packages/surface` and `packages/sdk` from source in a clean worktree (published npm `@relayflows/surface@2.0.8` is stale — it predates flows#310 and lacks `cli`/`model` on `AgentOptions`; local build was symlinked in instead), then ran the real CLI:
-
-```
-$ flows check hello.flow.yaml         # this skill's YAML example, cli/model added, flows.json models allowlist set
-CHECK PASSED hello.flow.yaml            # exit 0
-
-$ flows check hello.flow.ts            # this skill's TypeScript example
-CHECK PASSED hello.flow.ts              # exit 0
-
-$ flows check extract.flow.yaml        # this skill's output_contains example
-CHECK PASSED extract.flow.yaml          # exit 0
-
-$ flows check hello.flow.yaml           # same YAML, no flows.json anywhere
-REFUSED [cli_unresolved] Step "greeter" has no CLI at step, flow, or project level. ...   # exit 2
-
-$ flows check hello.flow.yaml           # step model not in flows.json's models[]
-REFUSED [model_unknown] Step "greeter" declares model "claude-sonnet-4-6" ... not listed in project model registry ...   # exit 2
-```
-
-The `f.human`/`f.dispatch`/`f.slack` snippet and the TypeScript `REFUSED [invalid_spec]` wrapping claim are source-cited (exact file:line above), not independently re-run — both need a live `relayflowd` daemon (and Slack mount, for the former), which this pass didn't build.
+The predicate-gate failure, the `flows.json` schema refusal, the `--data-dir` git-hygiene interaction, and the `flows run --cloud` bug were all reproduced directly while building that cookbook, on `AgentWorkforce/flows@main` past the `v2.0.16` tag (2026-09-17). A subsequent review pass (Devin, on this PR) flagged three more claims worth checking rather than trusting on sight — `f.human`/`f.dispatch` executability, the `workspace: readonly` annotation, and the `subprocess_gate` env var name — all three were independently re-run against the real CLI, confirmed as real breaks (one of the review's own suggested fixes, for `workspace`, turned out not to work either — the bare form fails identically to the annotated one), and corrected in the sections above rather than taken on the reviewer's word alone.
