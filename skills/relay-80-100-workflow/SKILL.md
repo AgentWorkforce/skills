@@ -52,10 +52,12 @@ The shape that works is a small script of your own that journals verdicts to fil
 //   node gates.mjs require-green --names unit,clippy,e2e
 //     Reads those files back. If any verdict is not 'green' or any runId is
 //     not this run's, it FIRST writes evidence/BLOCKED_NO_COMMIT.md naming
-//     each red record and its tail, THEN exits non-zero.
+//     every invalid record (including foreign-run green records), with name,
+//     verdict, expected runId, actual runId, and tail, THEN exits non-zero.
+//     Missing or unreadable records are invalid too; report unavailable fields.
 ```
 
-Three details are load-bearing:
+Four details are load-bearing:
 
 - **Base64-encode the command.** It will contain `&&`, pipes and quotes, and the calling shell must not reinterpret them.
 - **Stamp each record with the run that produced it** (`runId`, from the flow's input or an env var). `flows run --reuse-from <run-id>` keys on `step_spec_hash`, and a recorder step *always exits 0*, so it is always eligible for reuse — an unstamped recording resurrects a previous run's verdict, and `require-green` happily reads it as today's evidence.
@@ -169,14 +171,21 @@ This stops "the agent transport failed" from masquerading as "the product failed
 
 ## Verify every edit
 
-Never trust that an agent edited a file. After every agent edit, record a deterministic check and route its evidence to a repair owner.
+Never trust that an agent edited a file. Establish a clean pre-edit baseline for the target paths, then record a deterministic check after every agent edit and route its evidence to a repair owner. If existing work must be preserved, snapshot it and compare against that snapshot instead; do not clean it away.
 
 ```ts
 const editSchemaCheck = `
-  if [ -z "$(git status --short -- lib/db/schema.ts)" ]; then echo NOT_MODIFIED; exit 1; fi
+  state=$(git status --short -- lib/db/schema.ts) || exit 1
+  if [ -z "$state" ]; then echo NOT_MODIFIED; exit 1; fi
   grep -q my_new_table lib/db/schema.ts || { echo MISSING_TABLE; exit 1; }
   echo EDIT_OK
 `;
+
+// Stop before editing if this path already has staged, unstaged, or untracked work.
+await f.run(`
+  state=$(git status --short -- lib/db/schema.ts) || exit 1
+  if [ -n "$state" ]; then echo DIRTY_BASELINE; exit 1; fi
+`);
 
 await f.agent('edit-schema', { cli: 'claude', task: 'Edit lib/db/schema.ts …' });
 await f.run(record('edit-schema', editSchemaCheck));
@@ -192,7 +201,7 @@ await f.run(requireGreen('edit-schema'));
 
 **Use `git status --short -- <paths>`, not `git diff --quiet`.** `git diff` only sees tracked changes, so a valid new package, test directory or generated artifact is misclassified as "no changes." `git diff --quiet` is fine only for tracked-only edits to files that already exist.
 
-**Verify** that the file was modified, and that key content exists (a table name, an exported symbol, an import). **Do not verify** exact content, formatting, line counts or byte sizes — agents format differently and those checks are pure brittleness.
+**Verify** that the file changed from the pre-edit baseline (reuse that same baseline for repair and final acceptance), and that key content exists (a table name, an exported symbol, an import). **Do not verify** exact content, formatting, line counts or byte sizes — agents format differently and those checks are pure brittleness.
 
 ### Gate the hazard, not a tool's mode
 

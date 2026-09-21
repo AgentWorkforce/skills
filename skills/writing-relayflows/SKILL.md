@@ -126,7 +126,7 @@ export const FLOW_COMPLETION_REASONS = ['success', 'step_failed', 'canceled', 'b
 
 An authored body can meaningfully call `f.done('success')`, `f.done('step_failed')`, `f.done('needs_human')` (parks the run — it's not a kernel cancellation), or `f.done('declined')` (a deliberate decision not to act — also not a cancellation). `'canceled'` and `'budget_exceeded'` exist in the same closed set but are the **kernel's** to record; a body calling them itself is calling the wrong verdict for what actually happened. The verdict for a human declining a durable approval is `f.done('declined')`, not `f.done('canceled')` — a human declining is a decision, not the kernel calling off the run. (Correct verdict *if* the approval call reaches that point — `f.human` itself doesn't execute yet; see **Human approval and dispatch**.)
 
-`Step<T>` (`dist/step.d.ts`) is a `PromiseLike<T>` with one extra method, `.gate(...)` — see **Verification gates**, which has a critical caveat for the predicate form. Every awaited step must actually be awaited — an unawaited or manually-`.then()`-chained step is refused (`unawaited_step` / a manual `.then()` is not an await), not silently dropped.
+`Step<T>` (`dist/step.d.ts`) is a `PromiseLike<T>` with one extra method, `.gate(...)` — see **Verification gates**, which distinguishes current predicate support from older-runtime limitations. Every awaited step must actually be awaited — an unawaited or manually-`.then()`-chained step is refused (`unawaited_step` / a manual `.then()` is not an await), not silently dropped.
 
 ## Verification gates
 
@@ -172,7 +172,7 @@ gate(predicate: (value: T) => boolean, because?: string): Step<T>;
 //  replay — so the executor refuses this branch with unsupported_gate."
 ```
 
-**Verified for real, this session, against `flows@main` (post-v2.0.16, current as of 2026-09-17):** any flow using the predicate form — `.gate((out) => out.trim().length > 0, "some reason")` — fails at `flows run` time with:
+**Historical limitation before flows#449 (post-v2.0.16, tested 2026-09-17):** a flow using the predicate form — `.gate((out) => out.trim().length > 0, "some reason")` — fails at `flows run` time with:
 
 ```
 FAILED [protocol_error] relayflowd could not complete the run request: unsupported_gate:
@@ -180,7 +180,7 @@ postfix .gate(predicate) closures cannot be journaled; use .gate({type: "…", �
 slice-P named gate instead.
 ```
 
-This reproduced identically on two different real example flows (`examples/pr-review-pipeline`, `examples/dependency-upgrade-bot` in `AgentWorkforce/flows`) that both used the predicate form — neither got past their first gate. **Always use the config-object form**:
+This reproduced identically on two different real example flows (`examples/pr-review-pipeline`, `examples/dependency-upgrade-bot` in `AgentWorkforce/flows`) that both used the predicate form — neither got past their first gate. **On those older runtimes, use the config-object form**:
 
 ```ts
 const outdated = await f.run('npm outdated --json 2>/dev/null || true')
@@ -192,11 +192,11 @@ const review = await f.agent('review', { task: '…', cli: 'claude' })
 
 (Verified for real: `.gate({ type: 'subprocess_gate', command: 'test -n "$INPUT" && echo "$INPUT" | grep -q pkg' })` against a step outputting `{"pkg":"left-pad"}` passes — `$INPUT`, not `$FLOWS_INPUT`, is what the author's command sees. `FLOWS_INPUT` is an env var the SDK's own generated wrapper reads internally to extract the value before invoking your command; it is never visible to `command` itself.)
 
-[flows#449](https://github.com/AgentWorkforce/flows/pull/449) (open at time of writing) adds journaled `artifact_exists` gates and real predicate-gate support (the executor runs the closure once, on the journaled value, and journals the verdict) — check whether it's merged before assuming predicate gates still don't work. Until it lands, `subprocess_gate`/`regex_match`/`word_count_bounds`/`references_input` are the only gates that actually run in TypeScript.
+[flows#449](https://github.com/AgentWorkforce/flows/pull/449) merged on 2026-09-17. Relayflows v2.0.22 supports journaled `artifact_exists` and predicate gates: the executor runs the predicate closure on the journaled value and journals its verdict. Older installations need the version-specific limitations above.
 
-An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. So never leave an `agent`/`llm` step on the default gate, and never on a predicate.
+An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. Validate every `agent`/`llm` result, either directly with a supported gate or in a following deterministic verifier.
 
-**Where to put that check depends on what you want a red result to *do*.** A config-object gate on the step *ends the run* when it fails, and cannot distinguish "the agent produced the wrong thing" from "the agent's transport dropped" — both read as a crashed step. If a red result should instead become repairable work, move the same assertion into the deterministic step that follows the agent, where it reads as a journaled fact with a tail. See `relay-80-100-workflow` for that shape. Gate on the step when a red result really should stop the run.
+**Where to put that check depends on what you want a red result to do.** A config-object or predicate gate directly on the agent/LLM step ends the run when it fails; use it when that failure should be terminal. For repairable failures, the following deterministic verifier must explicitly read the preceding output or workspace, produce its own verification result, and record it for repair. Output-dependent gates inspect the step they guard: moving the same gate unchanged would inspect the verifier's output, not the agent's. Use the record/repair/re-record/assert pattern in `relay-80-100-workflow`, gating the final verification result after repair.
 
 ## Helpers: journaled effects, not just Slack
 
@@ -406,7 +406,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 ## Common mistakes
 
 - **Forgetting `version` in a YAML/JSON `FlowSpec`.** Required, not optional.
-- **Using a predicate `.gate((v) => …, reason)` in TypeScript.** Refused at runtime (`unsupported_gate`) until [flows#449](https://github.com/AgentWorkforce/flows/pull/449) lands. Use a config-object gate — see **Verification gates**.
+- **Using a predicate gate on an older runtime.** Runtimes before [flows#449](https://github.com/AgentWorkforce/flows/pull/449) reject it with `unsupported_gate`; v2.0.22 supports journaled predicates. See **Verification gates**.
 - **Putting `tools`, `budget`, or any other `FlowHeader` field into `flows.json`.** `flows.json` only accepts `cli`, `executors`, `models`, `mcp`, `deploy` — anything else is `config_invalid`.
 - **Assuming `flows.json`'s `models` sets a default model.** It only validates models already declared elsewhere; it never selects one.
 - **Declaring `.on(...)` trigger handlers without registering the provider in `flows.json`'s `executors`.** Even a flow you only ever run directly (never via a real webhook) needs this, or it's refused `no_executor` before your input is even read.
@@ -434,7 +434,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `f.human(question, {to})` | TS only | **not executable yet** — `unsupported_verb`; typechecks, fails at `flows run`. [flows#400](https://github.com/AgentWorkforce/flows/issues/400) |
 | `f.dispatch(flow, input)` | TS only | **not executable yet** — `unsupported_verb`; typechecks, fails at `flows run` |
 | `f.done(reason)` | TS / kernel | one of `success \| step_failed \| needs_human \| declined` from an authored body; `canceled \| budget_exceeded` are kernel-only |
-| `.gate({type: '...', ...})` | TS | the only `.gate()` form that runs today — config object, never a predicate |
+| `.gate({type: '...', ...})` | TS | config-object gates; v2.0.22 also supports `.gate(predicate, because)` |
 | `options.transport: 'relay'` | TS/YAML `agent` step | dispatch to Agent Relay's task infra; request+receipt, not live chat |
 | `Promise.all([...steps])` | TS | first-class supported concurrent fan-out |
 | `flows.json`: `cli, executors, models, mcp, deploy` | project config | exact accepted key set — nothing else |

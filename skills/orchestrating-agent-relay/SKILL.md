@@ -525,19 +525,21 @@ worker still thinking. Defenses:
 Whenever a worker **opens or owns a PR**, subscribe **that live PR-owner
 agent** to the PR's GitHub provider resources immediately — the moment the
 PR number exists, not after the first review comment. Conversation comments,
-reviews, review comments, pushes, and check changes then wake the owner
-instead of waiting on the next poll.
+reviews, review comments, pushes, and check changes can then wake the owner.
+Binding creation alone does not establish end-to-end delivery; keep a bounded
+GitHub polling fallback until the event types and harness wake are verified.
 
 The default recipe is four owner bindings. Each `--resource` is a distinct
 binding key, so these do not replace each other. Paths match the GitHub
 adapter layout used by `writing-agent-relay-workflows` (`pulls/<n>/reviews/**`,
 `pulls/<n>/status/**`) plus GitHub's issue-comment path for PR conversation
-comments:
+comments. Replace every angle-bracket placeholder in these shell examples
+with the actual owner handle, repository, and PR number before execution:
 
 ```bash
-OWNER=@<PR-owner-agent>
+OWNER='@<PR-owner-agent>'
 REPO='/github/repos/<owner>/<repo>'
-N=<PR_NUMBER>
+N='<PR_NUMBER>'
 for resource in \
   "$REPO/pulls/$N/**" \
   "$REPO/pulls/$N/reviews/**" \
@@ -622,7 +624,7 @@ do
   agent-relay integration unsubscribe github --resource "$resource"
 done
 # confirm each binding, webhookId, and webhookSubscriptionId disappeared
-agent-relay fleet release <Owner>
+agent-relay fleet release '<Owner>'
 ```
 
 Unsubscribe does not delete agents or channels. Do not unsubscribe by guessed
@@ -644,10 +646,19 @@ GitHub events will wake the agent. Verify in this order:
 4. **Actual event** — after a real GitHub comment, review, check, or push, the
    owner receives a Relay message from `github` whose body names the event and
    a Relayfile path (or `resource_ref`) for this PR. Read it with `check_inbox`
-   / `list_messages`. Optional broker corroboration: a delivery-injected event
-   for that agent; `node deadletters` must not hold it.
+   / `list_messages`. Capture the GitHub event ID, Relay message ID, and
+   timestamps; test discussion, review, push, and check events separately.
+5. **Idle harness wake** — with the owner idle before the event, confirm a new
+   agent turn consumes that message and rereads the authoritative PR/check
+   state. A channel message, inbox read, or broker delivery-injected event
+   alone does not prove an idle harness resumed. Inspect `node deadletters`
+   for failed delivery.
 
-If steps 1–3 pass and step 4 does not, the subscription is not working. Do not
+If steps 1–3 pass but step 4 does not, delivery remains unverified. If step 4
+passes but step 5 does not, the remaining gap is harness wake/consumption.
+In particular, a delivered comment does not establish `check_run.completed`
+delivery or idle wake across other harnesses. Report those as separate
+limitations and keep the polling fallback for unverified paths. Do not
 treat Cloud/Nango ingress success, an HTTP 200, or a channel post you wrote
 yourself as delivery proof.
 
