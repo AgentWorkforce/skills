@@ -524,8 +524,9 @@ worker still thinking. Defenses:
 
 Whenever a worker **opens or owns a PR**, subscribe **that live PR-owner
 agent** to the PR's GitHub provider resource immediately — the moment the PR
-number exists, not after the first review comment. Review comments, pushes,
-check changes, and discussion then wake the owner instead of waiting on the
+number exists, not after the first review comment. Events whose
+`resource_ref` is that PR (review submitted/edited, review comments, PR
+pushes, PR-tied discussion) then wake the owner instead of waiting on the
 next poll.
 
 ```bash
@@ -547,12 +548,16 @@ already-live owner. `--events` defaults to Relay `message.created,thread.reply`.
 3. A Relayfile binding keyed by `(provider, resolved path glob)`
 
 `--resource` is a Relayfile VFS glob. `owner/repo` resolves to repository
-scope; provider URLs are not accepted. A PR glob does **not** include GitHub
-issue-comment paths (`/issues/<n>/comments/**`) even when those comments sit
-on the PR. Reviews, root review-comments, and checks are inventoried at
-repository-level `reviews/`, `comments/`, and `checks/` paths — a PR directory
-does not cover them. Subscribe the PR glob first; add those extra globs only
-when the owner must wake on those exact records.
+scope; provider URLs are not accepted. The canonical PR glob is the owner
+binding. Matching uses the event's `resource_ref` (for example
+`/github/repos/<owner>__<repo>/pulls/by-id/<n>.json`), not only the inventory
+file path — so a review stored at `/github/repos/<o>/<r>/reviews/<id>.json`
+still wakes a `/pulls/<n>/**` owner when it is that PR's review. Extra globs
+are for records that **never** carry this PR's `resource_ref` (a repo-wide
+check on another SHA, an issue-comment path that only names `/issues/<n>/`,
+or an independently inventoried pending review you must stage before its
+terminal event). Do not give those extra globs to a helper; they are still
+writable owner routes. One `(github, glob)` binding per resource.
 
 List bindings with `agent-relay integration subscribe --list`. This is
 distinct from `agent-relay integration subscription list`, which lists Relay
