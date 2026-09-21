@@ -1,6 +1,6 @@
 ---
 name: migrating-persona-to-relayflow
-description: Use when migrating an existing `defineAgent` persona (in AgentWorkforce/agents or AgentWorkforce/internal-agents) to run its LLM-heavy work through a Relayflow v1 workflow via `ctx.workflow.run()`. Covers scope decisions (what to extract, what to leave in the handler), the 4-step durable-workflow shape, materialization through the current 4-file cloud deploy surface, red-first testing with resume proof, `useSubscription: true` semantics for realtime triggers, the `agentworkforce >= 4.1.44` CI-deploy bump requirement, and evidence capture. Applies to schedule-driven, realtime-trigger-driven, and hybrid personas. Reference migration: `hn-monitor` PR #126.
+description: "Use when migrating an existing `defineAgent` persona (in AgentWorkforce/agents or AgentWorkforce/internal-agents) to run its LLM-heavy work through a Relayflow v1 workflow via `ctx.workflow.run()`. Covers scope decisions (what to extract, what to leave in the handler), the 4-step durable-workflow shape, materialization through the current 4-file cloud deploy surface, red-first testing with resume proof, `useSubscription: true` semantics for realtime triggers, the `agentworkforce >= 4.1.44` CI-deploy bump requirement, and evidence capture. Applies to schedule-driven, realtime-trigger-driven, and hybrid personas. Reference migration: `hn-monitor` PR #126."
 ---
 
 # Migrating a persona to Relayflow v1

@@ -1,6 +1,6 @@
 ---
 name: writing-agent-relay-workflows
-description: DEPRECATED - documents the superseded v1 `@relayflows/core` WorkflowBuilder engine (`workflow().pattern().agent().step().run()`, `failOnError`, `captureOutput`, `{{steps.X.output}}`, `.onError()`). Use `writing-relayflows` for the current v2 engine (`@relayflows/surface`/`@relayflows/sdk`, CLI `flows`) on all new work. Keep this open only to read or maintain an existing v1 workflow: conversation vs pipeline coordination, DAG steps, idle detection, Relayfile-backed human assistance, waitFor gates, review-depth review/fix loops, channels, chat-native recipes, and parallel waves.
+description: "DEPRECATED - documents the superseded v1 `@relayflows/core` WorkflowBuilder engine (`workflow().pattern().agent().step().run()`, `failOnError`, `captureOutput`, `{{steps.X.output}}`, `.onError()`). Use `writing-relayflows` for the current v2 engine (`@relayflows/surface`/`@relayflows/sdk`, CLI `flows`) on all new work. Keep this open only to read or maintain an existing v1 workflow: conversation vs pipeline coordination, DAG steps, idle detection, Relayfile-backed human assistance, waitFor gates, review-depth review/fix loops, channels, chat-native recipes, and parallel waves."
 ---
 
 # Writing Agent Relay Workflows
