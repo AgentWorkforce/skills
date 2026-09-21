@@ -2,19 +2,19 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.1.6`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.7.0`.
 
 ## Published Skills
 
 | Skill | Version | Description |
 |-------|---------|-------------|
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.5 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
-| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 1.6.24 | Build multi-agent workflows with WorkflowBuilder, DAG dependencies, Relayfile-backed Slack human assistance, integration subscriptions, waitFor gates, review-depth review/fix loops, channels, and chat-native coordination recipes. |
+| [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 2.0.0 | **DEPRECATED** - the superseded v1 `@relayflows/core` WorkflowBuilder engine. Use [`writing-relayflows`](skills/writing-relayflows/SKILL.md) for v2; keep this only to maintain an existing v1 workflow. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.1 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
-| [writing-relayflows](skills/writing-relayflows/SKILL.md) | 1.0.0 | Author a Relayflows v2 flow (`@relayflows/surface`/`@relayflows/sdk`, the `flows` CLI) in TypeScript or YAML/JSON — the run/llm/agent ladder, verification gates, cli/model resolution, flows.json, and real `flows check`/`run` refusal shapes. Not the older `@relayflows/core` WorkflowBuilder engine. |
+| [writing-relayflows](skills/writing-relayflows/SKILL.md) | 1.4.0 | Author a Relayflows v2 flow (`@relayflows/surface`/`@relayflows/sdk`, the `flows` CLI) in TypeScript or YAML/JSON — the run/llm/agent ladder, verification gates, cli/model resolution, flows.json, and real `flows check`/`run` refusal shapes. Not the older `@relayflows/core` WorkflowBuilder engine. |
 | [using-agent-relay](skills/using-agent-relay/SKILL.md) | 1.4.0 | Participant-side MCP reference for a **registered** relay agent (spawned worker / registered lead): messaging, channels, threads, reactions, search, inbox, actions, and worker spawn/release. Counterpart to `orchestrating-agent-relay`. |
-| [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.3.1 | The canonical way to run agent-relay: self-bootstrap the broker (`agent-relay node up`) and autonomously spawn, monitor, and coordinate a worker team over the relay MCP without human intervention. |
-| [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 1.0.9 | Author workflows that close the 80-to-100 validation gap with repair-aware test, verify, review-depth review/fix with test hardening, and commit gates. |
+| [orchestrating-agent-relay](skills/orchestrating-agent-relay/SKILL.md) | 2.4.0 | The canonical way to run agent-relay: self-bootstrap the broker (`agent-relay node up`) and autonomously spawn, monitor, and coordinate a worker team over the relay MCP without human intervention, including GitHub PR-owner integration subscriptions. |
+| [relay-80-100-workflow](skills/relay-80-100-workflow/SKILL.md) | 2.1.0 | Close the 80-to-100 validation gap in a Relayflows v2 flow: the evidence recorder that turns a red check into work for a repair agent, repairable gates on the critical path, edit and hazard gates, when *not* to add a repair step, and the fresh-eyes review rounds that catch what green gates miss. |
 | [review-fix-signoff-loop](skills/review-fix-signoff-loop/SKILL.md) | 1.0.2 | Loop review, repair, validation, and fresh-context dual-agent signoff until independent reviewers both satisfy the verdict contract. |
 | [trigger-autocomplete-catalog](skills/trigger-autocomplete-catalog/SKILL.md) | 1.0.0 | Enforce webhook/event trigger autocomplete coverage through KNOWN_TRIGGER_CATALOG in @relayfile/adapter-core. |
 | [activity-summary](skills/activity-summary/SKILL.md) | 1.0.0 | Answer "what did I work on yesterday" questions by reading `digests/yesterday.md` first instead of crawling provider directories. |
@@ -67,10 +67,11 @@ npx prpm install collections/agent-relay-starter --as codex,claude
 This collection includes:
 
 - `@agent-relay/choosing-swarm-patterns`
-- `@agent-relay/writing-agent-relay-workflows`
+- `@agent-relay/writing-relayflows`
 - `@agent-workforce/trail-snippet`
 - optional `@agent-relay/relay-80-100-workflow`
 - optional `@agent-relay/review-fix-signoff-loop`
+- optional `@agent-relay/writing-agent-relay-workflows` (deprecated v1 engine)
 
 Install the `relayfile-workspace` collection when you want the full Relayfile workspace primitive stack:
 

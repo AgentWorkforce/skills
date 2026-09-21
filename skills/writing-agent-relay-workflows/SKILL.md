@@ -1,9 +1,27 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, Relayfile-backed human assistance, Slack answer injection, integration subscriptions, waitFor gates, repairable verification, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
+description: DEPRECATED - documents the superseded v1 `@relayflows/core` WorkflowBuilder engine (`workflow().pattern().agent().step().run()`, `failOnError`, `captureOutput`, `{{steps.X.output}}`, `.onError()`). Use `writing-relayflows` for the current v2 engine (`@relayflows/surface`/`@relayflows/sdk`, CLI `flows`) on all new work. Keep this open only to read or maintain an existing v1 workflow: conversation vs pipeline coordination, DAG steps, idle detection, Relayfile-backed human assistance, waitFor gates, review-depth review/fix loops, channels, chat-native recipes, and parallel waves.
 ---
 
 # Writing Agent Relay Workflows
+
+> ## ⚠️ DEPRECATED — this is the v1 engine
+>
+> This skill documents **Relayflows v1**: `@relayflows/core`'s `WorkflowBuilder`, the
+> chained builder (`workflow('name').pattern('dag').agent(...).step(...).run()`) with
+> `failOnError`, `captureOutput`, `{{steps.X.output}}` templating and `.onError()`.
+> **v1 is superseded.**
+>
+> **New work goes to the v2 engine** — `@relayflows/surface`'s `flow()` and the
+> YAML/JSON dialect compiled by `@relayflows/sdk`, CLI binary `flows`, packages `2.0.x`.
+> Read [`writing-relayflows`](../writing-relayflows/SKILL.md) for the authoring surface
+> and [`relay-80-100-workflow`](../relay-80-100-workflow/SKILL.md) for the v2 validation
+> shape. None of `failOnError`, `captureOutput`, `{{steps.X.output}}`, `.onError()` or
+> `idleThresholdSecs` exists in v2, so following this skill for a v2 flow produces
+> something that will not compile.
+>
+> Everything below is kept intact for people reading or maintaining an **existing v1
+> workflow**.
 
 ## Overview
 
@@ -63,6 +81,8 @@ The point of an agent team workflow is not to discover a red gate and stop. The 
 5. Use `.reliable()` or `.repairable()` on SDK versions that support it, especially for product-contract workflows. As of AgentWorkforce/relay#827, retry-mode workflows with agents are repair-aware by default, repair agents run before retrying malformed/failed agent steps, and the SDK covers DAG, pipeline, fan-out, worktree-backed, deterministic-only, and agent-plus-gate shapes.
 
 Avoid hard-stop gates (`failOnError: true` with no repair step) in workflows that are supposed to be self-healing. Even cheap preconditions such as missing credentials, wrong repository, or an unsafe dirty worktree should normally write a clear `BLOCKED_*` artifact and exit cleanly. For implementation, build, test, lint, schema, artifact, and review failures, model the fix path in the workflow.
+
+**Counterweight — don't reflexively add a repair step.** This rule applies when the gate has a real, agent-fixable failure surface. A deterministic gate that sits downstream of deterministic work (e.g. a transcript line-count check after a series of deterministic grader steps) is correct by construction — there is no failure mode for a repair agent to address. Wiring a repair step there just spawns a fresh agent for a guaranteed no-op, paying the spawn cost (and often a follow-on idle-timeout wait) for nothing. Keep the hard gate, skip the repair. Reserve repair branches for gates where a real agent action could plausibly turn red into green.
 
 ## Human Assistance and Relayfile Events
 
@@ -266,6 +286,7 @@ Before writing the workflow, decide *how the agents will coordinate*. The relay 
 | Shape | What it is | Use when |
 |---|---|---|
 | **Conversation** (chat-native) | Interactive agents share a channel; messages, `@-mentions`, and ambient awareness drive coordination. Lead and workers spawn in parallel and self-organize. The relay is the coordination layer, not just transport. | Multi-file work, peer review loops, cross-agent feedback, dynamic re-planning, multi-PR coordination, anything with a human-in-the-loop escape, swarms where workers pick up each other's output. |
+| **Per-turn interactive spawn** (bounded interactive) | Interactive PTY agents (no `preset`), but each step is bounded to *one* turn that exits as soon as its file/message is produced. Agents still join the channel — they just don't live across turns. | Turn-taking flows where each turn is short, well-defined, finishes **inside the idle window**, and reads its inputs from a deterministic source (file on disk, prior grade step). Cuts the long-running wait-for-event race; a silent turn that itself exceeds ~30s still needs `idleThresholdSecs`. |
 | **Pipeline** (one-shot DAG) | Each step runs as a one-shot subprocess (`claude -p`, `codex exec`); steps hand off via `{{steps.X.output}}` text injection. No agents are alive at the same time; no chat happens. | Linear, well-specified transformations; deterministic data passing; no live agent-to-agent coordination during implementation. The selected review-depth path and deterministic final gates still apply. |
 
 **Default to Conversation for any non-trivial work.** Pipeline DAGs are simpler to reason about but they do not exercise the relay primitive — they are a Unix pipe with extra steps. If you would happily write the same task as a single shell pipeline, pipeline-shape is fine. Otherwise, you almost certainly want a Conversation shape.
@@ -1723,6 +1744,22 @@ Edit files as assigned. Report completion. Fix issues from feedback.`,
 
 Once you're in the Interactive Team shape, the channel is your coordination medium. These are recipes for using it well — they are *prompt-authoring patterns*, not new SDK surface. All of them assume interactive agents (no `preset`) sharing a `.channel('wf-...')`.
 
+> **Idle detection beats "wait for X" prompts.** The runtime treats a silent interactive PTY as complete after a short idle window (~30 seconds). A task prompt that tells an agent to *wait for message Y* / *exit only on `GAME_OVER`* / *stay until @reviewer posts a verdict* will lose that race if the awaited event is more than ~30s away — the runtime will mark the agent complete and tear it down before the message arrives. This affects every recipe below: **Q/A, Broadcast/Ack, Peer Review, and Hand-Off all encode a wait.**
+>
+> **Two ways to handle it:**
+>
+> 1. **Per-agent escape hatch — set `idleThresholdSecs` on the agent.** The builder option `idleThresholdSecs` overrides the per-agent idle window (default 30s; `0` disables idle detection entirely). Use this when a specific agent reliably has long quiet stretches by design:
+>    ```typescript
+>    .agent('long-running-reviewer', { cli: 'claude', idleThresholdSecs: 0 })
+>    ```
+>    Pick the lowest value that comfortably exceeds your worst-case wait — `0` is safest but means a genuinely-hung agent will sit forever.
+>
+> 2. **Restructure to Per-turn interactive spawn.** For multi-turn flows, use the **Per-turn interactive spawn** shape from the [coordination table](#choose-your-coordination-style--conversation-vs-pipeline): one bounded step per turn, with a deterministic step in between carrying state on disk. You still get interactive PTY + channel. This only beats idle detection when **each turn finishes well inside the window** — a slow reasoning turn still needs `idleThresholdSecs` (option 1). Do not treat per-turn spawn as a substitute for raising the threshold on a turn that is itself quiet for >30s.
+>
+> The chat-native recipes below work as written when the next expected event reliably arrives well inside the idle window, or when you've extended the window per (1).
+>
+> Symptom to watch for in logs: a player exits with `Completion inferred from clean process exit (code 0) — no coordination signal was required` *before* the event it was supposed to wait for arrived; or a lead step that drives waits via shell `sleep` calls.
+
 #### 1. Question / Answer (blocking ask)
 
 When agent A needs information only agent B has, instruct A to **post a direct question and wait for a reply** rather than guessing or proceeding.
@@ -2230,6 +2267,9 @@ When you set `.pattern('supervisor')` (or `hub-spoke`, `fan-out`), the runner au
 |---------|-----|
 | Treating relay as transport, not as a coordination layer (every step is `preset: 'worker'`, every handoff is `{{steps.X.output}}`) | Default to **Conversation shape** for non-trivial work — interactive agents on a shared channel. Pipeline-shape is only correct when the work could be expressed as a `bash \| bash \| bash` pipe. |
 | Interactive agents on a channel whose task strings don't tell them to talk to each other | Pick a [Chat-Native Coordination Recipe](#chat-native-coordination-recipes) (Q/A, Broadcast/Ack, Peer Review, Standup, Hand-Off) and bake it into the task prompt — otherwise you're paying for a chat substrate you're not using |
+| Task prompt that tells an interactive agent to wait for a later channel event | Idle detection (~30s) will complete the PTY before the event arrives. Set `idleThresholdSecs` (0 disables) or restructure to [Per-turn interactive spawn](#choose-your-coordination-style--conversation-vs-pipeline) |
+| Using an LLM as a wait/grade oracle (`sleep 30` loops, "guess whether the secret matches") | If the comparison is computable (string match, test pass/fail, regex, schema validity), grade it in a **deterministic step**. LLMs should *produce*, not adjudicate fixed rules |
+| Adding a repair step downstream of a gate that has no failure mode an agent can fix | "Workflows repair before they fail" applies when the gate has a real, agent-fixable failure surface. A deterministic gate downstream of deterministic work is correct by construction — a repair step there just burns a spawn cycle on a guaranteed no-op. Skip the repair, keep the hard gate |
 | All workflows run sequentially | Group independent workflows into parallel waves (4-7x speedup) |
 | Every step depends on the previous one | Only add `dependsOn` when there's a real data dependency |
 | Self-review step with no timeout | Set `timeout: 300_000` (5 min) — Codex hangs in non-interactive review |
