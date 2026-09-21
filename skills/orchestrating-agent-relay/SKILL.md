@@ -1,6 +1,6 @@
 ---
 name: orchestrating-agent-relay
-description: The canonical way to run agent-relay - self-bootstrap the local broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, message-based reading via the relay MCP, and team coordination.
+description: The canonical way to run agent-relay - self-bootstrap the local broker and autonomously spawn, monitor, and coordinate a team of worker agents without human intervention. Covers infrastructure startup, agent spawning, lifecycle monitoring, message-based reading via the relay MCP, GitHub PR-owner integration subscriptions, and team coordination.
 ---
 
 # Orchestrating Agent Relay
@@ -66,7 +66,12 @@ reference is the **`using-agent-relay`** skill.
 | Read worker replies (MCP)         | `check_inbox(limit: 20)` / `list_messages(channel: "general")`   |
 | Give a human a follow-along link  | `agent-relay observer`                                          |
 | Inspect a worker's TTY            | `agent-relay node agent attach Worker1 --mode view`             |
-| Release worker                    | `agent-relay node agent release Worker1`                         |
+| Fleet-wide agent inventory        | `agent-relay fleet agent list`                                   |
+| Subscribe PR-owner to GitHub PR   | `agent-relay integration subscribe github --resource '/github/repos/<o>/<r>/pulls/<n>/**' --to @Owner` (also `pulls/<n>/reviews/**`, `pulls/<n>/status/**`, `issues/<n>/comments/**`) |
+| List integration bindings         | `agent-relay integration subscribe --list`                       |
+| Unsubscribe a provider resource   | `agent-relay integration unsubscribe github --resource '...'`    |
+| Failed deliveries                 | `agent-relay node deadletters`                                   |
+| Release worker                    | `agent-relay node agent release Worker1` / `agent-relay fleet release Worker1` |
 | Stop broker                       | `agent-relay node down`                                          |
 
 ## Bootstrap Flow
@@ -146,9 +151,12 @@ add_agent(
 ```
 
 `node agent spawn` takes the provider as a positional argument
-(`claude`, `codex`, `gemini`, `droid`, …) and `--name` / `--task` / `--channels`
-/ `--model` / `--cwd` flags. By default the agent joins the `general` channel and
-runs in `interactive` spawn mode; pass `--exit-after-task` for a one-shot worker.
+(`claude`, `codex`, `gemini`, `grok`, `opencode`, `muse`, `devin`, `droid`, …)
+and `--name` / `--task` / `--channels` / `--model` / `--cwd` flags. By default
+the agent joins the `general` channel and runs in `interactive` spawn mode; pass
+`--exit-after-task` for a one-shot worker. Fleet placement uses
+`agent-relay fleet spawn <cli>` (or MCP `spawn` / `add_agent`); `droid` remains
+high-risk for delegation.
 
 > **Expect a 30–60s gap between spawn and the first ACK.** A worker shows in
 > `node agent list` within ~5s (the process is up), but the underlying CLI
@@ -226,13 +234,19 @@ agent-relay node metrics
 
 ### Step 4: Release Workers
 
+Unsubscribe any provider resources that worker owned (see
+[Subscribe the live PR owner](#subscribe-the-live-pr-owner)) before release.
+
 ```text
 remove_agent(name: "Worker1", reason: "Work accepted")
 ```
 
-CLI equivalent:
+CLI equivalent — prefer the control-plane form when the worker may not be on
+this broker's default `connection.json`:
 
 ```bash
+agent-relay fleet release Worker1
+# local-only fallback:
 agent-relay node agent release Worker1
 ```
 
@@ -425,11 +439,19 @@ Quick Reference. Then enforce this protocol:
   over the relay MCP — never `node tail` (that streams broker debug events,
   not worker messages). See the "Channel vs DM" section for the full reading
   model
-- Poll `agent-relay node agent list` for worker liveness; set a wall-clock
-  fallback so a silently-dead worker can't hang the loop
+- Poll `agent-relay node agent list` (local) or `agent-relay fleet agent list`
+  (cross-node) for worker liveness; set a wall-clock fallback so a
+  silently-dead worker can't hang the loop
+- The moment a worker opens or owns a GitHub PR, subscribe **that live
+  PR-owner identity** to the PR glob **and** `pulls/<n>/reviews/**`,
+  `pulls/<n>/status/**`, and `issues/<n>/comments/**` (same `--to @<owner>`).
+  Do not subscribe helpers to those globs. After respawn under a new
+  name, rebind. Verify a real GitHub event arrives in `check_inbox`, not
+  just that `--list` shows a binding. Unsubscribe owned resources before
+  release
 - If a human is watching, give them a follow-along link with
-  `agent-relay observer` and print the URL it returns. Never print the
-  workspace key or put it in a URL
+  `agent-relay observer` (or MCP `get_observer_url`) and print the URL it
+  returns. Never print the workspace key or put it in a URL
 ```
 
 ## Multi-Round Review Loops (DONE → NO-GO → fix → re-review)
@@ -476,7 +498,8 @@ Do NOT self-remove — stay alive for re-review."
 
 Always pass branch + commit SHA + the **complete** reviewer verdict. A fresh
 worker has none of the loop's history; a summarized verdict loses the
-specifics it needs to fix.
+specifics it needs to fix. Rebind any GitHub PR subscription to the new
+live identity (see below) — a new name does not inherit the old route.
 
 ### Detecting a silently-dead worker
 
@@ -492,6 +515,141 @@ worker still thinking. Defenses:
 - Always set a wall-clock fallback (e.g. a ScheduleWakeup ~30 min out) so a
   silently-dead worker can't hang the loop forever waiting on a message that
   will never arrive.
+- Across nodes, `agent-relay fleet agent list` joins live broker agents
+  against the workspace roster. `idle` means the harness is at its prompt,
+  not that the assigned work is complete. Roster-only presence is not a live
+  worker.
+
+## Subscribe the live PR owner
+
+Whenever a worker **opens or owns a PR**, subscribe **that live PR-owner
+agent** to the PR's GitHub provider resources immediately — the moment the
+PR number exists, not after the first review comment. Conversation comments,
+reviews, review comments, pushes, and check changes then wake the owner
+instead of waiting on the next poll.
+
+The default recipe is four owner bindings. Each `--resource` is a distinct
+binding key, so these do not replace each other. Paths match the GitHub
+adapter layout used by `writing-agent-relay-workflows` (`pulls/<n>/reviews/**`,
+`pulls/<n>/status/**`) plus GitHub's issue-comment path for PR conversation
+comments:
+
+```bash
+OWNER=@<PR-owner-agent>
+REPO='/github/repos/<owner>/<repo>'
+N=<PR_NUMBER>
+for resource in \
+  "$REPO/pulls/$N/**" \
+  "$REPO/pulls/$N/reviews/**" \
+  "$REPO/pulls/$N/status/**" \
+  "$REPO/issues/$N/comments/**"
+do
+  agent-relay integration subscribe github --resource "$resource" --to "$OWNER"
+done
+```
+
+`--to` is `@agent` or `#channel`. Point it at the owner handle. `--spawn <cli>`
+can launch and confirm a recipient before binding; do not use it to replace an
+already-live owner. `--events` defaults to Relay `message.created,thread.reply`.
+
+`subscribe` is not a chat listener. It provisions three artifacts:
+
+1. A Relay inbound webhook (`webhookId`) delivering into the recipient's
+   identity-bound channel
+2. A Relayfile webhook subscription (`webhookSubscriptionId`) filtered by
+   `path_glob`
+3. A Relayfile binding keyed by `(provider, resolved path glob)`
+
+`--resource` is a Relayfile VFS glob. `owner/repo` resolves to repository
+scope; provider URLs are not accepted. Matching also uses the event's
+`resource_ref` (for example `/github/repos/<owner>__<repo>/pulls/by-id/<n>.json`),
+not only the inventory file path — so a review whose file is
+`/github/repos/<o>/<r>/reviews/<id>.json` can still wake a `/pulls/<n>/**`
+binding when `resource_ref` names that PR. Do **not** rely on that alone for
+conversation comments or checks: GitHub conversation comments on a PR are
+inventoried under `/issues/<n>/comments/**`, and status/check records under
+`/pulls/<n>/status/**`. Subscribe those globs in the default recipe above.
+Do not give any of them to a helper; they are still writable owner routes.
+One `(github, glob)` binding per resource.
+
+List bindings with `agent-relay integration subscribe --list`. This is
+distinct from `agent-relay integration subscription list`, which lists Relay
+workspace event subscriptions (`message.created`, …), and from
+`agent-relay integration webhook create <channel>`, which mints an inbound
+webhook URL that posts into a channel (it does **not** take a URL or `--event`;
+that older shape is stale).
+
+### Ownership transfer / rebinding after respawn
+
+Bindings follow the **recipient identity**, not the OS process.
+
+- **Same name, identity kept** (`fleet release` / `node agent release` without
+  `--delete-agent`): the binding still points at `@Owner`. Respawn that name,
+  confirm it is live, and re-subscribe only if `--list` no longer shows
+  `@Owner` on that resource.
+- **New name or deleted identity** (`--delete-agent`, or a fresh
+  `Implementer2`): the new agent does **not** inherit the old subscription.
+  Subscribe the new live identity to the same `--resource` immediately. The
+  binding key is `(provider, resolved path)` — a re-subscribe **replaces** the
+  previous route (create-first). Record the prior `webhookId` /
+  `webhookSubscriptionId` so you can confirm they retired.
+- Do not repair a failed spawn by inviting a helper onto the owner's channel
+  or by pointing `--to` at a disposable worker.
+
+### Helper agents: no second writable subscribe
+
+Only the PR owner gets `--to @Owner` on those owner globs. A second
+`subscribe` to the same `(github, path glob)` **replaces** that route.
+Reviewers, shadows, and one-shot helpers read the PR through git/`gh` or
+channel traffic; they do not get their own writable subscription to the
+owner's resources.
+
+### Unsubscribe / release hygiene
+
+Unsubscribe **owned** resources before releasing the owner, then verify the
+IDs are gone:
+
+```bash
+agent-relay integration subscribe --list
+agent-relay integration webhook list
+agent-relay integration webhook list-inbound
+for resource in \
+  "/github/repos/<owner>/<repo>/pulls/<n>/**" \
+  "/github/repos/<owner>/<repo>/pulls/<n>/reviews/**" \
+  "/github/repos/<owner>/<repo>/pulls/<n>/status/**" \
+  "/github/repos/<owner>/<repo>/issues/<n>/comments/**"
+do
+  agent-relay integration unsubscribe github --resource "$resource"
+done
+# confirm each binding, webhookId, and webhookSubscriptionId disappeared
+agent-relay fleet release <Owner>
+```
+
+Unsubscribe does not delete agents or channels. Do not unsubscribe by guessed
+name, and do not delete a webhook another binding still references. A failed
+re-subscribe must leave the prior working binding in place — do not tear it
+down first.
+
+### Verify delivery, not just binding creation
+
+A successful `subscribe` (or a 2xx webhook create) is **not** proof that
+GitHub events will wake the agent. Verify in this order:
+
+1. **Binding** — `agent-relay integration subscribe --list` shows
+   `(github, resolved PR glob) → @Owner`.
+2. **Webhook inventory** — `integration webhook list` / `list-inbound` shows
+   the new `webhookId` (and the prior id retired after a replacement).
+3. **Live recipient** — `fleet agent list` or `node agent list` shows `@Owner`
+   live on a node. Roster-only is not enough.
+4. **Actual event** — after a real GitHub comment, review, check, or push, the
+   owner receives a Relay message from `github` whose body names the event and
+   a Relayfile path (or `resource_ref`) for this PR. Read it with `check_inbox`
+   / `list_messages`. Optional broker corroboration: a delivery-injected event
+   for that agent; `node deadletters` must not hold it.
+
+If steps 1–3 pass and step 4 does not, the subscription is not working. Do not
+treat Cloud/Nango ingress success, an HTTP 200, or a channel post you wrote
+yourself as delivery proof.
 
 ## Lifecycle Events
 
@@ -730,9 +888,16 @@ this whole workaround once `relay#1446` lands rather than letting it outlive the
 | Targeted `fleet spawn` fails with `Targeted Fleet spawn requires an agent token` | Pass `--token` or set `RELAY_AGENT_TOKEN`; mint one with `agent-relay agent register <name> --type system` (capture it without echoing). `--task` is also mandatory and the error only surfaces one problem at a time |
 | Node shows `online` but never receives a spawn | `online` ≠ available. Check `capabilities` contains `spawn:*` — a record can be live with no spawn capacity. Confirm with a throwaway targeted spawn, verified by `pgrep` **on the target host**, then release |
 | Harness blocks `sleep 25; check_inbox ...`               | Bare foreground `sleep` wait loops are disallowed in harnessed environments. Run the poll loop with `run_in_background` (or Monitor + until-loop); the inline `sleep` snippets show logic only |
-| Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict (see Multi-Round Review Loops)                          |
+| Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict; rebind any GitHub PR subscription to the new live identity (see [Subscribe the live PR owner](#subscribe-the-live-pr-owner)) |
 | Told the user to open an observer URL built from the workspace key | That is an admin credential in a query string, and the realtime endpoint rejects it. Run `agent-relay observer` (or `get_observer_url`) and share the `ot_live_` URL it returns |
-| Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay node agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup)                                                  |
+| Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay node agent list` / `fleet agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup) |
+| Opened a PR but did not subscribe the live owner         | Review comments, pushes, and checks will not wake anyone. Immediately subscribe `@Owner` to `/pulls/<n>/**`, `/pulls/<n>/reviews/**`, `/pulls/<n>/status/**`, and `/issues/<n>/comments/**` |
+| Subscribed a helper/reviewer to the same PR glob         | Binding key is `(provider, resolved path)` — the second subscribe **replaces** the owner's writable route. Only the PR-owner identity gets `--to @Owner` |
+| Treated `--list` / webhook create as delivery proof      | Binding creation is not a wake. Confirm a real GitHub event arrives as a Relay message from `github` with a Relayfile path under that glob (`check_inbox` / `list_messages`); check `node deadletters` if it does not |
+| Respawned the owner under a new name and left the old binding | New identities do not inherit subscriptions. Re-subscribe `--to @NewOwner` on the same `--resource`; confirm the prior webhook/subscription IDs retired |
+| Released the owner without unsubscribing                 | Unsubscribe owned resources, verify IDs disappeared, then `fleet release`. Unsubscribe does not delete agents |
+| Used `integration webhook create <url> --event …`        | Current CLI takes `<channel>` (inbound webhook into a channel). Provider wakes use `integration subscribe`, not that older URL/event shape |
+| Used `integration subscription list` to inspect PR bindings | That lists Relay workspace event subscriptions. Provider bindings are `integration subscribe --list` |
 
 ## Prerequisites
 
