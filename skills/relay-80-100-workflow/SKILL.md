@@ -30,7 +30,7 @@ A 67-step flow of exactly this shape produced a tree on which **every determinis
 - a seam whose coordinator was rebuilt per call, so three of its four contract invariants had no production effect;
 - an adapter that had stopped observing whether its write landed, so a dead writer read as a successful delivery.
 
-None of that is reachable by a gate. Gates check *properties you thought to name*. Review catches *the thing you did not think to name* — and on that run, that was most of the risk.
+None of those defects was caught by the gates on that run. Gates check *properties you thought to name*. Review catches *the thing you did not think to name* — and on that run, that was most of the risk.
 
 So: build the gates, and do not treat them as the finish line. The review rounds below are not a formality bolted onto a working pipeline. They are where the defects were actually found.
 
@@ -50,15 +50,17 @@ The shape that works is a small script of your own that journals verdicts to fil
 //     and ALWAYS exits 0.
 //
 //   node gates.mjs require-green --names unit,clippy,e2e
-//     Reads those files back and exits non-zero, printing the red tails,
-//     if any verdict is not 'green' or any runId is not this run's.
+//     Reads those files back. If any verdict is not 'green' or any runId is
+//     not this run's, it FIRST writes evidence/BLOCKED_NO_COMMIT.md naming
+//     each red record and its tail, THEN exits non-zero.
 ```
 
 Three details are load-bearing:
 
 - **Base64-encode the command.** It will contain `&&`, pipes and quotes, and the calling shell must not reinterpret them.
 - **Stamp each record with the run that produced it** (`runId`, from the flow's input or an env var). `flows run --reuse-from <run-id>` keys on `step_spec_hash`, and a recorder step *always exits 0*, so it is always eligible for reuse — an unstamped recording resurrects a previous run's verdict, and `require-green` happily reads it as today's evidence.
-- **`require-green` is the only thing that says "green."** Final acceptance recomputes the verdict from recordings; it never trusts an agent's report of its own work.
+- **Run tools from the project's own lockfile** — `npx --no vitest run`, or a package script. A bare `npx` silently fetches a package the repo never pinned, so a gate can pass against a version nobody reviewed.
+- **`require-green` is the only thing that says "green."** Final acceptance recomputes the verdict from recordings; it never trusts an agent's report of its own work. It is also the step that writes `BLOCKED_NO_COMMIT` — write the artifact *before* the non-zero exit, because v2 stops the run on that exit and nothing downstream will get the chance.
 
 Compared to the old `failOnError: false` this is more machinery, and it buys something the old engine did not have: the repair agent reads a **file**, not an interpolated string, so it sees the whole tail rather than a truncated template.
 
@@ -76,7 +78,7 @@ const requireGreen = (...names: string[]) =>
   `node gates.mjs require-green --names ${names.join(',')}`;
 
 export default flow('ship-feature', { budget: { wallclock: '110m' } }, async (f) => {
-  await f.run(record('unit', 'npx vitest run'), { timeout: '15m' });   // exits 0 either way
+  await f.run(record('unit', 'npx --no vitest run'), { timeout: '15m' });   // exits 0 either way
 
   await f.agent('repair-unit', {
     cli: 'claude',
@@ -84,11 +86,11 @@ export default flow('ship-feature', { budget: { wallclock: '110m' } }, async (f)
       'Read evidence/unit.json.',
       'If verdict is "green", do nothing and say so. Do not invent work.',
       'If verdict is "red", read the tail, fix the source or the test,',
-      'and rerun `npx vitest run` until it passes.',
+      'and rerun `npx --no vitest run` until it passes.',
     ].join('\n'),
   });
 
-  await f.run(record('unit', 'npx vitest run'), { timeout: '15m' });
+  await f.run(record('unit', 'npx --no vitest run'), { timeout: '15m' });
   await f.run(requireGreen('unit'));      // the only step here allowed to be red
 
   f.done('success');
@@ -133,6 +135,22 @@ Do not hang the enforcement of an agent's work on a gate attached to that agent 
 
 A gate on an agent step makes a dropped transport look like a crashed run. The same work, checked by the next deterministic step, reads as *"nothing was written"* — a repairable fact, with a journaled tail explaining it. (`writing-relayflows` has the current per-gate caveats; the shipped gate set moves between releases, and at least one gate has silently swallowed its own output.) Independently of any of that, this is the better shape, and it is the same rule as keeping repairable gates on the critical path.
 
+### Do not add a repair step to a gate that has nothing to repair
+
+The ladder applies where the gate has a real, agent-fixable failure surface. A
+deterministic gate sitting downstream of deterministic work — a transcript
+line-count check after a series of deterministic recorder steps — is correct by
+construction; there is no failure mode a repair agent could act on. Wiring one in
+anyway spawns a fresh agent for a guaranteed no-op, and pays the spawn cost plus,
+often, a follow-on idle wait. Keep the hard gate, skip the repair.
+
+### Grade computable things in a deterministic step, never with an LLM
+
+If the comparison is computable — a string match, a test's pass/fail, a regex, schema
+validity — grade it in a `run` step and record the verdict. An `llm` or `agent` step
+asked to adjudicate a fixed rule will disagree with itself across runs, and its verdict
+is not evidence. Agents *produce*; deterministic steps *judge*.
+
 ### Keep repairable gates on the critical path
 
 Repair-before-failure only helps once the flow *reaches* a deterministic gate. If a long-running agent step is a hard dependency of the first gate, a dropped worker stops the flow before the repair loop ever sees evidence.
@@ -154,20 +172,21 @@ This stops "the agent transport failed" from masquerading as "the product failed
 Never trust that an agent edited a file. After every agent edit, record a deterministic check and route its evidence to a repair owner.
 
 ```ts
-await f.agent('edit-schema', { cli: 'claude', task: 'Edit lib/db/schema.ts …' });
-
-await f.run(record('edit-schema', `
+const editSchemaCheck = `
   if [ -z "$(git status --short -- lib/db/schema.ts)" ]; then echo NOT_MODIFIED; exit 1; fi
   grep -q my_new_table lib/db/schema.ts || { echo MISSING_TABLE; exit 1; }
   echo EDIT_OK
-`));
+`;
+
+await f.agent('edit-schema', { cli: 'claude', task: 'Edit lib/db/schema.ts …' });
+await f.run(record('edit-schema', editSchemaCheck));
 
 await f.agent('repair-edit-schema', {
   cli: 'claude',
   task: 'Read evidence/edit-schema.json. Green means do nothing. Red means make the edit land.',
 });
 
-await f.run(record('edit-schema', /* same command */));
+await f.run(record('edit-schema', editSchemaCheck));
 await f.run(requireGreen('edit-schema'));
 ```
 
@@ -306,4 +325,6 @@ assert.equal(emitted[0].eventType, 'sandbox_created');
 | Mutating the helper to prove coverage | Proves the helper is covered, not the call site that forgot it | Mutate where the bug would be written |
 | Sealing only the evidence directory | The reviewer is bound to a hash of the wrong thing | Digest the changed source too, and prove it bites |
 | Treating all-green as done | 15 findings, 2 disqualifying, on an all-green tree | Fresh-eyes review rounds before acceptance |
+| A repair step on a gate with no agent-fixable failure | Burns a spawn cycle on a guaranteed no-op, plus the idle wait after it | Ladder only where an agent action could turn red green |
+| An `llm`/`agent` step used as a grading oracle | A computable rule adjudicated by a model disagrees with itself across runs | Grade it in a `run` step and record the verdict |
 | Copying a v1 `.step({ failOnError, captureOutput })` | Those fields do not exist in v2; the flow will not compile | The evidence recorder |

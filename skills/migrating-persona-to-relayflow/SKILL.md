@@ -5,6 +5,12 @@ description: Use when migrating an existing `defineAgent` persona (in AgentWorkf
 
 # Migrating a persona to Relayflow v1
 
+> **v1 engine.** This skill targets the superseded `@relayflows/core` engine via
+> `ctx.workflow.run()`. The current engine is **v2** — `@relayflows/surface` /
+> `@relayflows/sdk`, CLI `flows` — documented in
+> [`writing-relayflows`](../writing-relayflows/SKILL.md). Use this skill only to move an
+> existing persona onto v1's durable execution today.
+
 ## When to use this skill
 
 You are working on a persona in `AgentWorkforce/agents` or `AgentWorkforce/internal-agents` that today does its work inline in a `defineAgent({ handler })` — LLM calls via `ctx.llm(...)`, ranking, curation, review — and you want to move the LLM-heavy portion behind a durable Relayflow v1 workflow via `ctx.workflow.run()` so that the work is exactly-once resumable, journaled, and step-level retriable.
@@ -16,7 +22,7 @@ Read the RFC first: [`docs/RFC-0001-everything-is-a-relayflow.md`](https://githu
 ## Do not use this skill for
 
 - **Authoring a v1 workflow from scratch** — use [`writing-agent-relay-workflows`](../writing-agent-relay-workflows/SKILL.md).
-- **Cloud v2 execution** — v2 is still under construction (see the RFC gate 3–4 work). Migrate to v1 first; v2 becomes an opt-in `relayflowVersion: "v2"` flip on the same `ctx.workflow.run()` call once v2 is generally available.
+- **Authoring for the v2 engine** — v2 (`@relayflows/surface`/`@relayflows/sdk`, CLI `flows`, packages `2.0.x`) is a different product that ships today; see [`writing-relayflows`](../writing-relayflows/SKILL.md). This skill and `writing-agent-relay-workflows` cover the superseded **v1** engine. Personas still migrate to v1 first: v2 becomes an opt-in `relayflowVersion: "v2"` flip on the same `ctx.workflow.run()` call once the persona runtime supports it.
 - **Repointing a workflow between packages** (`@agent-relay/sdk/workflows` → `@relayflows/core`) — that is covered in `writing-agent-relay-workflows`.
 
 ## The seven-step recipe

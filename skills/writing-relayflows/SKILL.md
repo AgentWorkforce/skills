@@ -194,7 +194,9 @@ const review = await f.agent('review', { task: '…', cli: 'claude' })
 
 [flows#449](https://github.com/AgentWorkforce/flows/pull/449) (open at time of writing) adds journaled `artifact_exists` gates and real predicate-gate support (the executor runs the closure once, on the journaled value, and journals the verdict) — check whether it's merged before assuming predicate gates still don't work. Until it lands, `subprocess_gate`/`regex_match`/`word_count_bounds`/`references_input` are the only gates that actually run in TypeScript.
 
-An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. Always give an `agent`/`llm` step a real, config-object gate — never the default, never a predicate.
+An agent step rarely fails by crashing; it fails by returning something plausible and wrong, which a plain retry-on-error never catches. So never leave an `agent`/`llm` step on the default gate, and never on a predicate.
+
+**Where to put that check depends on what you want a red result to *do*.** A config-object gate on the step *ends the run* when it fails, and cannot distinguish "the agent produced the wrong thing" from "the agent's transport dropped" — both read as a crashed step. If a red result should instead become repairable work, move the same assertion into the deterministic step that follows the agent, where it reads as a journaled fact with a tail. See `relay-80-100-workflow` for that shape. Gate on the step when a red result really should stop the run.
 
 ## Helpers: journaled effects, not just Slack
 

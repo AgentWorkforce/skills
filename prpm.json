@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -10,7 +10,7 @@
   "packages": [
     {
       "name": "migrating-persona-to-relayflow",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Use when migrating an existing defineAgent persona (in AgentWorkforce/agents or AgentWorkforce/internal-agents) to run its LLM-heavy work through a Relayflow v1 workflow via ctx.workflow.run(). Covers scope decisions, the 4-step durable-workflow shape, colocation with the persona, ctx.workflow.run() invocation, red-first + resume tests, useSubscription semantics for realtime triggers, and the agentworkforce >= 4.1.44 CI-deploy bump. Reference migration: hn-monitor PR #126.",
       "format": "claude",
       "subtype": "skill",
@@ -47,8 +47,8 @@
     },
     {
       "name": "writing-agent-relay-workflows",
-      "version": "1.6.25",
-      "description": "Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, Relayfile-backed human assistance, Slack answer injection, integration subscriptions, waitFor gates, repairable verification, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.",
+      "version": "2.0.0",
+      "description": "DEPRECATED - the superseded v1 @relayflows/core WorkflowBuilder engine (failOnError, captureOutput, {{steps.X.output}}, .onError()). All new work uses writing-relayflows (v2: @relayflows/surface / @relayflows/sdk, CLI `flows`). Keep this only to read or maintain an existing v1 workflow: conversation vs pipeline coordination, DAG steps, idle detection, human assistance, waitFor gates, review-depth review/fix loops, channels, and parallel waves.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -95,8 +95,8 @@
     },
     {
       "name": "writing-relayflows",
-      "version": "1.2.0",
-      "description": "Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the v2 journal-based engine, CLI `flows`) in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, human/dispatch/done, verification gates, cli/model resolution, flows.json, and flows check/run/resume refusal shapes. Not for the older @relayflows/core WorkflowBuilder (chained .pattern('dag')/.agent()/.step() calls) \u2014 see writing-agent-relay-workflows / migrating-persona-to-relayflow instead.",
+      "version": "1.3.0",
+      "description": "Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the v2 journal-based engine, CLI `flows`) in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, human/dispatch/done, verification gates, cli/model resolution, flows.json, and flows check/run/resume refusal shapes. Not for the older @relayflows/core WorkflowBuilder (chained .pattern('dag')/.agent()/.step() calls) — see writing-agent-relay-workflows / migrating-persona-to-relayflow instead.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -154,7 +154,7 @@
     },
     {
       "name": "relay-80-100-workflow",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "description": "Use when writing a Relayflows v2 flow (@relayflows/surface / @relayflows/sdk, CLI `flows`) that must fully validate a feature end-to-end before it is sealed or merged - the 80-to-100 gap. Covers the evidence-recorder pattern that replaces v1's failOnError/captureOutput, repairable gates on the critical path, edit and hazard gates, gate cross-checking, fresh-eyes review rounds, and what a wall of green gates still misses.",
       "format": "claude",
       "subtype": "skill",
@@ -479,7 +479,7 @@
       "id": "agent-relay-starter",
       "name": "Agent Relay Starter",
       "description": "Essential skills for building multi-agent systems with Agent Relay - swarm pattern selection, workflow authoring, and trail debugging",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "category": "development",
       "tags": [
         "multi-agent",
@@ -496,10 +496,16 @@
           "reason": "Decision framework for picking the right multi-agent orchestration pattern"
         },
         {
-          "packageId": "@agent-relay/writing-agent-relay-workflows",
+          "packageId": "@agent-relay/writing-relayflows",
           "version": "latest",
           "required": true,
-          "reason": "WorkflowBuilder API guide for authoring DAG-based multi-agent workflows with review-depth review/fix loops and test hardening"
+          "reason": "Authoring guide for the current Relayflows v2 engine (@relayflows/surface / @relayflows/sdk, CLI `flows`)"
+        },
+        {
+          "packageId": "@agent-relay/writing-agent-relay-workflows",
+          "version": "latest",
+          "required": false,
+          "reason": "DEPRECATED v1 WorkflowBuilder reference - install only to maintain an existing v1 workflow"
         },
         {
           "packageId": "@agent-workforce/trail-snippet",

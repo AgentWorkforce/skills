@@ -1,9 +1,27 @@
 ---
 name: writing-agent-relay-workflows
-description: Use when building multi-agent workflows with relay broker-sdk. Covers conversation vs pipeline coordination, WorkflowBuilder/DAG steps, agents, {{steps.X.output}} chaining, Relayfile-backed human assistance, Slack answer injection, integration subscriptions, waitFor gates, repairable verification, review-depth fresh-eyes review/fix loops with test hardening, channels, chat-native recipes, error handling, event listeners, step sizing, lead+workers teams, and parallel waves.
+description: DEPRECATED - documents the superseded v1 `@relayflows/core` WorkflowBuilder engine (`workflow().pattern().agent().step().run()`, `failOnError`, `captureOutput`, `{{steps.X.output}}`, `.onError()`). Use `writing-relayflows` for the current v2 engine (`@relayflows/surface`/`@relayflows/sdk`, CLI `flows`) on all new work. Keep this open only to read or maintain an existing v1 workflow: conversation vs pipeline coordination, DAG steps, idle detection, Relayfile-backed human assistance, waitFor gates, review-depth review/fix loops, channels, chat-native recipes, and parallel waves.
 ---
 
 # Writing Agent Relay Workflows
+
+> ## ⚠️ DEPRECATED — this is the v1 engine
+>
+> This skill documents **Relayflows v1**: `@relayflows/core`'s `WorkflowBuilder`, the
+> chained builder (`workflow('name').pattern('dag').agent(...).step(...).run()`) with
+> `failOnError`, `captureOutput`, `{{steps.X.output}}` templating and `.onError()`.
+> **v1 is superseded.**
+>
+> **New work goes to the v2 engine** — `@relayflows/surface`'s `flow()` and the
+> YAML/JSON dialect compiled by `@relayflows/sdk`, CLI binary `flows`, packages `2.0.x`.
+> Read [`writing-relayflows`](../writing-relayflows/SKILL.md) for the authoring surface
+> and [`relay-80-100-workflow`](../relay-80-100-workflow/SKILL.md) for the v2 validation
+> shape. None of `failOnError`, `captureOutput`, `{{steps.X.output}}`, `.onError()` or
+> `idleThresholdSecs` exists in v2, so following this skill for a v2 flow produces
+> something that will not compile.
+>
+> Everything below is kept intact for people reading or maintaining an **existing v1
+> workflow**.
 
 ## Overview
 
