@@ -1,614 +1,193 @@
 ---
 name: relay-80-100-workflow
-description: Use when writing agent-relay or Relayflows v2 workflows that must fully validate features end-to-end before merging. Covers the 80-to-100 pattern - going beyond "code compiles" to "feature works, tested E2E locally." Includes the v1-to-v2 translation (v2 has no failOnError, captureOutput or {{steps.X.output}}) and the evidence-recorder pattern that replaces them, repair-before-failure validation gates, review-depth fresh-eyes review/fix loops with test hardening, PGlite for in-memory Postgres testing, mock sandbox patterns, test-fix-rerun loops, verify gates after every edit, and the full lifecycle from implementation through passing tests to commit.
+description: Use when writing a Relayflows v2 flow (@relayflows/surface / @relayflows/sdk, CLI `flows`) that must fully validate a feature end-to-end before it is sealed, committed, or merged - the 80-to-100 gap. Covers the evidence-recorder pattern that makes a red check work for an agent instead of the end of the run, repairable gates on the critical path, edit and hazard gates, fresh-eyes review rounds, and what a wall of green gates still misses.
 ---
 
-# Writing 80-to-100 Validated Workflows
+# Writing 80-to-100 Validated Flows
 
 ## Overview
 
-Most agent workflows get features to ~80%: code written, types check, maybe a build passes. This skill covers the **80-to-100 gap** — making workflows that fully validate features end-to-end before committing. The goal: every feature merged via these workflows is **tested, verified, and known-working**, not just "it compiles."
+Most agent workflows get a feature to ~80%: code written, types check, maybe a build passes. This skill covers the **80-to-100 gap** — making a flow that fully validates a feature before it commits anything. The goal is that everything these flows produce is **tested, verified and known-working**, not just "an agent said it was done."
 
-## When to Use
+Everything here is written for **Relayflows v2** — `@relayflows/surface` / `@relayflows/sdk`, CLI `flows`. For the authoring surface itself (the ladder, gates, `cli`/`model` resolution, `flows.json`, refusal shapes) see `writing-relayflows`. This skill is only about the validation shape you build on top of it.
 
-- Writing workflows where the deliverable must be **production-ready**, not just code-complete
-- Features that touch databases, APIs, or infrastructure that can be tested locally
-- Any workflow where "it compiles" is not sufficient proof of correctness
-- When you want confidence that the commit actually works before deploying
+> Migrating from the old `@relayflows/core` `WorkflowBuilder`? v2 has no `failOnError`, no `captureOutput`, no `{{steps.X.output}}` templating and no `.onError()`. Every deterministic step is gated on exit code with no opt-out. **The evidence recorder** below is what replaces all four. See `writing-agent-relay-workflows` for the old engine.
 
-## Which engine are you writing for?
+## When to use
 
-**Every code example below is the v1 builder** — `@agent-relay/sdk/workflows`'s `workflow(...).step(...)`, with `failOnError`, `captureOutput`, `{{steps.X.output}}` and `.onError()`. The patterns are engine-independent; those four knobs are not. If you are writing a **Relayflows v2** flow (`@relayflows/surface` / `@relayflows/sdk`, CLI `flows`), read the next section before copying anything — a v2 spec has none of them and following these examples literally produces something that will not compile.
-
-See `writing-relayflows` for the v2 authoring surface itself.
-
-## The v2 translation
-
-v2 has three step verbs (`deterministic` / `llm` / `agent`) and gates every deterministic step on exit code **with no opt-out**. That single fact is what every translation below works around.
-
-| v1 | v2 |
-| --- | --- |
-| `.timeout(ms)` | `budget.maxWallclockMs`, or `{ budget: { wallclock: '110m' } }` in a TS `FlowHeader` |
-| `retries: n` | `maxIterations: n + 1` |
-| `failOnError: false` | **nothing** — see the recorder below |
-| `captureOutput: true` | **nothing** — output is journaled, but not addressable from a later step's command |
-| `{{steps.X.output}}` | **nothing** — no template interpolation between steps |
-| `verification: { type: 'file_exists' }` | the `artifact_exists` named gate |
-| `verification: { type: 'exit_code' }` on an agent step | no equivalent — see "don't gate agent steps" |
-| `.pattern('dag')`, `.maxConcurrency(n)` | nothing; `dependsOn` is the only ordering |
-| `.onError('retry')` | nothing; a failed step fails the run (it is resumable with `flows resume`) |
-| `.channel(...)`, `.idleNudge(...)`, `preset`/`role` | nothing |
-
-### The evidence recorder replaces `failOnError` + `captureOutput` + `{{steps.X.output}}`
-
-All three v1 knobs existed to serve one pattern: run a check, let it be red, hand its output to the agent built to answer it. In v2 you rebuild that with a small script of your own:
-
-```js
-// gates.mjs record --name <n> --command-base64 <b64>
-// Runs the command, writes {name, command, exitCode, verdict, tail} to
-// evidence/<name>.json, and ALWAYS exits 0.
-//
-// gates.mjs require-green --names a,b,c
-// Reads those files back. This is the only thing that says "green".
-```
-
-The flow then reads:
-
-```ts
-det('unit-tests', record('unit-tests', 'npx vitest run'));          // always exits 0
-agentStep({ id: 'repair-ts', agent: 'fixer', dependsOn: ['unit-tests'],
-  task: ['Read evidence/unit-tests.json. Green means do nothing.',
-         'Red means fix it and rerun until the recorder writes green.'] });
-det('ts-final', record('unit-tests', 'npx vitest run'), ['repair-ts']);
-det('ts-assert', gate('require-green', '--names unit-tests'), ['ts-final']);   // this one may fail
-```
-
-It is more machinery than `failOnError: false`, and it buys something v1 did not have: the repair agent reads a **file**, not an interpolated string, so it sees the whole tail; and final acceptance recomputes the verdict from recordings rather than trusting any agent's report. Base64-encode the command — it will contain `&&`, pipes and quotes, and the calling shell must not reinterpret them.
-
-`|| true` is the other option. It works and it throws the exit code away, which means a later gate has nothing to read and a forgotten gate ships red work silently. Tracked upstream at [flows#509](https://github.com/AgentWorkforce/flows/issues/509).
-
-### Don't gate agent steps in v2
-
-v1's `verification: { type: 'exit_code' }` on an agent step has no v2 equivalent, and as of CLI 2.0.22 neither named gate is usable in its place: `subprocess_gate`'s output is not captured ([flows#511](https://github.com/AgentWorkforce/flows/issues/511)) and `artifact_exists` cannot see a dot-directory ([flows#513](https://github.com/AgentWorkforce/flows/issues/513)). `writing-relayflows` carries the detail and the delete-when conditions.
-
-Those two will be fixed. The rule that outlives them will not: **put enforcement in the deterministic recorded step that follows the agent, not in a gate on it.** It is the same rule as *Keep Repairable Gates On The Critical Path* below — a dropped agent transport should read as "nothing was written", which is repairable, rather than as a crashed run. v2 currently makes it mandatory; it was always the better shape.
-
-### Two more v2 facts that will cost you a run each
-
-- **`flows run` parks at the first agent step without `--local-agent`.** The message reads as a missing worker, not a missing flag.
-- **`permissions` on an agent step is journaled and not enforced.** Declare it for reviewability; do not treat a `flows run` as sandboxed. Your implementation agents share one checkout, so partition their lanes by path *and* sequence them, and make an `edit-gate` that rejects out-of-scope changes.
-
-### Cross-check your gates against each other
-
-Nothing validates that the assertions you write are mutually satisfiable, and agents pay for it when they are not. In one campaign a `seam-rules` gate **required** a file to be edited while an `edit-gate` **rejected** that same file as out-of-scope. No implementation could pass both; the agent began reverting correct work to appease the contradiction, and it read as the agent failing.
-
-If one gate names a path, assert at authoring time that every other gate permits it. That check is a few lines and it found a real contradiction immediately.
+- The deliverable must be **production-ready**, not just code-complete.
+- The feature touches databases, APIs or infrastructure that can be exercised locally.
+- "It compiles" is not sufficient proof of correctness.
+- You want the commit at the end of the flow to represent code that is proven working.
 
 ## Green gates are necessary and nowhere near sufficient
 
-Before the mechanics, the finding that reframes all of them.
+Read this before the mechanics; it reframes all of them.
 
-A 67-step workflow of this exact shape produced a tree on which **every deterministic gate was green** — scope, feature-manifest routing, targeted-verification selection, invariant tests with a mutation transcript, `cargo fmt`/`clippy -D warnings`/release build, typecheck, 3,395 unit tests, and all five end-to-end parity suites. A fresh adversarial reviewer then read that tree and returned **15 findings, 2 of them disqualifying**, with the verdict *"do not seal"*: a mutation probe shipping on a live delivery path that could panic the process, a seam whose coordinator was rebuilt per call so three of its four contract invariants had no production effect, and an adapter that had stopped observing whether its write landed — so a dead writer read as a successful delivery.
+A 67-step flow of exactly this shape produced a tree on which **every deterministic gate was green** — scope, feature-manifest routing, targeted-verification selection, invariant tests with a mutation transcript, `cargo fmt`, `clippy -D warnings`, a release build, typecheck, 3,395 unit tests and all five end-to-end parity suites. A fresh adversarial reviewer then read that tree and returned **15 findings, 2 of them disqualifying**, with the verdict *"do not seal"*:
 
-None of that is reachable by a gate. Gates check *properties you thought to name*. The review catches *the thing you did not think to name* — and on this run, that was most of the risk.
+- a mutation probe left shipping on a live delivery path, able to panic the process;
+- a seam whose coordinator was rebuilt per call, so three of its four contract invariants had no production effect;
+- an adapter that had stopped observing whether its write landed, so a dead writer read as a successful delivery.
 
-So: build the gates, and do not treat them as the finish line. The review/fix rounds below are not a formality bolted onto a working pipeline; on the evidence, they are where the defects were actually found.
+None of that is reachable by a gate. Gates check *properties you thought to name*. Review catches *the thing you did not think to name* — and on that run, that was most of the risk.
 
-## Core Principle: Test In The Workflow
+So: build the gates, and do not treat them as the finish line. The review rounds below are not a formality bolted onto a working pipeline. They are where the defects were actually found.
 
-The key insight: **run tests as deterministic steps inside the workflow itself**. Don't just write test files — execute them, verify they pass, fix failures, and re-run. The workflow doesn't commit until tests are green.
+## The evidence recorder
 
-```
-implement → write tests → run tests → fix failures → re-run → build check → regression check → commit
-```
+v2 fails a deterministic step the moment its command exits non-zero, and there is no opt-out. But an 80-to-100 flow does not want a red test run to end the run — a red test run is **work for the repair agent**. `{ … } || true` discards the exit code, which leaves a later gate nothing to read and lets a forgotten gate ship red work silently.
 
-This means the commit at the end of the workflow represents code that is **proven working**, not just code that an agent wrote and claimed works.
+The shape that works is a small script of your own that journals verdicts to files:
 
-## Repair Before Failure
-
-An 80-to-100 workflow should not stop merely because a test, typecheck, lint, schema, or E2E gate turns red. That red output is work for the agent team. Capture it, hand it to a repair owner, fix it, and rerun. Workflow-owned validation gates should never terminate the run with `FAILED`. If the team exhausts its repair budget or hits an external blocker such as missing credentials, wrong repository, or unsafe dirty worktree, write a `BLOCKED_NO_COMMIT` artifact and end without committing or opening a PR instead of crashing the workflow.
-
-Use this shape for every meaningful gate:
-
-1. `run-*`: deterministic command with `captureOutput: true` and `failOnError: false`.
-2. `fix-*`: agent step that reads `{{steps.run-*.output}}`, fixes source/tests/config, and reruns the command locally until green.
-3. `verify-*`: deterministic rerun, usually still `failOnError: false`, followed by a final repair step if red.
-4. `commit-if-green`: deterministic step that reruns the full acceptance command and commits only when every exit code is zero. If anything is still red, it writes `BLOCKED_NO_COMMIT` with the failing evidence and exits successfully so the workflow reports a handled blocked state, not a runtime failure.
-
-AgentWorkforce/relay#827 added repair-aware reliability to the SDK (`.reliable()` / `.repairable()` and repair-aware retry-mode workflows). Prefer those presets when available, but still model explicit repair owners when gate output needs domain-specific fixing.
-
-## Keep Repairable Gates On The Critical Path
-
-Repair-before-failure only works after the workflow reaches a deterministic gate. If a long-running interactive agent step is a hard dependency for the first gate, then a dropped PTY, agent spawn error, or transport failure can stop the workflow before the repair loop ever sees evidence.
-
-For large rollouts, treat implementation agents as advisory producers and put a deterministic reconciliation step on the critical path:
-
-1. Start implementation/review agents in parallel if useful, but require them to write durable artifacts such as `.workflow-artifacts/<task>/runtime.md`, self-review notes, changed-file lists, and command evidence.
-2. Add `implementation-reconcile`: a deterministic step that inspects `git status --short -- <paths>`, required files, artifact files, and diff stats. It should use `captureOutput: true` and `failOnError: false`.
-3. Add `repair-implementation-reconcile`: a focused repair owner that reads the reconcile output and finishes missing artifacts or code before validation gates run.
-4. Make discovery, typecheck, E2E, and final acceptance depend on the reconcile/repair path, not directly on every long-lived implementation agent.
-5. Keep the final commit deterministic and green-only; red final evidence becomes a repair/blocking artifact, not a failed workflow.
-
-This shape prevents "agent transport failed" from masquerading as "the product failed." The product still has to pass the same gates; the difference is that the workflow can reach the gates and repair them.
-
-## Squad Review Before Final Acceptance
-
-For high-stakes implementation workflows, validation should include human-like review structure, not only command gates. Use small implementation squads and make review state durable:
-
-1. Split independent scopes into 2-3 agent squads. Each squad has an implementer, a shadow reviewer, and optionally a validation/test owner.
-2. The shadow reviewer follows the implementer while work is happening and flags spec drift early.
-3. Before external review, the implementer writes a self-reflection artifact under `.workflow-artifacts/<task>/` covering spec coverage, changed files, tests/proofs, repo-rule alignment, and known risks.
-4. A fresh self-review agent reads the actual files, AGENTS.md / CLAUDE.md, recent related work, and local conventions. It writes findings to disk.
-5. The implementer repairs valid findings, then deterministic gates rerun from captured output.
-6. After all squads converge, run the selected review-depth fresh-eyes review/fix path. Light requires `review-claude` -> `fix-loop` and gates final review pass on `post-fix-validation`. Standard adds `final-review-claude` -> `final-fix-claude` and gates final review pass on `final-fix-claude`. Deep requires the standard Claude path plus `review-codex` -> `fix-loop-codex` -> `final-review-codex` -> `final-fix-codex` and gates final review pass on `final-fix-codex`.
-7. If the selected review path still finds issues, run another explicit fix pass or write `BLOCKED_NO_COMMIT` with exact evidence.
-8. Commit or PR creation is allowed only after the selected review-depth path, final-review-pass gate, final deterministic acceptance, and scoped diff/regression gates are green. Otherwise write a `BLOCKED_NO_COMMIT` artifact with exact evidence.
-
-This keeps "100%" tied to both executable evidence and independent review over the final state.
-
-## The Test-Fix-Rerun Pattern
-
-Every testable feature in a workflow should follow this four-step pattern:
-
-```typescript
-// Step 1: Run tests (allow failure — we expect issues on first run)
-.step('run-tests', {
-  type: 'deterministic',
-  dependsOn: ['create-tests'],
-  command: 'npx tsx --test tests/my-feature.test.ts 2>&1 | tail -60',
-  captureOutput: true,
-  failOnError: false,  // <-- Don't fail the workflow, let the agent fix it
-})
-
-// Step 2: Agent reads output, fixes issues, re-runs until green
-.step('fix-tests', {
-  agent: 'tester',
-  dependsOn: ['run-tests'],
-  task: `Check the test output and fix any failures.
-
-Test output:
-{{steps.run-tests.output}}
-
-If all tests passed, do nothing.
-If there are failures:
-1. Read the failing test file and source files
-2. Fix the issues (could be in test or source)
-3. Re-run: npx tsx --test tests/my-feature.test.ts
-4. Keep fixing until ALL tests pass.`,
-  verification: { type: 'exit_code' },
-})
-
-// Step 3: Deterministic rerun — capture result for a final repair pass
-.step('run-tests-final', {
-  type: 'deterministic',
-  dependsOn: ['fix-tests'],
-  command: 'npx tsx --test tests/my-feature.test.ts 2>&1',
-  captureOutput: true,
-  failOnError: false,
-})
-
-// Step 4: Repair again if the rerun is still red
-.step('fix-tests-final', {
-  agent: 'tester',
-  dependsOn: ['run-tests-final'],
-  task: `If the final test rerun passed, record the green evidence.
-If it failed, fix the remaining issue and rerun until green:
-{{steps.run-tests-final.output}}`,
-  verification: { type: 'exit_code' },
-})
+```js
+// gates.mjs — the entire contract, in two subcommands.
+//
+//   node gates.mjs record --name unit --command-base64 <b64> [--retries 1]
+//     Decodes and runs the command, writes evidence/<name>.json:
+//       { name, command, exitCode, verdict: 'green' | 'red',
+//         attempts, passedOnAttempt, tail, runId }
+//     and ALWAYS exits 0.
+//
+//   node gates.mjs require-green --names unit,clippy,e2e
+//     Reads those files back and exits non-zero, printing the red tails,
+//     if any verdict is not 'green' or any runId is not this run's.
 ```
 
-**Why four steps instead of one?**
-- The first run captures output for the agent to diagnose
-- The agent step can iterate (read errors, fix, re-run) multiple times
-- The final deterministic run is still evidence-based, but a repair agent sees it before the workflow stops
-- The last repair step keeps the workflow aligned with the agent-team model instead of ending on a fixable failure
+Three details are load-bearing:
 
-## PGlite: In-Memory Postgres for Database Testing
+- **Base64-encode the command.** It will contain `&&`, pipes and quotes, and the calling shell must not reinterpret them.
+- **Stamp each record with the run that produced it** (`runId`, from the flow's input or an env var). `flows run --reuse-from <run-id>` keys on `step_spec_hash`, and a recorder step *always exits 0*, so it is always eligible for reuse — an unstamped recording resurrects a previous run's verdict, and `require-green` happily reads it as today's evidence.
+- **`require-green` is the only thing that says "green."** Final acceptance recomputes the verdict from recordings; it never trusts an agent's report of its own work.
 
-When your feature touches the database, use **PGlite** — a WASM-based Postgres that runs in-process. No Docker, no external services, no flaky network dependencies.
+Compared to the old `failOnError: false` this is more machinery, and it buys something the old engine did not have: the repair agent reads a **file**, not an interpolated string, so it sees the whole tail rather than a truncated template.
 
-### Setup
+### The four-step ladder
 
-Install as a dev dependency in the workflow:
+Every meaningful gate is four steps: record, repair, re-record, assert.
 
-```typescript
-.step('install-pglite', {
-  type: 'deterministic',
-  command: 'npm install --save-dev @electric-sql/pglite 2>&1 | tail -5',
-  captureOutput: true,
-})
-```
+```ts
+import { flow } from '@relayflows/surface';
 
-### Test Helper Pattern
+const b64 = (cmd: string) => Buffer.from(cmd, 'utf8').toString('base64');
+const record = (name: string, cmd: string) =>
+  `node gates.mjs record --name ${name} --command-base64 ${b64(cmd)}`;
+const requireGreen = (...names: string[]) =>
+  `node gates.mjs require-green --names ${names.join(',')}`;
 
-Create a reusable helper that boots an in-memory Postgres with your schema:
+export default flow('ship-feature', { budget: { wallclock: '110m' } }, async (f) => {
+  await f.run(record('unit', 'npx vitest run'), { timeout: '15m' });   // exits 0 either way
 
-```typescript
-// tests/helpers/pglite-db.ts
-import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
-import * as schema from '../../packages/web/lib/db/schema.js';
-
-// Raw DDL matching your Drizzle schema — PGlite doesn't run Drizzle migrations
-const MY_TABLE_DDL = `
-CREATE TABLE IF NOT EXISTS my_table (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-`;
-
-export async function createTestDb() {
-  const pg = new PGlite();
-  await pg.exec(MY_TABLE_DDL);
-  const db = drizzle(pg, { schema });
-  return { db, pg, schema, cleanup: () => pg.close() };
-}
-```
-
-### PGlite Gotchas
-
-| Issue | Fix |
-|-------|-----|
-| `pgcrypto` extension not available | Use `gen_random_uuid()` (built-in since PG 13) or generate UUIDs in app code |
-| UUID columns | PGlite supports UUID natively — no special handling needed |
-| `drizzle-orm/pglite` import | Exists since drizzle-orm 0.30+. If not found, check version. |
-| Index creation | PGlite supports standard CREATE INDEX — no limitations |
-| Concurrent writes | PGlite is single-connection. Test concurrent logic with sequential assertions. |
-
-### Test Structure
-
-```typescript
-// tests/my-feature.test.ts
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { createTestDb } from './helpers/pglite-db.js';
-
-describe('my feature', () => {
-  it('does the thing correctly', async () => {
-    const { db, schema, cleanup } = await createTestDb();
-    try {
-      // Arrange
-      const testId = randomUUID();
-      // Act — use your module against the real (in-memory) Postgres
-      // Assert
-      assert.equal(result.name, 'expected');
-    } finally {
-      await cleanup();
-    }
+  await f.agent('repair-unit', {
+    cli: 'claude',
+    task: [
+      'Read evidence/unit.json.',
+      'If verdict is "green", do nothing and say so. Do not invent work.',
+      'If verdict is "red", read the tail, fix the source or the test,',
+      'and rerun `npx vitest run` until it passes.',
+    ].join('\n'),
   });
+
+  await f.run(record('unit', 'npx vitest run'), { timeout: '15m' });
+  await f.run(requireGreen('unit'));      // the only step here allowed to be red
+
+  f.done('success');
 });
 ```
 
-## Verify Gates After Every Edit
+The same thing in YAML, where `dependsOn` is the only ordering primitive:
 
-Never trust that an agent edited a file correctly. Add a deterministic verify gate after every agent edit step:
-
-```typescript
-// Agent edits a file
-.step('edit-schema', {
-  agent: 'impl',
-  dependsOn: ['read-schema'],
-  task: `Edit packages/web/lib/db/schema.ts...`,
-  verification: { type: 'exit_code' },
-})
-
-// Deterministic verification — did the edit actually land?
-.step('verify-schema', {
-  type: 'deterministic',
-  dependsOn: ['edit-schema'],
-  command: `if git diff --quiet packages/web/lib/db/schema.ts; then echo "NOT MODIFIED"; exit 1; fi
-grep "my_new_table" packages/web/lib/db/schema.ts >/dev/null && echo "OK" || (echo "MISSING"; exit 1)`,
-  failOnError: false,
-  captureOutput: true,
-})
-.step('fix-schema-verification', {
-  agent: 'impl',
-  dependsOn: ['verify-schema'],
-  task: `Fix the schema edit if verification failed. Output:\n{{steps.verify-schema.output}}`,
-  verification: { type: 'exit_code' },
-})
+```yaml
+version: '0.1.0'
+name: ship-feature
+steps:
+  - id: unit
+    type: deterministic
+    command: 'node gates.mjs record --name unit --command-base64 <b64>'
+  - id: repair-unit
+    type: agent
+    dependsOn: [unit]
+    cli: claude
+    instruction: |
+      Read evidence/unit.json. Green means do nothing.
+      Red means fix it and rerun until the recorder writes green.
+  - id: unit-final
+    type: deterministic
+    dependsOn: [repair-unit]
+    command: 'node gates.mjs record --name unit --command-base64 <b64>'
+  - id: unit-assert
+    type: deterministic
+    dependsOn: [unit-final]
+    command: 'node gates.mjs require-green --names unit'
 ```
 
-**What to verify:**
-- File was actually modified (`git diff --quiet` returns non-zero)
-- Key content exists (grep for table names, function names, imports)
-- For new files: `file_exists` verification type
-- For new directories, package trees, generated files, or mixed tracked/untracked
-  edits: use `git status --short -- <paths>`, because `git diff --quiet`
-  ignores untracked files
+In TypeScript, ordering is the await sequence and `Promise.all` is first-class for fan-out. In YAML/JSON it is `dependsOn` and nothing else — there is no `pattern`, no `maxConcurrency`. An agent's retry budget is `maxIterations`, which counts the first attempt: the old `retries: 2` is `maxIterations: 3`.
 
-**Gate the hazard, not a tool's mode.** A gate that asserts *"the selector reported `targeted`"* rather than *"no runtime path is unmapped"* can be unsatisfiable by construction — in our case registering a feature required editing the manifest, and editing the manifest forced the selector into `full-smoke` unconditionally. The gate failed correct work, and it would have read as the agent's fault. Assert the condition you actually care about, from the tool's structured output, not its summary verdict.
+### Retry a flaky gate once, and record which attempt passed
 
-**What NOT to verify:**
-- Exact content (too brittle — agents format differently)
-- Line counts or byte sizes (meaningless)
+Contention between suites is not a regression. A run 35 steps deep died to a `Verified: 2/3, Failed: 0` from a suite that passed 3/3 standalone three times in a row. Give `record` a `--retries 1`: the command must still pass, so the gate is not weakened, but the recorded tail has to say `passed on attempt 2`. A suite that only ever passes on retry then stays visible instead of being quietly laundered green.
 
-### Edit Gates That Include New Files
+## Enforce after the agent, not on it
 
-When an agent may create new files or package directories, do not use
-`git diff --quiet -- <paths>` as the only edit gate. It only sees tracked
-changes, so a valid new package can be misclassified as "no changes."
+Do not hang the enforcement of an agent's work on a gate attached to that agent step. Put it in the deterministic recorded step that follows.
 
-Use `git status --short -- <paths>` and keep the first gate repairable:
+A gate on an agent step makes a dropped transport look like a crashed run. The same work, checked by the next deterministic step, reads as *"nothing was written"* — a repairable fact, with a journaled tail explaining it. (`writing-relayflows` has the current per-gate caveats; the shipped gate set moves between releases, and at least one gate has silently swallowed its own output.) Independently of any of that, this is the better shape, and it is the same rule as keeping repairable gates on the critical path.
 
-```typescript
-.step('edit-gate-capture', {
-  type: 'deterministic',
-  dependsOn: ['implement'],
-  command: `if [ -z "$(git status --short -- packages/new-adapter tests docs)" ]; then
-  echo "NO_CHANGES"
-  exit 1
-fi
-echo "EDIT_GATE_OK"`,
-  captureOutput: true,
-  failOnError: false,
-})
-.step('fix-edit-gate', {
-  agent: 'impl',
-  dependsOn: ['edit-gate-capture'],
-  task: `If the edit gate reported NO_CHANGES, inspect the acceptance contract
-and current git status, then add the missing source/test/artifacts.
+### Keep repairable gates on the critical path
 
-Gate output:
-{{steps.edit-gate-capture.output}}
+Repair-before-failure only helps once the flow *reaches* a deterministic gate. If a long-running agent step is a hard dependency of the first gate, a dropped worker stops the flow before the repair loop ever sees evidence.
 
-If it already passed, do nothing.`,
-  verification: { type: 'exit_code' },
-})
-.step('edit-gate-final', {
-  type: 'deterministic',
-  dependsOn: ['fix-edit-gate'],
-  command: `if [ -z "$(git status --short -- packages/new-adapter tests docs)" ]; then
-  echo "NO_CHANGES"
-  exit 1
-fi
-echo "EDIT_GATE_FINAL_OK"`,
-  captureOutput: true,
-  failOnError: true,
-})
+1. Treat implementation agents as advisory producers. Require them to write durable artifacts: a changed-file list, command evidence, self-review notes.
+2. Add a deterministic `reconcile` recorder that inspects `git status --short -- <paths>`, required files and diff stats.
+3. Add a repair owner that reads the reconcile evidence and finishes whatever is missing.
+4. Make typecheck, E2E and final acceptance depend on the reconcile/repair path — not directly on every long-lived agent.
+5. Keep the final commit deterministic and green-only. Red final evidence becomes a `BLOCKED_NO_COMMIT` artifact, not a crashed run.
+
+This stops "the agent transport failed" from masquerading as "the product failed." The product still has to pass the same gates; the difference is that the flow can reach them.
+
+### Partition the agents' lanes yourself
+
+`permissions` on an agent step is journaled and **not** enforced — a `flows run` is not a sandbox, and every agent shares one checkout. Declare `permissions` for reviewability, then partition lanes by path *and* sequence the agents that touch adjacent ones, and make an edit gate that rejects out-of-scope changes. And pass `--local-agent`: without it a flow containing any agent step parks at the first one, with a message that reads as a missing worker rather than a missing flag.
+
+## Verify every edit
+
+Never trust that an agent edited a file. After every agent edit, record a deterministic check and route its evidence to a repair owner.
+
+```ts
+await f.agent('edit-schema', { cli: 'claude', task: 'Edit lib/db/schema.ts …' });
+
+await f.run(record('edit-schema', `
+  if [ -z "$(git status --short -- lib/db/schema.ts)" ]; then echo NOT_MODIFIED; exit 1; fi
+  grep -q my_new_table lib/db/schema.ts || { echo MISSING_TABLE; exit 1; }
+  echo EDIT_OK
+`));
+
+await f.agent('repair-edit-schema', {
+  cli: 'claude',
+  task: 'Read evidence/edit-schema.json. Green means do nothing. Red means make the edit land.',
+});
+
+await f.run(record('edit-schema', /* same command */));
+await f.run(requireGreen('edit-schema'));
 ```
 
-Rule of thumb: `git diff --quiet` is fine for tracked-only edits to known
-files. Use `git status --short -- <paths>` for materialization gates that may
-include new tests, docs, generated artifacts, or package directories.
+**Use `git status --short -- <paths>`, not `git diff --quiet`.** `git diff` only sees tracked changes, so a valid new package, test directory or generated artifact is misclassified as "no changes." `git diff --quiet` is fine only for tracked-only edits to files that already exist.
 
-## Mock Sandbox Pattern
+**Verify** that the file was modified, and that key content exists (a table name, an exported symbol, an import). **Do not verify** exact content, formatting, line counts or byte sizes — agents format differently and those checks are pure brittleness.
 
-When testing code that interacts with Daytona sandboxes, use inline mock objects matching the existing test conventions:
+### Gate the hazard, not a tool's mode
 
-```typescript
-const daytona = {
-  create: async () => ({
-    id: 'sandbox-id',
-    process: {
-      executeCommand: async (cmd, cwd, env) => ({
-        result: 'output',
-        exitCode: 0,
-      }),
-    },
-    fs: {
-      uploadFile: async () => undefined,
-    },
-    getUserHomeDir: async () => '/home/daytona',
-  }),
-  remove: async () => undefined,
-};
-```
+A gate that asserts *"the selector reported `targeted`"* rather than *"no runtime path is unmapped"* can be unsatisfiable by construction. In one campaign, registering a feature required editing the manifest, and editing the manifest forced the selector into `full-smoke` unconditionally. The gate failed correct work — and it read as the agent's fault. Assert the condition you actually care about, read out of the tool's structured output, not its summary verdict.
 
-For testing that your code calls the right methods, record calls in an array:
+### Verify at the granularity the risk lives at
 
-```typescript
-const emitted: EmitEventOptions[] = [];
-const mockClient: SessionEventClient = {
-  emit: async (opts) => { emitted.push(opts); },
-  getEvents: async () => [],
-  getLatestSequence: async () => 0,
-};
-
-// ... run the code ...
-
-assert.equal(emitted.length, 4);
-assert.equal(emitted[0].eventType, 'sandbox_created');
-```
-
-## Regression Testing
-
-After your new tests pass, always run the **existing test suite** to catch regressions:
-
-```typescript
-.step('run-existing-tests', {
-  type: 'deterministic',
-  dependsOn: ['fix-build'],
-  command: 'npm run orchestrator:test 2>&1 | tail -40',
-  captureOutput: true,
-  failOnError: false,
-})
-
-.step('fix-regressions', {
-  agent: 'impl',
-  dependsOn: ['run-existing-tests'],
-  task: `Check the full test suite for regressions caused by our changes.
-
-Test output:
-{{steps.run-existing-tests.output}}
-
-If all tests passed, do nothing.
-If EXISTING tests broke, read the failing test, find what we broke, fix it.
-Most likely cause: constructor signatures changed, new required fields added
-without defaults, or import paths shifted.
-
-Run: npm run orchestrator:test
-Fix until all tests pass.`,
-  verification: { type: 'exit_code' },
-})
-```
-
-## Full Workflow Template
-
-Here's the complete pattern for a feature that touches the database:
-
-```typescript
-import { workflow } from '@relayflows/core';
-
-const result = await workflow('my-feature')
-  .description('Add feature X with full E2E validation')
-  .pattern('dag')
-  .channel('wf-my-feature')
-  .maxConcurrency(3)
-  .timeout(3_600_000)
-  .repairable()
-
-  .agent('impl', { cli: 'claude', preset: 'worker', retries: 2 })
-  .agent('tester', { cli: 'claude', preset: 'worker', retries: 2 })
-
-  // ── Phase 1: Read ────────────────────────────────────────────────
-  .step('read-target', {
-    type: 'deterministic',
-    command: 'cat path/to/file.ts',
-    captureOutput: true,
-  })
-
-  // ── Phase 2: Implement ───────────────────────────────────────────
-  .step('edit-target', {
-    agent: 'impl',
-    dependsOn: ['read-target'],
-    task: `Edit path/to/file.ts. Current contents:
-{{steps.read-target.output}}
-<specific instructions>
-Only edit this one file.`,
-    verification: { type: 'exit_code' },
-  })
-  .step('verify-target', {
-    type: 'deterministic',
-    dependsOn: ['edit-target'],
-    command: 'git diff --quiet path/to/file.ts && (echo "NOT MODIFIED"; exit 1) || echo "OK"',
-    failOnError: false,
-    captureOutput: true,
-  })
-  .step('fix-target-verification', {
-    agent: 'impl',
-    dependsOn: ['verify-target'],
-    task: `Fix the target edit if verification failed. Output:\n{{steps.verify-target.output}}`,
-    verification: { type: 'exit_code' },
-  })
-
-  // ── Phase 3: Test infrastructure ─────────────────────────────────
-  .step('install-pglite', {
-    type: 'deterministic',
-    command: 'npm install --save-dev @electric-sql/pglite 2>&1 | tail -5',
-    captureOutput: true,
-  })
-  .step('create-test-helpers', {
-    agent: 'tester',
-    dependsOn: ['install-pglite'],
-    task: 'Create tests/helpers/pglite-db.ts with <DDL for your tables>...',
-    verification: { type: 'file_exists', value: 'tests/helpers/pglite-db.ts' },
-  })
-  .step('create-tests', {
-    agent: 'tester',
-    dependsOn: ['create-test-helpers', 'fix-target-verification'],
-    task: 'Create tests/my-feature.test.ts with <test descriptions>...',
-    verification: { type: 'file_exists', value: 'tests/my-feature.test.ts' },
-  })
-
-  // ── Phase 4: Test-fix-rerun loop ─────────────────────────────────
-  .step('run-tests', {
-    type: 'deterministic',
-    dependsOn: ['create-tests'],
-    command: 'npx tsx --test tests/my-feature.test.ts 2>&1 | tail -60',
-    captureOutput: true,
-    failOnError: false,
-  })
-  .step('fix-tests', {
-    agent: 'tester',
-    dependsOn: ['run-tests'],
-    task: `Fix any test failures. Output:\n{{steps.run-tests.output}}`,
-    verification: { type: 'exit_code' },
-  })
-  .step('run-tests-final', {
-    type: 'deterministic',
-    dependsOn: ['fix-tests'],
-    command: 'npx tsx --test tests/my-feature.test.ts 2>&1',
-    captureOutput: true,
-    failOnError: false,
-  })
-  .step('fix-tests-final', {
-    agent: 'tester',
-    dependsOn: ['run-tests-final'],
-    task: `If the final test rerun is red, fix and rerun until green. Output:\n{{steps.run-tests-final.output}}`,
-    verification: { type: 'exit_code' },
-  })
-
-  // ── Phase 5: Build + regression ──────────────────────────────────
-  .step('build-check', {
-    type: 'deterministic',
-    dependsOn: ['fix-tests-final'],
-    command: 'npx tsc --noEmit 2>&1 | tail -20; echo "EXIT: $?"',
-    captureOutput: true,
-    failOnError: false,
-  })
-  .step('fix-build', {
-    agent: 'impl',
-    dependsOn: ['build-check'],
-    task: `Fix type errors if any. Output:\n{{steps.build-check.output}}`,
-    verification: { type: 'exit_code' },
-  })
-  .step('run-existing-tests', {
-    type: 'deterministic',
-    dependsOn: ['fix-build'],
-    command: 'npm test 2>&1 | tail -40',
-    captureOutput: true,
-    failOnError: false,
-  })
-  .step('fix-regressions', {
-    agent: 'impl',
-    dependsOn: ['run-existing-tests'],
-    task: `Fix regressions if any. Output:\n{{steps.run-existing-tests.output}}`,
-    verification: { type: 'exit_code' },
-  })
-
-  // ── Phase 6: Commit ──────────────────────────────────────────────
-  .step('commit', {
-    type: 'deterministic',
-    dependsOn: ['fix-regressions'],
-    command: [
-      'npx tsx --test tests/my-feature.test.ts',
-      'npm test',
-      'git add <files>',
-      'git commit -m "feat: ..."',
-    ].join(' && '),
-    captureOutput: true,
-    failOnError: false,
-  })
-  .step('repair-commit', {
-    agent: 'impl',
-    dependsOn: ['commit'],
-    task: `If commit failed, fix the blocker, rerun the feature and regression tests, and create the commit.
-If commit passed, confirm the commit subject.
-Output:
-{{steps.commit.output}}`,
-    verification: { type: 'exit_code' },
-  })
-  .step('verify-commit-created', {
-    type: 'deterministic',
-    dependsOn: ['repair-commit'],
-    command: 'git log -1 --pretty=%s | grep -q "^feat: " && echo "COMMIT_OK" || (echo "COMMIT_MISSING"; exit 1)',
-    captureOutput: true,
-    failOnError: true,
-  })
-
-  .onError('retry', { maxRetries: 2, retryDelayMs: 10_000 })
-  .run({ cwd: process.cwd() });
-```
+"256 test functions before, 256 after, so nothing was deleted" is wrong: roughly 90 assertions had been removed from *inside* those functions. Count what can actually be weakened, not the container it sits in.
 
 ## A requirement that induces a hazard must gate that hazard
 
-This one cost a near-miss, and it generalises further than it looks.
+This one cost a near-miss, and it generalises much further than it looks.
 
-The workflow required proof that tests bite: *mutate the guarded code, capture the failing transcript, restore it.* An implementer did the first two steps and skipped the third, leaving this in shipping product code on a live delivery path:
+The flow required proof that tests bite: *mutate the guarded code, capture the failing transcript, restore it.* An implementer did the first two and skipped the third, leaving this in shipping product code on a live delivery path:
 
 ```rust
 // MUTATION: drop the addressee and truncate the body.
@@ -619,13 +198,13 @@ if std::env::var("RELAY_MUTATION_LOSSY_FORMAT").is_ok() {
 
 `&body[..1]` panics on a multi-byte first character.
 
-**Every deterministic gate passed that tree.** The edit gate saw a changed file in scope; the invariant gate saw four correctly-named tests and a mutation transcript; typecheck, clippy, the release build and all five end-to-end parity suites were green. Only the adversarial reviewer caught it.
+**Every deterministic gate passed that tree.** The edit gate saw a changed file in scope; the invariant gate saw four correctly-named tests and a mutation transcript; typecheck, clippy, the release build and all five parity suites were green. Only the adversarial reviewer caught it.
 
-The instruction "prove the test fails," read literally by an agent, is an instruction to damage production code. If you ask for that proof, you must also gate the residue:
+Read literally by an agent, "prove the test fails" is an instruction to damage production code. If you ask for that proof, you must gate the residue:
 
 ```js
 // refuse mutation scaffolding anywhere in product source
-for (const file of walk('src').filter(f => f.endsWith('.rs'))) {
+for (const file of walk('src').filter((f) => f.endsWith('.rs'))) {
   if (/MUTATION|_MUTATION_/.test(readFileSync(file, 'utf8'))) problems.push(`residue in ${file}`);
 }
 ```
@@ -634,42 +213,97 @@ Then prove *that* gate bites, by reinstating a one-line probe and watching it go
 
 Generalise it: **any instruction that tells an agent to temporarily break something needs a matching check that it was put back.** Temporarily lowering a timeout, stubbing a provider, disabling a guard — same shape, same hazard.
 
-## Four smaller rules, each learned the expensive way
+### A test that guards a helper does not guard the call site
 
-**Give every repair owner an explicit "if the gate is green, do nothing" clause.** A repair agent handed a green gate will invent work rather than conclude there is none — one burned 21 minutes on a gate reporting `not-required` against a 2–7 minute norm, because its prompt said "make the scenario real" with no branch for the passing case. Audit them: 4 of 7 in a mature workflow were missing it.
+A mutation proof must mutate **where the bug would be written**, not where the abstraction lives. Mutating the shared helper and watching the suite go red proves only that the helper is covered; the call site that forgot to use the helper is exactly the defect you were trying to exclude, and it survives untouched. Point the probe at the production call path.
 
-**Seal the product tree, not just the evidence directory.** If your signoff step binds a reviewer to an artifact digest, digest the changed source files too. Otherwise the reviewer is bound to a hash of *evidence files* while the code those files describe can change underneath them. Prove it bites: a one-line source edit must change the digest.
+## Cross-check your gates against each other
 
-**Verify at the granularity the risk lives at.** Checking "256 test functions before, 256 after" and concluding nothing was deleted is wrong — roughly 90 assertions had been removed from *inside* those functions. Count what can actually be weakened, not the container it sits in.
+Nothing validates that the assertions you write are mutually satisfiable, and the agents pay for it when they are not. In one campaign a `seam-rules` gate **required** a file to be edited while an `edit-gate` **rejected** that same file as out-of-scope. No implementation could pass both. The agent began reverting correct work to appease the contradiction — and it read as the agent failing.
 
-**Retry a flaky gate once, and record which attempt passed.** Contention between suites is not a regression; a run 35 steps deep died to a `Verified: 2/3, Failed: 0` that passed 3/3 standalone three times. A retry does not weaken the gate — the command must still pass — but the recorded tail has to say `passed on attempt 2`, so a suite that only ever passes on retry stays visible instead of being quietly laundered green.
+If one gate names a path, assert at authoring time that every other gate permits it. That check is a few lines, and it found a real contradiction immediately.
 
-## Checklist: Is Your Workflow 80-to-100?
+## Give every repair owner a "do nothing" clause
+
+A repair agent handed a green gate will invent work rather than conclude there is none. One burned 21 minutes on a gate reporting `not-required`, against a 2–7 minute norm, because its prompt said "make the scenario real" with no branch for the passing case.
+
+Every repair prompt needs an explicit *"if the evidence is green, do nothing and say so."* Audit them: 4 of 7 in an otherwise mature flow were missing it.
+
+## Seal the product tree, not just the evidence
+
+If a signoff step binds a reviewer to an artifact digest, digest the **changed source files** too. Otherwise the reviewer is bound to a hash of *evidence files* while the code those files describe changes underneath them. Prove it bites: a one-line source edit must change the digest.
+
+## Review before acceptance
+
+Command gates are not review. For high-stakes work, make review state durable and put it on the critical path:
+
+1. Split independent scopes into small squads: an implementer, a shadow reviewer who flags spec drift while the work happens, and optionally a test owner.
+2. Before external review, the implementer writes a self-reflection artifact — spec coverage, changed files, proofs, repo-rule alignment, known risks.
+3. A **fresh-context** reviewer reads the actual files, `AGENTS.md` / `CLAUDE.md`, recent related work and local conventions, and writes findings to disk. Fresh context is the point: a reviewer that watched the work being built inherits its blind spots.
+4. The implementer repairs valid findings; the deterministic gates re-record from scratch.
+5. Scale the depth to the stakes — one Claude review/fix round, then a second round, then an independent Codex review/fix round for the deepest tier. Gate final acceptance on the *last* fix step of whichever tier you chose.
+6. Commit or PR creation is allowed only after the review path, final deterministic acceptance and scoped diff/regression gates are all green. Otherwise write `BLOCKED_NO_COMMIT` with the exact evidence and end without committing.
+
+## Local test substrates
+
+Tests that need Docker or a network do not belong in a gate you intend to rerun four times.
+
+**PGlite** (`@electric-sql/pglite`) is a WASM Postgres running in-process — no Docker, no external service, no flaky network. Boot it with raw DDL matching your schema (it does not run Drizzle migrations), and hand the client to the code under test:
+
+```ts
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
+import * as schema from '../../lib/db/schema.js';
+
+export async function createTestDb() {
+  const pg = new PGlite();
+  await pg.exec(MY_TABLE_DDL);           // raw DDL, kept in step with schema.ts
+  return { db: drizzle(pg, { schema }), pg, schema, cleanup: () => pg.close() };
+}
+```
+
+Gotchas: no `pgcrypto` (use the built-in `gen_random_uuid()`); single connection, so exercise concurrency with sequential assertions; `drizzle-orm/pglite` needs drizzle-orm 0.30+. The real hazard is DDL drift — if the test DDL and `schema.ts` disagree, the tests pass against a schema that does not exist. Derive one from the other, or gate them against each other.
+
+For external services (sandboxes, event clients), prefer an inline mock that **records calls into an array**, then assert on the recording. Asserting "it did not throw" proves nothing about what it called:
+
+```ts
+const emitted: EmitEventOptions[] = [];
+const mockClient: SessionEventClient = { emit: async (o) => { emitted.push(o); }, /* … */ };
+// …
+assert.equal(emitted.length, 4);
+assert.equal(emitted[0].eventType, 'sandbox_created');
+```
+
+## Checklist: is your flow 80-to-100?
 
 | Check | How |
-|-------|-----|
-| Tests exist | `file_exists` verification on test file |
-| Tests actually run | Deterministic step executes them |
-| Test failures get fixed | Agent step reads output, fixes, re-runs |
-| Final test run is repairable | Deterministic rerun captures output, then a repair owner gets one more pass |
-| Build passes | `npx tsc --noEmit` deterministic step |
-| No regressions | Existing test suite runs after changes |
-| Every edit is verified and repairable | `git diff --quiet` + grep for tracked-only edits; `git status --short -- <paths>` when new files/packages may appear; then a fix step |
-| Commit only happens after green evidence | Final commit step reruns acceptance checks and commits only on zero exit codes |
+|---|---|
+| Tests exist | Deterministic check for the file, recorded |
+| Tests actually run | A recorder step runs them; nobody's summary is trusted |
+| Failures become work, not a dead run | Recorder always exits 0; a repair owner reads `evidence/<name>.json` |
+| Green is recomputed, not reported | `require-green` reads the recordings at the end |
+| Evidence belongs to this run | Every record stamped with `runId`; `--reuse-from` can't resurrect a stale one |
+| Flaky gates stay visible | `--retries 1`, and the tail names the attempt that passed |
+| Every edit is verified and repairable | `git status --short -- <paths>` + a content grep, then a repair step |
+| Temporary breakage is put back | A residue gate for every "prove it fails" instruction, proven to bite |
+| Gates are mutually satisfiable | Authoring-time cross-check of every path a gate names |
+| Fresh eyes read the final tree | Review rounds on the critical path, findings written to disk |
+| Commit only after green evidence | Final step recomputes acceptance; red writes `BLOCKED_NO_COMMIT` |
 
-## Common Anti-Patterns
+## Common anti-patterns
 
 | Anti-pattern | Why it fails | Fix |
-|-------------|-------------|-----|
-| Tests written but never executed | Agent claims they pass, they don't | Add deterministic `run-tests` step |
-| Single `failOnError: true` test run | First failure kills workflow, no chance to fix | Use repairable run-fix-rerun-final-fix loops |
-| No regression test | New feature works, old features break | Run `npm test` after build check |
-| Agent asked to "write and run tests" in one step | Agent writes tests, runs them, they fail, it edits, output is garbled | Separate write/run/fix into distinct steps |
-| PGlite DDL doesn't match Drizzle schema | Tests pass on wrong schema | Derive DDL from schema.ts or test with real migration |
-| Final test output not handed to an agent | Broken tests can stop the run or get ignored | Add a final repair owner before commit |
-| Testing only happy path | Edge cases break in prod | Specify edge case tests in the task prompt |
-| No verify gate after agent edits | Agent exits 0 without writing anything | Add `git diff --quiet` check after every edit, then route failures to a repair step |
-| `git diff --quiet` for new package/test directories | Untracked files are invisible, so valid new artifacts can look like "no changes" | Use `git status --short -- <paths>` and a repairable capture → fix → final gate pattern |
-| Committing after `failOnError: false` without checking exits | Broken work can be committed because the shell step returned successfully | In `commit-if-green`, record each exit code and skip commit unless all are zero |
-| Copying a v1 `.step({ failOnError, captureOutput })` example into a v2 flow | Those fields do not exist in v2; the spec will not compile | Use the evidence recorder; see **The v2 translation** |
-| Gating a v2 agent step on `subprocess_gate` | A failure reports `exit=1` with empty stdout and stderr, and the verdict is unrecoverable | `artifact_exists`, or no gate plus a deterministic gate after the step |
+|---|---|---|
+| Tests written but never executed | The agent claims they pass; they don't | A recorder step runs them |
+| A bare check as the gate | The first red kills the run, with no chance to repair | Record → repair → re-record → assert |
+| `\|\| true` instead of a recorder | Throws the exit code away; a forgotten gate then ships red work silently | Journal `{exitCode, verdict, tail}` to a file |
+| Unstamped evidence + `--reuse-from` | Recorder steps always exit 0, so they are always reusable — stale verdicts read as fresh | Stamp `runId`; `require-green` rejects foreign stamps |
+| Gating enforcement on the agent step | A dropped transport reads as a crashed run instead of "nothing was written" | Enforce in the deterministic step after |
+| Repair prompt with no green branch | The agent invents work against a passing gate | "If the evidence is green, do nothing and say so" |
+| `git diff --quiet` for new files | Untracked files are invisible, so valid new packages look like "no changes" | `git status --short -- <paths>` |
+| Asserting a tool's summary verdict | Can be unsatisfiable by construction; fails correct work | Assert the hazard, from structured output |
+| Counting containers, not contents | 256 tests before and after hid ~90 deleted assertions | Verify at the granularity the risk lives at |
+| Mutating the helper to prove coverage | Proves the helper is covered, not the call site that forgot it | Mutate where the bug would be written |
+| Sealing only the evidence directory | The reviewer is bound to a hash of the wrong thing | Digest the changed source too, and prove it bites |
+| Treating all-green as done | 15 findings, 2 disqualifying, on an all-green tree | Fresh-eyes review rounds before acceptance |
+| Copying a v1 `.step({ failOnError, captureOutput })` | Those fields do not exist in v2; the flow will not compile | The evidence recorder |
