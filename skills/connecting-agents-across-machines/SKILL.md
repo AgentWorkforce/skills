@@ -55,7 +55,9 @@ On **machine B**, and on any further machines:
 
 ```bash
 npm install -g agent-relay
-agent-relay workspace join my-team <workspaceKey>
+read -r -s -p 'Workspace key: ' RELAY_KEY; printf '\n'   # paste; not echoed or saved to history
+agent-relay workspace join my-team "$RELAY_KEY"
+unset RELAY_KEY
 ```
 
 > **Do not skip this step.** If `node up` runs on a machine with no workspace
@@ -126,11 +128,13 @@ GPU or credentials the job needs:
 
 ```bash
 agent-relay fleet spawn codex --node mini-b --name Builder \
-  --task "Run the test suite in ~/code/app and report failures to Lead" \
-  --cwd ~/code/app
+  --task "Run the test suite in the current directory and report failures to Lead" \
+  --cwd /Users/me/code/app
 ```
 
-`--cwd` is a path **on the target machine**. Each machine uses its own
+`--cwd` is a path **on the target machine**. Write it as an absolute path.
+Don't use `~`, because your local shell expands it to *your* home directory
+before the command is sent. Each machine uses its own
 checkout, and nothing is copied between machines.
 
 **Let Relay pick a machine**: use `--auto-place` instead of `--node`.
@@ -138,7 +142,7 @@ checkout, and nothing is copied between machines.
 **Release an agent**: `agent-relay fleet release <name>`.
 
 **From inside an agent** (Relay MCP tools): agents message each other by name
-with `message_dm_send` / `message_post` whichever machine they run on.
+with `send_dm` / `post_message` whichever machine they run on.
 `spawn` takes a `target_node` to choose the machine.
 
 ## Troubleshooting
