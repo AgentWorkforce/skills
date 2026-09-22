@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -238,6 +238,24 @@
       ],
       "files": [
         "skills/workspace-layout/SKILL.md"
+      ]
+    },
+    {
+      "name": "connecting-agents-across-machines",
+      "version": "1.0.0",
+      "description": "Use when agents running on two or more machines (laptops, desktops, Mac minis, servers) need to talk to each other or when you want to spawn an agent onto another machine with Agent Relay. Covers putting every machine on one shared workspace, starting a node per machine, messaging across machines, targeted spawns, and verifying the link agent-to-agent. No Relay Cloud sandbox required. Verified on agent-relay 12.4.1.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "multi-machine",
+        "fleet",
+        "cross-machine",
+        "workspace",
+        "agent-relay",
+        "getting-started"
+      ],
+      "files": [
+        "skills/connecting-agents-across-machines/SKILL.md"
       ]
     },
     {
