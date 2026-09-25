@@ -1,6 +1,6 @@
 ---
 name: writing-relayflows
-description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the three-rung ladder (run/llm/agent), the resident verbs (human/dispatch/done), verification gates (including which ones actually run today), per-step cli/model selection, flows.json, parallel agents, the agent-relay dispatch transport, and `flows check`/`run`/`deploy`/`schedule` with their real refusal shapes and exit codes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) that `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` cover — that's a different product despite the similar name.
+description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the three-rung ladder (run/llm/agent), the resident verbs (human/dispatch/done), verification gates (including which ones actually run today), per-step cli/model selection, flows.json, parallel agents, the agent-relay dispatch transport, putting a local run on the Cloud dashboard with `--cloud-mirror`, and `flows check`/`run`/`deploy`/`schedule` with their real refusal shapes and exit codes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) that `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` cover — that's a different product despite the similar name.
 ---
 
 # Writing Relayflows
@@ -360,9 +360,9 @@ It isn't the `: readonly`/`: readwrite` annotation syntax that's rejected — it
 
 ```
 flows check [--json] [--watch] <flow.ts|flow.yaml|spec.json>
-flows run [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local-agent] <flow.yaml|spec.json>
-flows run [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local-agent] <flow.ts> --input <inline-json-or-file>
-flows resume [--allow-human-influenced] [--json] [--no-spawn] [--no-observer-link] [--data-dir <dir>] [--local-agent] <run-id>
+flows run [--json] [--no-spawn] [--no-observer-link] [--cloud-mirror] [--data-dir <dir>] [--local-agent] <flow.yaml|spec.json>
+flows run [--json] [--no-spawn] [--no-observer-link] [--cloud-mirror] [--data-dir <dir>] [--local-agent] <flow.ts> --input <inline-json-or-file>
+flows resume [--allow-human-influenced] [--json] [--no-spawn] [--no-observer-link] [--cloud-mirror] [--data-dir <dir>] [--local-agent] <run-id>
 flows deploy <flow.ts> --repo <owner/name> --on <provider>[:key=value,...] [--on ...] --approver <handle> [--agents claude[,codex]] [--name <name>] [--draft] [--json]
 flows deployments [--json]
 flows undeploy [--json] <deployment-id>
@@ -391,6 +391,49 @@ flows run pr-reviewer.flow.ts --local-agent --data-dir /somewhere/outside/the/re
 **`flows schedule`** puts a flow on a cron instead of a ticket trigger — newer (shipped after the `2.0.16` release line) and not yet reflected everywhere in older examples that instead show `flows run --cloud` for the same use case.
 
 **Now fixed, was broken through `2.0.16`** ([flows#461](https://github.com/AgentWorkforce/flows/issues/461), closed): the one-shot `flows run --cloud [--sync-code] <flow.ts> --input <json>` form used to misroute authored TypeScript flows into the declarative-spec loader (`invalid_input: Cannot read or compile the declarative flow`) or refuse with a bare `http_error: HTTP 400`. Root cause: Cloud pinned an older `@relayflows/surface` than the CLI authored against, and refused the version mismatch with those opaque errors instead of naming it. Fixed in `2.0.17` (CLI side) — verified for real: `flows run --cloud --wait <flow.ts> --input '{}'` now submits successfully and returns a real run ID instead of refusing immediately. If you still hit a bare `HTTP 400`/`invalid_input` on this path, you're likely on a CLI older than `2.0.17` — update first before assuming something else is wrong. (Cloud-side reporting of the exact version mismatch, when one still exists, was tracked as a separate follow-up PR at the time of writing — the CLI's own refusal is fixed either way.)
+
+### Watching a local run: observer link vs `--cloud-mirror`
+
+New in **`2.0.32`**. A local run has two ways to be watched, and they are not the same thing:
+
+- **The observer link is the default.** Every `flows run` mints a read-only `ot_live_` link scoped to that run's own `wf-<runId>` channel and prints `Observer: <url>`. It is free, needs only a workspace key, and carries a step projection. `--no-observer-link` suppresses it.
+- **`--cloud-mirror` additionally puts the run on the Cloud dashboard** — the richer hosted view: the flow source, **every agent step's transcript**, the run graph, the run's own log, and the run sitting in the same history as your hosted ones. `FLOWS_CLOUD_MIRROR=1` turns it on for a whole shell.
+
+```bash
+flows run review.flow.ts --local-agent --input '{}'                  # observer link only
+flows run --cloud-mirror review.flow.ts --local-agent --input '{}'   # ...and the dashboard
+```
+
+The run prints both, and the dashboard line names Cloud's run id as well as the page:
+
+```
+Observer:  https://agentrelay.com/observer?key=ot_live_...
+Dashboard: https://.../dashboard/workflow/<cloud-run-id>/runner  ·  flows status --cloud --watch <cloud-run-id>
+```
+
+**That second id matters and is easy to get wrong.** The report's own `runId` is the *journal's* ULID (`01M3B9...`), while the two hosted verbs that take an id — `flows status --cloud <run-id>` and `flows logs <run-id>` — want Cloud's UUID. Do not pass a journal id to either. Under `--json` both ride in the report as `cloudRunId` and `dashboardUrl`, beside `observerUrl`.
+
+`flows runs` is the odd one out and the way *out* of this problem: it takes no id at all (`flows runs [--limit <n>] [--json]`) and lists the runs the credential can see, newest first, with each one's Cloud UUID — so it is how you find the id the other two want when you no longer have the terminal that printed it.
+
+**Why it is opt-in, not on by default.** Because it is the richer view, it is also the one that *stores* all of that: source, step metadata, agent transcripts, and the CLI's own stderr. Transcripts are whatever the agent printed, including file contents and command output. Everything goes through the same redactor `flows status` uses — but redaction is pattern matching, and pattern matching has a false-negative rate. So the trigger is an explicit request and never the mere presence of a Cloud login. Only an affirmative counts for the env var (`1`/`true`/`on`/`yes`); `0`, empty, and anything nobody meant as a switch all leave the run local.
+
+**What it buys you, concretely:** the three read verbs start answering for *local* runs, which until `2.0.32` only worked for runs Cloud had launched.
+
+```
+$ flows status --cloud <cloud-run-id>
+RUN 27ab5702-...  local-mirror-agent-confirmation  completed  spend 13,088 in / 61 out / $0.01836
+  ✓ ask-claude  agent  1 attempt  3.3s  claude-haiku-4-5-20251001 · 1 turn · $0.01836
+  ✓ ask-codex   agent  1 attempt  7.9s
+$ flows logs <cloud-run-id> --step ask-claude    # that step's transcript, out of Cloud storage
+```
+
+Three behaviours worth knowing before you rely on it:
+
+- **It cannot fail a run.** Every push collapses to a boolean; each poll and the whole finish are bounded. A Cloud outage costs the run its dashboard page and nothing else. If the mirror is refused you get one line naming which switch asked for it, and the run's exit code is untouched.
+- **The dashboard says the run was local.** The row is `dispatchType: "local"`, and the run page shows **Ran on: Your machine** instead of a sandbox tile. Cancel is refused for it — Cloud mirrors a local run, it does not control it, so stop it where it is running.
+- **A `--cloud-mirror` resume is a second dashboard row, linked to the first.** Cloud refuses to move a terminal run back to `running` (its own hosted resume mints a fresh id too), so the resumed attempt carries `resumedFromRunId` and the run page links the two — the parked "Needs review" row shows what continued it. The mapping lives in `<data-dir>/cloud-runs/`: the Cloud run id and the deployment, no credential, mode 0600, ageing out at 30 days.
+
+**Requires a Cloud login** (`agent-relay cloud login`, or `FLOWS_CLOUD_TOKEN`) — the same credential every other hosted verb uses. Without one, `--cloud-mirror` prints one line saying the run stays local and the run proceeds normally. A local run that joins no workspace is not a defect (RFC-0001 settled decision 7: the journal is the record, the workspace is one view onto it).
 
 ### Exit codes and refusal shapes
 
@@ -440,11 +483,21 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `flows run <file> --local-agent [--input ...]` | CLI | actually executes; `.flow.ts` needs `--input`, agent/llm steps need `--local-agent` |
 | `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; needs `agent-relay cloud login` plus a connected GitHub App + `--on` provider first, or `flow_repository_not_connected` |
 | `flows run --cloud <flow.ts> --input ...` | CLI | fixed in `2.0.17` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461)); update if you still see `http_error`/`invalid_input` |
+| `flows run --cloud-mirror <file> --local-agent` | CLI | `2.0.32`+; local run also on the Cloud dashboard, transcripts included. Opt-in; `FLOWS_CLOUD_MIRROR=1` for a shell. `--json` gains `cloudRunId`/`dashboardUrl` |
+| `flows status --cloud <run-id>` / `flows logs <run-id>` | CLI | take Cloud's **UUID**, not the journal ULID. Answer for mirrored local runs since `2.0.32` |
+| `flows runs [--limit <n>]` | CLI | takes **no id** — lists runs newest-first, which is how you find the UUID the two above want |
 | `flows schedule <flow.ts> --cron ...` | CLI | cron-based cloud run |
 
 ## Verified against
 
-**`@relayflows/surface@2.0.22` and `@relayflows/sdk@2.0.22`** — the current npm `latest` (there is no `2.0.23`). Every type, union and option in this skill was read directly from those packages' shipped `.d.ts` and `dist/*.js`, not from documentation or memory.
+**`@relayflows/surface@2.0.22` and `@relayflows/sdk@2.0.22`** for everything except the `--cloud-mirror` section, which is **`2.0.32`** (see below). Every type, union and option in this skill was read directly from those packages' shipped `.d.ts` and `dist/*.js`, not from documentation or memory.
+
+**The `--cloud-mirror` section was verified on `2.0.32`, against production, with the published artifact.** `relayflows@2.0.32` was installed from npm into a scratch project — not run from a source tree — and two real local runs were mirrored to `agentrelay.com`:
+
+- a two-step deterministic flow, read back with `flows status --cloud`, `flows logs` (the `runner.log` round-trip) and `flows runs` (the run appearing in history beside hosted ones);
+- a two-agent flow, one `cli: claude` step and one `cli: codex` step, spending a real `$0.01836` — whose **per-step transcripts were fetched back out of Cloud storage** and rendered in each provider's own frame vocabulary. That is the claim worth having evidence for: an echo-only flow exercises none of the transcript path.
+
+Two things that verification established and that are easy to assume otherwise. **Flows drives exactly two agent CLIs**: `adapters/index.ts` registers `claude` and `codex`, and anything else resolves to `relayflows-wrapper-v1`, which requires the executable to answer `--relayflows-adapter-v1` with a flows-specific token. A real `devin` CLI on `PATH` rejects that flag outright (`error: unexpected argument`), so it cannot be used as a `cli:` for an agent step no matter what is installed — adding one is a new `adapters/<name>.ts` plus a registry entry. And the **observer projection has no retry**: `run-projection.ts` sets `failed = true` on the first error and every later publish is a no-op, so a transient `429 workspace_busy` — observed for real during this verification, while another run was launching in the same workspace — permanently loses the observer view for that run. The dashboard mirror survived the same window because it classifies `429` as transient and retries on its next poll. If an observer link opens an empty channel, that asymmetry is the first thing to check.
 
 This revision resolved a set of contradictions left by an earlier refresh that was verified at `2.0.16` and then merged with notes taken at `2.0.22`. Each was settled against the published package, and the losing side was deleted rather than hedged: `AgentOptions.permissions` exists on the TypeScript call site (added in `2.0.17`, validated and journaled, not enforced — preflight warns `permissions_unenforced`); `run(command, options?)` takes a second `{timeout}` argument; `f.done` takes the six `FLOW_COMPLETION_REASONS`; there is no `budget.maxWallclockMs` (`FlowHeader.budget` is `string | {tokens?, dollars?, wallclock?}`); predicate `.gate()` and the `artifact_exists` gate both ship; and `f.human` executes while `f.dispatch` still does not. Beyond static type-checking, the claims in this refresh that carry a **real run**, not just `flows check`, are backed by the recipes in [`AgentWorkforce/flows-cookbook`](https://github.com/AgentWorkforce/flows-cookbook) — each recipe's own README states exactly what was run, when, and what the result was (a real local run, a real Cloud deploy, or both), rather than duplicating that evidence here where it will go stale. If a claim in this skill and a cookbook recipe's README disagree, trust whichever was verified more recently — check the README's date.
 
