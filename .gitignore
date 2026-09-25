@@ -1,3 +1,6 @@
 .DS_Store
 memory
 opencode.json
+
+# agent-relay scratch: an empty queue and its lock marker, written per checkout.
+.agentworkforce/relay/
