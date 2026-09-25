@@ -411,7 +411,9 @@ Observer:  https://agentrelay.com/observer?key=ot_live_...
 Dashboard: https://.../dashboard/workflow/<cloud-run-id>/runner  ·  flows status --cloud --watch <cloud-run-id>
 ```
 
-**That second id matters and is easy to get wrong.** The report's own `runId` is the *journal's* ULID (`01M3B9...`); every hosted read verb — `flows status --cloud`, `flows logs`, `flows runs` — takes Cloud's UUID. Under `--json` both ride in the report as `cloudRunId` and `dashboardUrl`, beside `observerUrl`. Do not pass a journal id to `--cloud`.
+**That second id matters and is easy to get wrong.** The report's own `runId` is the *journal's* ULID (`01M3B9...`), while the two hosted verbs that take an id — `flows status --cloud <run-id>` and `flows logs <run-id>` — want Cloud's UUID. Do not pass a journal id to either. Under `--json` both ride in the report as `cloudRunId` and `dashboardUrl`, beside `observerUrl`.
+
+`flows runs` is the odd one out and the way *out* of this problem: it takes no id at all (`flows runs [--limit <n>] [--json]`) and lists the runs the credential can see, newest first, with each one's Cloud UUID — so it is how you find the id the other two want when you no longer have the terminal that printed it.
 
 **Why it is opt-in, not on by default.** Because it is the richer view, it is also the one that *stores* all of that: source, step metadata, agent transcripts, and the CLI's own stderr. Transcripts are whatever the agent printed, including file contents and command output. Everything goes through the same redactor `flows status` uses — but redaction is pattern matching, and pattern matching has a false-negative rate. So the trigger is an explicit request and never the mere presence of a Cloud login. Only an affirmative counts for the env var (`1`/`true`/`on`/`yes`); `0`, empty, and anything nobody meant as a switch all leave the run local.
 
@@ -482,7 +484,8 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; needs `agent-relay cloud login` plus a connected GitHub App + `--on` provider first, or `flow_repository_not_connected` |
 | `flows run --cloud <flow.ts> --input ...` | CLI | fixed in `2.0.17` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461)); update if you still see `http_error`/`invalid_input` |
 | `flows run --cloud-mirror <file> --local-agent` | CLI | `2.0.32`+; local run also on the Cloud dashboard, transcripts included. Opt-in; `FLOWS_CLOUD_MIRROR=1` for a shell. `--json` gains `cloudRunId`/`dashboardUrl` |
-| `flows status --cloud` / `logs` / `runs` | CLI | take Cloud's **UUID**, not the journal ULID. Answer for mirrored local runs since `2.0.32` |
+| `flows status --cloud <run-id>` / `flows logs <run-id>` | CLI | take Cloud's **UUID**, not the journal ULID. Answer for mirrored local runs since `2.0.32` |
+| `flows runs [--limit <n>]` | CLI | takes **no id** — lists runs newest-first, which is how you find the UUID the two above want |
 | `flows schedule <flow.ts> --cron ...` | CLI | cron-based cloud run |
 
 ## Verified against
