@@ -108,11 +108,30 @@ loginctl show-user "$USER" -p Linger
 ```
 
 The unit runs `/usr/bin/agent-relay --headless`: no display, X server, or GTK
-window is needed. GitHub subscriptions use the separate Agent Relay CLI. Before
-integration setup, verify `agent-relay integration subscribe --help`; if it is
-missing, install the official CLI with `npm install -g agent-relay`. The app
-will discover ordinary user-level npm, mise, and nvm installations. Do not
-mistake the desktop's `/usr/bin/agent-relay` launcher for that CLI.
+window is needed. GitHub subscriptions use the separate Agent Relay CLI. Find
+the same user-level npm, mise, or nvm CLI the app discovers; never run the
+desktop's `/usr/bin/agent-relay` launcher as a CLI:
+
+```sh
+relay_cli=
+for candidate in \
+  "$HOME/.local/bin/agent-relay" \
+  "$HOME/.npm-global/bin/agent-relay" \
+  "$HOME/.agentworkforce/relay/bin/agent-relay" \
+  "$HOME"/.local/share/mise/installs/node/*/bin/agent-relay \
+  "$HOME"/.nvm/versions/node/*/bin/agent-relay
+do
+  if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+    relay_cli=$candidate
+    break
+  fi
+done
+test -n "$relay_cli" || {
+  printf 'Install the official Agent Relay CLI with npm before GitHub integration setup.\n' >&2
+  exit 1
+}
+"$relay_cli" integration subscribe --help >/dev/null
+```
 
 If `.deb` installation is unavailable but the human approves
 a per-user tarball installation, download the matching `.tar.gz` and
@@ -147,6 +166,7 @@ fi
 if test -d "/Applications/Agent Relay.app"; then
   existing_id=$(defaults read "/Applications/Agent Relay.app/Contents/Info" CFBundleIdentifier 2>/dev/null || true)
   if test "$existing_id" != com.agentrelay.desktop; then
+    hdiutil detach "$mount_point" >/dev/null 2>&1 || true
     printf 'Existing Agent Relay.app has unexpected bundle id %s; refusing overwrite.\n' "$existing_id" >&2
     exit 1
   fi
@@ -316,16 +336,33 @@ Equivalent CLI form, when the CLI is available, must likewise be repeated for
 all four globs.
 
 ```sh
-agent-relay integration subscribe github \
+if test -z "${relay_cli:-}"; then
+  for candidate in \
+    "$HOME/.local/bin/agent-relay" \
+    "$HOME/.npm-global/bin/agent-relay" \
+    "$HOME/.agentworkforce/relay/bin/agent-relay" \
+    "$HOME"/.local/share/mise/installs/node/*/bin/agent-relay \
+    "$HOME"/.nvm/versions/node/*/bin/agent-relay
+  do
+    if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      relay_cli=$candidate
+      break
+    fi
+  done
+fi
+test -n "${relay_cli:-}" || exit 1
+"$relay_cli" integration subscribe github \
   --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
   --to "@AGENT_NAME" --no-input
 ```
 
-For every PR this agent authors, immediately repeat the four subscriptions for
-that new PR number. This is the authored-PR pattern: it scales with an agent's
-continuous PR creation without subscribing unrelated repository traffic. The
-desktop endpoint already accepts every explicit glob; no per-PR UI work is
-needed. For real GitHub verification, use a harmless event the human authorized
+Make those four calls a required post-create step in the agent's PR workflow:
+whenever it authors a PR, it subscribes its own live session immediately,
+without waiting for an operator to name the PR. This is the authored-PR pattern
+from `orchestrating-agent-relay`; it covers every future PR the agent authors
+without subscribing unrelated repository traffic. The desktop endpoint accepts
+every explicit glob, so this is automatable even though there is no per-PR UI.
+For real GitHub verification, use a harmless event the human authorized
 on that PR (for example, a test conversation comment and a requested bot
 review), then wait for the injected event and record its full message id. Do not
 create a comment, review, or rerun without authorization. A successful
