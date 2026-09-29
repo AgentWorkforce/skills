@@ -1,6 +1,6 @@
 ---
 name: writing-relayflows
-description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the three-rung ladder (run/llm/agent), the resident verbs (human/dispatch/done), verification gates (including which ones actually run today), per-step cli/model selection, flows.json, parallel agents, the agent-relay dispatch transport, putting a local run on the Cloud dashboard with `--cloud-mirror`, and `flows check`/`run`/`deploy`/`schedule` with their real refusal shapes and exit codes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) that `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` cover — that's a different product despite the similar name.
+description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, direct child flows with use/dispatch, verification gates, cli/model selection, flows.json, parallel agents, Cloud dashboard mirroring, and `flows check`/`run`/`deploy`/`schedule` refusal shapes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) covered by `writing-agent-relay-workflows` and `migrating-persona-to-relayflow`.
 ---
 
 # Writing Relayflows
@@ -28,7 +28,7 @@ Three step verbs, one per rung (`@relayflows/sdk`'s `StepType = 'deterministic' 
 2. **`llm` / `llm`** — a bare model call. Prompt in, verified output out. No workspace, no tool use.
 3. **`agent` / `agent`** — a harnessed coding agent in a workspace. Returns `{ summary, artifacts }`, not raw text.
 
-Plus resident verbs that aren't ladder rungs: `human` (durable approval) and `dispatch` (hand off to a child flow) — both declared in the type, **neither executable yet**, see **Human approval and dispatch** — `done` (typed finish, works), the generated **helper** namespace (`f.slack`, `f.github`, `f.linear`, `f.notion`, `f.jira`, and 30+ others — see **Helpers**), and in YAML, `on`/triggers (event entry points — out of scope for this skill, see the [Cloud docs](https://agentrelay.com/docs/relayflows/cloud)).
+Plus resident verbs that aren't ladder rungs: `human` (durable approval), `dispatch` (a direct child flow declared in `use`), and `done` (typed finish). `dispatch` executes in `2.0.35` and newer; see **Human approval and direct child flows**. The generated **helper** namespace (`f.slack`, `f.github`, `f.linear`, `f.notion`, `f.jira`, and 30+ others — see **Helpers**) and YAML `on`/triggers are separate surfaces.
 
 Most flows only need `run` and `llm`. Climb to `agent` once a step needs hands on a real workspace.
 
@@ -73,11 +73,11 @@ steps:
     model: claude-sonnet-4-6
 ```
 
-**Version note.** Every type in this skill is read from the published `@relayflows/surface@2.0.22` / `@relayflows/sdk@2.0.22` `.d.ts` files — the current npm `latest`, not a source build (see **Verified against**). Three things changed between `2.0.16` and `2.0.22`, and each is stated below at its shipped shape rather than at both: `AgentOptions.permissions` landed in `2.0.17`; predicate `.gate()` and the `artifact_exists` gate landed with [flows#449](https://github.com/AgentWorkforce/flows/pull/449); and `f.human` became executable.
+**Version note.** The contracts below were checked against the published `@relayflows/surface@2.0.35` / `@relayflows/sdk@2.0.35` declarations. Direct `use`/`f.dispatch` composition requires `2.0.35` or newer. `AgentOptions.permissions` landed in `2.0.17`; predicate `.gate()` and `artifact_exists` landed with [flows#449](https://github.com/AgentWorkforce/flows/pull/449); `f.human` was already executable in `2.0.22`.
 
 ## The real `Ctx` contract (TypeScript)
 
-From the shipped `@relayflows/surface@2.0.22` `.d.ts` files (`dist/context.d.ts`, `dist/step.d.ts`, `dist/flow.d.ts`, `dist/completion.d.ts`):
+From the shipped `@relayflows/surface@2.0.35` `.d.ts` files (`dist/context.d.ts`, `dist/step.d.ts`, `dist/flow.d.ts`, `dist/completion.d.ts`):
 
 ```ts
 export interface AgentResult {
@@ -107,6 +107,12 @@ export interface LlmOptions {
   model?: string;
 }
 
+export interface DispatchResult {
+  name: string;
+  completionReason: 'success';
+  completionDetail?: string;
+}
+
 export interface Ctx extends Helpers {   // Helpers = f.slack, f.github, f.linear, f.notion, ... — see Helpers
   readonly mcp: Readonly<Record<string, Readonly<Record<string, (args: unknown) => Step<unknown>>>>>;
   run(command: string, options?: { timeout?: string | number }): Step<string>;
@@ -114,7 +120,7 @@ export interface Ctx extends Helpers {   // Helpers = f.slack, f.github, f.linea
   llm(prompt: string, options: LlmOptions): Step<unknown>;
   agent(name: string, options: AgentOptions): Step<AgentResult>;
   human(question: string, options: { to: string }): Step<boolean>;
-  dispatch<T>(flow: string, input: unknown): Promise<T>;
+  dispatch(flow: string, input: unknown): Step<DispatchResult>;
   done(reason: FlowCompletionReason): void;
   cloud: CloudHelper;
   memory: MemoryHelper;
@@ -292,7 +298,7 @@ const planner = { cli: 'claude', model: 'claude-opus-5' };
 await f.agent('plan', { ...planner, task: '…' });
 ```
 
-What TypeScript *does* have, which the map doesn't give you, is `FlowHeader.use?: string[]` — "relative paths to reusable authored flows composed by this body" ([flows#300](https://github.com/AgentWorkforce/flows/issues/300), closed). This is a real field in the shipped `2.0.22` type; this skill hasn't independently run a flow that exercises it, so treat its exact runtime semantics as a pointer to verify against `docs/SURFACE.md` and the flows repo, not as tested guidance the way the rest of this document is.
+What TypeScript *does* have is `FlowHeader.use?: string[]`: relative `.flow.ts` paths to direct child flows the body may call with `f.dispatch`. This is composition of complete flows, not a named-agent map. It executes in `2.0.35` and newer; see **Human approval and direct child flows**.
 
 ## Parallel agents
 
@@ -327,9 +333,9 @@ What this actually is, per `docs/AGENT-RELAY-TRANSPORT.md`: the step calls `POST
 
 Don't describe this as "agents talking to each other" — there's no documented pattern in this skill's scope for two flow steps to hold a live back-and-forth over Relay channels while both are running. What's real: the step's agent becomes a genuine Agent Relay workspace participant while it runs (so a human, or another agent with the right access, can DM it and potentially steer it — per the type's own wording), and the flow still only sees a request-and-durable-receipt shape, not an open channel. Multi-agent *coordination* inside a flow today means sequential handoff (one step's return value feeds the next) or parallel fan-out (**Parallel agents**, above) — not live messaging.
 
-## Human approval and dispatch
+## Human approval and direct child flows
 
-`Ctx` declares `human(question, {to})` and `dispatch<T>(flow, input)`. **`f.human` runs on `2.0.22`; `f.dispatch` still does not** — the executor throws `unsupported_verb: the initial authored executor does not lower f.dispatch`. Both typecheck and pass `flows check`, so `flows check` green tells you nothing about which is which.
+`f.human` parks a root run on a durable approval. `f.dispatch` executes a statically declared direct child in the same durable tree on `2.0.35` and newer. Both must be awaited.
 
 `f.human` parks the run durably on a kernel `wait.human`, keyed `human-<n>` in the order the body asked. A person answers, and `flows resume` continues the body from that line:
 
@@ -345,7 +351,37 @@ $ flows resume <run-id>
 
 `to` names who is asked and is recorded with the question — **it is not a delivery address**; nothing notifies that person for you. The kernel closes a wait once, so the first answer wins, and it records `attribution: "client_asserted"` because the daemon socket, not the kernel, authenticated whoever `--by` names. The answer step takes a `.gate(config)` like any other step. One caveat: `f.human` needs a durable root run to park in — under a runner that has none it refuses with `unsupported_verb`, so run it with `flows run`.
 
-For `f.dispatch`, split the work into a separate, independently triggered flow run. Do not ship a flow whose only path to `done()` goes through it.
+For a composed local run, declare each direct child in the parent's static `use` header, then dispatch by the child's declared `flow(...)` name—not by its file path:
+
+```ts
+// release.flow.ts
+import { flow } from '@relayflows/surface';
+
+export default flow('release', { use: ['./implement.flow.ts'] }, async (f) => {
+  await f.run("printf '%s' prepare");
+  const child = await f.dispatch('implement', { issue: 123 });
+  await f.run("printf '%s' publish");
+  f.done(child.completionReason);
+});
+```
+
+```ts
+// implement.flow.ts
+import { flow } from '@relayflows/surface';
+
+export default flow('implement', async (f, input: { issue: number }) => {
+  await f.run(`printf '%s' ${input.issue}`);
+  f.done('success');
+});
+```
+
+`use` resolves relative `.flow.ts` files before a body runs. Missing or repeated files, duplicate direct-child names, cycles, and undeclared or transitive-only dispatch targets are refused. The child's steps receive qualified IDs such as `dispatch-2--run-1`; the dispatch receipt joins child leaves back to the parent's next step. Parent and child share one root budget and worker-capacity pool, and resume reuses journaled identities rather than repeating completed effects. A successful dispatch returns `{ name, completionReason: 'success', completionDetail? }`; any other child verdict fails the dispatch.
+
+Authority narrows: a child cannot declare a second budget, require a helper/MCP capability its parent did not grant, or call `f.human`. Static cycles are refused and runtime child depth is capped at three. This is direct authored composition, not arbitrary public-flow invocation.
+
+To put the **whole local tree** on one Cloud dashboard page, run `flows run --cloud-mirror release.flow.ts --input '{}'` (or affirmatively set `FLOWS_CLOUD_MIRROR=1`). The root, qualified child steps, dispatch receipts, dependency edges, transcripts, source, and output are projected into one connected graph; the local journal remains authoritative. Mirroring uploads that data and is opt-in. A mirror failure cannot fail the local run. The default observer link is separate and does not add the run to Cloud history.
+
+Do not confuse this with **hosted execution**. `flows run --cloud [--sync-code] release.flow.ts --input '{}'` still rejects `use` dependencies with `unsupported_source`: Cloud accepts one self-contained `.flow.ts` source. Use `--cloud-mirror` for the connected child-flow dashboard today; do not promise that Cloud can itself execute a multi-file `use` tree.
 
 **The same "types accept it, the executor doesn't" trap applies to `workspace` on an agent step under `--local-agent`.** Neither an annotated (`'acme/api: readonly'`) nor a bare (`'acme/api'`) value works — both fail identically:
 
@@ -461,8 +497,9 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 ## What this skill does NOT cover
 
 - **Triggers/webhooks** (`.on(github.pull_request(...), ...)`), **memory retrieval**, and the full **helper** catalog's per-provider quirks (`f.mcp`, provider-specific settings) — each is its own surface; see the [Relayflows product docs](https://agentrelay.com/docs/relayflows) and the [flows-cookbook](https://github.com/AgentWorkforce/flows-cookbook) for real, run-verified examples of each.
-- **Named-agent map equivalent in TypeScript beyond `use:`** — `FlowHeader.use` exists in the shipped type but this skill hasn't independently run a flow that exercises it; verify current semantics against `docs/SURFACE.md` before relying on this section alone.
-- **YAML-only agent step fields with no TypeScript equivalent**: `recoveryMode`, `surfaces`, `output`, the `agent:` named-agent selector, and enforced `workspace` (TypeScript's `workspace` string is accepted by the type but rejected by the local-agent worker — see **Human approval and dispatch**). Author that step in YAML if you need them; `f.dispatch` is not a working escape hatch for this today (see below). `permissions` is **not** on this list — it is a TypeScript option too (see **The real `Ctx` contract**).
+- **Named-agent map equivalent in TypeScript beyond `use:`** — `use` composes complete child flows, not named agent configurations.
+- **YAML-only agent step fields with no TypeScript equivalent**: `recoveryMode`, `surfaces`, `output`, the `agent:` named-agent selector, and enforced `workspace` (TypeScript's `workspace` string is accepted by the type but rejected by the local-agent worker — see **Human approval and direct child flows**). `permissions` is **not** on this list — it is a TypeScript option too (see **The real `Ctx` contract**).
+- **Hosted multi-file child-flow execution** — `flows run --cloud` refuses `use` dependencies even with `--sync-code`; `--cloud-mirror` is the supported route for a local child-flow tree on the Cloud dashboard.
 - The **older `@relayflows/core` `WorkflowBuilder`** engine — see `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` in this repo.
 
 ## Quick reference
@@ -473,7 +510,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `f.llm(...)` / `type: llm` | both | bare model call, no workspace |
 | `f.agent(name, opts)` / `type: agent` | both | harnessed coding agent, returns `{summary, artifacts}` |
 | `f.human(question, {to})` | TS only | parks the run on a durable `wait.human`; `flows answer <run> human-<n> yes\|no` then `flows resume` |
-| `f.dispatch(flow, input)` | TS only | **not executable** — `unsupported_verb`; typechecks and passes `flows check`, fails at `flows run` |
+| `use: ['./child.flow.ts']` / `f.dispatch(name, input)` | TS only | `2.0.35`+ direct child in one durable tree; dispatch by declared name |
 | `f.done(reason)` | TS / kernel | one of `success \| step_failed \| needs_human \| declined` from an authored body; `canceled \| budget_exceeded` are kernel-only |
 | `.gate(config)` / `.gate(predicate, because)` | TS | one per step; both run since flows#449, but only a config object is provable by `flows check` |
 | `options.transport: 'relay'` | TS/YAML `agent` step | dispatch to Agent Relay's task infra; request+receipt, not live chat |
@@ -484,13 +521,16 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 | `flows deploy <flow.ts> --repo ... --on ...` | CLI | persistent trigger-based listener; needs `agent-relay cloud login` plus a connected GitHub App + `--on` provider first, or `flow_repository_not_connected` |
 | `flows run --cloud <flow.ts> --input ...` | CLI | fixed in `2.0.17` ([flows#461](https://github.com/AgentWorkforce/flows/issues/461)); update if you still see `http_error`/`invalid_input` |
 | `flows run --cloud-mirror <file> --local-agent` | CLI | `2.0.32`+; local run also on the Cloud dashboard, transcripts included. Opt-in; `FLOWS_CLOUD_MIRROR=1` for a shell. `--json` gains `cloudRunId`/`dashboardUrl` |
+| `flows run --cloud` with `use` | CLI | unsupported: one self-contained `.flow.ts` source only, even with `--sync-code` |
 | `flows status --cloud <run-id>` / `flows logs <run-id>` | CLI | take Cloud's **UUID**, not the journal ULID. Answer for mirrored local runs since `2.0.32` |
 | `flows runs [--limit <n>]` | CLI | takes **no id** — lists runs newest-first, which is how you find the UUID the two above want |
 | `flows schedule <flow.ts> --cron ...` | CLI | cron-based cloud run |
 
 ## Verified against
 
-**`@relayflows/surface@2.0.22` and `@relayflows/sdk@2.0.22`** for everything except the `--cloud-mirror` section, which is **`2.0.32`** (see below). Every type, union and option in this skill was read directly from those packages' shipped `.d.ts` and `dist/*.js`, not from documentation or memory.
+**The `Ctx` and child-flow contracts were checked against the published `@relayflows/surface@2.0.35` / `@relayflows/sdk@2.0.35` declarations.** Earlier gate, helper, and agent-option findings below were established on `2.0.22`; the original `--cloud-mirror` verification was on `2.0.32`.
+
+A three-level root → child → grandchild fixture was run locally from published `2.0.35` packages, then mirrored to the production Cloud dashboard. The [mirrored run](https://agentrelay.com/cloud/dashboard/workflow/0d502725-e4c2-4cfd-aed2-ed0dd49bd6ac/runner) completed with `completionReason: success`; its Cloud graph contained seven succeeded work/dispatch nodes, seven runtime dependency edges, both child labels, and no warnings. A separate `flows run --cloud --sync-code` attempt refused the same tree before admission with `unsupported_source`, which is why this skill does not promise hosted child-flow execution. This checks the graph API used by the dashboard, not an authenticated browser screenshot.
 
 **The `--cloud-mirror` section was verified on `2.0.32`, against production, with the published artifact.** `relayflows@2.0.32` was installed from npm into a scratch project — not run from a source tree — and two real local runs were mirrored to `agentrelay.com`:
 
@@ -499,6 +539,6 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 
 Two things that verification established and that are easy to assume otherwise. **Flows drives exactly two agent CLIs**: `adapters/index.ts` registers `claude` and `codex`, and anything else resolves to `relayflows-wrapper-v1`, which requires the executable to answer `--relayflows-adapter-v1` with a flows-specific token. A real `devin` CLI on `PATH` rejects that flag outright (`error: unexpected argument`), so it cannot be used as a `cli:` for an agent step no matter what is installed — adding one is a new `adapters/<name>.ts` plus a registry entry. And the **observer projection has no retry**: `run-projection.ts` sets `failed = true` on the first error and every later publish is a no-op, so a transient `429 workspace_busy` — observed for real during this verification, while another run was launching in the same workspace — permanently loses the observer view for that run. The dashboard mirror survived the same window because it classifies `429` as transient and retries on its next poll. If an observer link opens an empty channel, that asymmetry is the first thing to check.
 
-This revision resolved a set of contradictions left by an earlier refresh that was verified at `2.0.16` and then merged with notes taken at `2.0.22`. Each was settled against the published package, and the losing side was deleted rather than hedged: `AgentOptions.permissions` exists on the TypeScript call site (added in `2.0.17`, validated and journaled, not enforced — preflight warns `permissions_unenforced`); `run(command, options?)` takes a second `{timeout}` argument; `f.done` takes the six `FLOW_COMPLETION_REASONS`; there is no `budget.maxWallclockMs` (`FlowHeader.budget` is `string | {tokens?, dollars?, wallclock?}`); predicate `.gate()` and the `artifact_exists` gate both ship; and `f.human` executes while `f.dispatch` still does not. Beyond static type-checking, the claims in this refresh that carry a **real run**, not just `flows check`, are backed by the recipes in [`AgentWorkforce/flows-cookbook`](https://github.com/AgentWorkforce/flows-cookbook) — each recipe's own README states exactly what was run, when, and what the result was (a real local run, a real Cloud deploy, or both), rather than duplicating that evidence here where it will go stale. If a claim in this skill and a cookbook recipe's README disagree, trust whichever was verified more recently — check the README's date.
+The earlier `2.0.22` refresh settled several contradictions against the published package: `AgentOptions.permissions` exists on the TypeScript call site (added in `2.0.17`, validated and journaled, not enforced — preflight warns `permissions_unenforced`); `run(command, options?)` takes a second `{timeout}` argument; `f.done` takes six `FLOW_COMPLETION_REASONS`; there is no `budget.maxWallclockMs`; predicate `.gate()` and `artifact_exists` ship; and `f.human` executes. Its then-true finding that `f.dispatch` was unsupported was superseded by `2.0.35`. Older real-run recipes are in [`AgentWorkforce/flows-cookbook`](https://github.com/AgentWorkforce/flows-cookbook); check their dates when comparing behavior.
 
-The `flows.json` schema refusal, the `--data-dir` git-hygiene interaction, and the `flows run --cloud` bug were all reproduced directly while building that cookbook, on `AgentWorkforce/flows@main` past the `v2.0.16` tag (2026-09-17); they are unchanged in `2.0.22`'s shipped code. The predicate-gate refusal reproduced there too — and it is the one claim `2.0.22` overturned, which is why the section above now documents the working form instead. An earlier review pass (Devin, on this PR) flagged three more claims worth checking rather than trusting on sight — `f.human`/`f.dispatch` executability, the `workspace: readonly` annotation, and the `subprocess_gate` env var name. The last two were re-run against the real CLI and confirmed as real breaks, still present in `2.0.22` (one of the review's own suggested fixes, for `workspace`, turned out not to work either — the bare form fails identically to the annotated one). The first has since split: `f.human` executes on `2.0.22`, `f.dispatch` does not.
+The `flows.json` schema refusal, the `--data-dir` git-hygiene interaction, and the `flows run --cloud` bug were reproduced while building that cookbook past `v2.0.16` (2026-09-17). The `2.0.22` refresh also checked the `workspace: readonly` annotation and the `subprocess_gate` env var name against the real CLI. Child-flow claims above instead rest on the published `2.0.35` run and its production Cloud graph.
