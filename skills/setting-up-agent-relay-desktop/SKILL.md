@@ -371,6 +371,11 @@ event.
   shell share the pane's process tree.
 - **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
   request. Restart after `expired` or `denied` to obtain a new code.
+- **Older schedules could not be inspected:** inspect the user's legacy cron,
+  launchd, or user-service upload schedules first. Only after that inspection,
+  retry `/setup/sign-in` with the original payload plus
+  `"acknowledge_uninspected_schedules":true`. This flag records a completed
+  safety check; never send it merely to silence an error.
 - **`not_allowed` from `/register`:** enable the app's self-registration
   setting. Do not bypass it with workspace credentials.
 - **Managed Claude policy:** if direct delivery reports `managed_policy`, the
