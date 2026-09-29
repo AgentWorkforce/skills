@@ -47,8 +47,12 @@ Find an existing socket without printing private files:
 ```sh
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
 if test -r "$pointer"; then relay_socket=$(sed -n '1p' "$pointer"); fi
+if test -n "${relay_socket:-}" && ! test -S "$relay_socket"; then unset relay_socket; fi
 if test -z "${relay_socket:-}" && test -n "${XDG_RUNTIME_DIR:-}"; then
   relay_socket="$XDG_RUNTIME_DIR/agent-relay/relay.sock"
+fi
+if ! test -S "${relay_socket:-/nonexistent}" && test "$(uname -s)" = Linux; then
+  relay_socket="/run/user/$(id -u)/agent-relay/relay.sock"
 fi
 test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 ```
@@ -95,10 +99,10 @@ if ! (cd "$relay_tmp" && sed "s#AgentRelay-Linux-$relay_arch.deb#AgentRelay.deb#
   exit 1
 fi
 sudo apt-get install -y "$relay_tmp/AgentRelay.deb"
+sudo loginctl enable-linger "$USER"
 systemctl --user daemon-reload
 systemctl --user enable agent-relay.service
 systemctl --user restart agent-relay.service
-sudo loginctl enable-linger "$USER"
 systemctl --user is-active agent-relay.service
 loginctl show-user "$USER" -p Linger
 ```
@@ -134,6 +138,19 @@ if ! (cd "$relay_tmp" && sed "s#AgentRelay-macOS-$relay_arch.dmg#AgentRelay.dmg#
   exit 1
 fi
 mount_point=$(hdiutil attach -nobrowse -readonly "$relay_tmp/AgentRelay.dmg" | awk '/\/Volumes\// {sub(/^.*\/Volumes\//,"/Volumes/"); print; exit}')
+incoming_id=$(defaults read "$mount_point/Agent Relay.app/Contents/Info" CFBundleIdentifier 2>/dev/null || true)
+if test "$incoming_id" != com.agentrelay.desktop; then
+  hdiutil detach "$mount_point" >/dev/null 2>&1 || true
+  printf 'Downloaded app has unexpected bundle id %s; refusing installation.\n' "$incoming_id" >&2
+  exit 1
+fi
+if test -d "/Applications/Agent Relay.app"; then
+  existing_id=$(defaults read "/Applications/Agent Relay.app/Contents/Info" CFBundleIdentifier 2>/dev/null || true)
+  if test "$existing_id" != com.agentrelay.desktop; then
+    printf 'Existing Agent Relay.app has unexpected bundle id %s; refusing overwrite.\n' "$existing_id" >&2
+    exit 1
+  fi
+fi
 osascript -e 'tell application "Agent Relay" to quit' 2>/dev/null || true
 ditto "$mount_point/Agent Relay.app" "/Applications/Agent Relay.app"
 hdiutil detach "$mount_point"
@@ -152,7 +169,11 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
+if ! test -S "$relay_socket" && test "$(uname -s)" = Linux; then
+  relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
 test -S "$relay_socket"
+curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq -e '.ok and (.data.version | length > 0)'
 ```
 
 ## 3. Sign in by device approval
@@ -225,6 +246,10 @@ reuse one session's address for another.
 
 ## 5. Create and test the webhook
 
+Perform this section only when the human requested a webhook (or explicitly
+asked for the full end-to-end setup). Otherwise skip it; webhook creation is a
+persistent external mutation, not an install prerequisite.
+
 Capture the one-time secret without echoing it:
 
 ```sh
@@ -243,15 +268,19 @@ if test "$(jq -r '.data.created // false' "$hook_file")" = true && \
    test "$(jq -r '.data.secret // empty' "$hook_file")" != ''; then
   hook_url=$(jq -r '.data.url' "$hook_file")
   hook_secret=$(jq -r '.data.secret' "$hook_file")
+  hook_config=$(mktemp)
+  chmod 600 "$hook_config"
+  printf 'header = "Authorization: Bearer %s"\n' "$hook_secret" >"$hook_config"
   marker="agent-relay-webhook-test-$(date +%s)"
-  curl -fsS -X POST "$hook_url" \
-    -H "Authorization: Bearer $hook_secret" \
+  curl -fsS --config "$hook_config" -X POST "$hook_url" \
     -H 'Content-Type: application/json' \
     -d "{\"text\":\"$marker\",\"source\":\"agent-driven-setup\"}"
+  rm -f "$hook_config"
 else
   printf 'Webhook already exists; its original secret is required to repeat delivery verification.\n' >&2
 fi
 rm -f "$hook_file"
+test -z "${hook_config:-}" || rm -f "$hook_config"
 unset hook_secret
 ```
 
