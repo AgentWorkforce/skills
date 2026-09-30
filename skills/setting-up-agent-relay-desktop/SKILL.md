@@ -477,6 +477,8 @@ cleanup can name and delete exact files without `-f` or globs:
 ```sh
 hook_config=
 marker=
+webhook_post_ok=false
+webhook_post_status=0
 if test "$(jq -r '.data.created // false' "$hook_file")" = true && \
    test "$(jq -r '.data.secret // empty' "$hook_file")" != ''; then
   hook_url=$(jq -r '.data.url' "$hook_file")
@@ -485,9 +487,13 @@ if test "$(jq -r '.data.created // false' "$hook_file")" = true && \
   chmod 600 "$hook_config"
   printf 'header = "Authorization: Bearer %s"\n' "$hook_secret" >"$hook_config"
   marker="agent-relay-webhook-test-$(date +%s)"
-  curl -fsS --config "$hook_config" -X POST "$hook_url" \
-    -H 'Content-Type: application/json' \
-    -d "{\"text\":\"$marker\",\"source\":\"agent-driven-setup\"}"
+  if curl -fsS --config "$hook_config" -X POST "$hook_url" \
+      -H 'Content-Type: application/json' \
+      -d "{\"text\":\"$marker\",\"source\":\"agent-driven-setup\"}"; then
+    webhook_post_ok=true
+  else
+    webhook_post_status=$?
+  fi
 else
   printf 'Webhook already exists; its original secret is required to repeat delivery verification.\n' >&2
 fi
@@ -498,8 +504,12 @@ if test -e "$hook_file"; then
   rm -- "$hook_file"
 fi
 unset hook_secret
-if test -n "$marker"; then
+if test "$webhook_post_ok" = true; then
   printf 'Webhook test sent; end this turn and wait for marker: %s\n' "$marker"
+elif test -n "$marker"; then
+  printf 'Webhook test POST failed with curl status %s; do not wait for delivery.\n' \
+    "$webhook_post_status" >&2
+  exit "$webhook_post_status"
 fi
 ```
 
