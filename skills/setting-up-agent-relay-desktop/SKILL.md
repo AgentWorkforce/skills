@@ -25,6 +25,29 @@ Relay message. The webhook secret is returned once to this local calling
 session; keep it in a mode-0600 temporary file and delete the file after the
 test.
 
+## Install this skill for Codex and Claude Code
+
+When the task includes installing this skill, install its canonical Claude
+package, then place that unchanged `SKILL.md` where Codex actually loads global
+skills:
+
+```sh
+npx prpm install @agent-relay/setting-up-agent-relay-desktop --as claude --global -y
+codex_skill="$HOME/.codex/skills/setting-up-agent-relay-desktop"
+mkdir -p "$codex_skill"
+install -m 0644 \
+  "$HOME/.claude/skills/setting-up-agent-relay-desktop/SKILL.md" \
+  "$codex_skill/SKILL.md"
+cmp \
+  "$HOME/.claude/skills/setting-up-agent-relay-desktop/SKILL.md" \
+  "$codex_skill/SKILL.md"
+```
+
+Do not use prpm's `--as codex` conversion for this package. It currently writes
+under `~/.agents/skills`, which Codex does not load as its global skill folder,
+and its conversion drops explanatory paragraphs from this Markdown workflow.
+Confirm both final paths explicitly before continuing.
+
 ## 1. Detect the host and current session
 
 Run setup commands from this agent's own shell tool. Do not run them from an
@@ -118,15 +141,27 @@ relay_cli=
 for candidate in \
   "$HOME/.local/bin/agent-relay" \
   "$HOME/.npm-global/bin/agent-relay" \
-  "$HOME/.agentworkforce/relay/bin/agent-relay" \
-  "$HOME"/.local/share/mise/installs/node/*/bin/agent-relay \
-  "$HOME"/.nvm/versions/node/*/bin/agent-relay
+  "$HOME/.agentworkforce/relay/bin/agent-relay"
 do
   if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
     relay_cli=$candidate
     break
   fi
 done
+if test -z "$relay_cli"; then
+  for relay_root in \
+    "$HOME/.local/share/mise/installs/node" \
+    "$HOME/.nvm/versions/node"
+  do
+    test -d "$relay_root" || continue
+    candidate=$(find "$relay_root" -mindepth 3 -maxdepth 3 \
+      -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
+    if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      relay_cli=$candidate
+      break
+    fi
+  done
+fi
 test -n "$relay_cli" || {
   printf 'Install the official Agent Relay CLI with npm before GitHub integration setup.\n' >&2
   exit 1
@@ -134,11 +169,58 @@ test -n "$relay_cli" || {
 "$relay_cli" integration subscribe --help >/dev/null
 ```
 
-If `.deb` installation is unavailable but the human approves
-a per-user tarball installation, download the matching `.tar.gz` and
-`.sha256`, verify it the same way, extract it under a versioned directory, and
-copy its user unit to `~/.config/systemd/user/agent-relay.service` with an
-`ExecStart` pointing at that tree. Do not improvise Alpine/RHEL packaging.
+If `.deb` installation is unavailable but the human approves a per-user
+tarball installation, install it under a versioned user directory. The archive
+contains a unit whose `/usr/bin` path is correct for packages, so rewrite only
+that `ExecStart` in the user copy:
+
+```sh
+case "$(uname -m)" in
+  x86_64|amd64) relay_arch=x64 ;;
+  aarch64|arm64) relay_arch=arm64 ;;
+  *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
+esac
+relay_tmp=$(mktemp -d)
+chmod 700 "$relay_tmp"
+release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
+curl -fL "$release/AgentRelay-Linux-$relay_arch.tar.gz" -o "$relay_tmp/AgentRelay.tar.gz"
+curl -fL "$release/AgentRelay-Linux-$relay_arch.tar.gz.sha256" -o "$relay_tmp/AgentRelay.tar.gz.sha256"
+if ! (cd "$relay_tmp" && sed "s#AgentRelay-Linux-$relay_arch.tar.gz#AgentRelay.tar.gz#" AgentRelay.tar.gz.sha256 | sha256sum --check -); then
+  printf 'Agent Relay checksum verification failed; refusing installation.\n' >&2
+  exit 1
+fi
+mkdir "$relay_tmp/extracted"
+tar -xzf "$relay_tmp/AgentRelay.tar.gz" -C "$relay_tmp/extracted"
+relay_tree="$relay_tmp/extracted/AgentRelay-linux-$relay_arch"
+test -x "$relay_tree/usr/bin/agent-relay"
+relay_version=$(sed -n 's/^__version__ = "\([0-9A-Za-z._-]*\)"$/\1/p' \
+  "$relay_tree/usr/lib/agent-relay/agent_relay/__init__.py")
+case "$relay_version" in
+  ''|*[!0-9A-Za-z._-]*) printf 'Invalid Agent Relay version in archive.\n' >&2; exit 1 ;;
+esac
+relay_prefix="$HOME/.local/lib/agent-relay/$relay_version"
+mkdir -p "$relay_prefix"
+cp -a "$relay_tree/usr" "$relay_prefix/"
+relay_unit="$HOME/.config/systemd/user/agent-relay.service"
+mkdir -p "$(dirname "$relay_unit")"
+sed "s#^ExecStart=/usr/bin/agent-relay#ExecStart=$relay_prefix/usr/bin/agent-relay#" \
+  "$relay_tree/usr/lib/systemd/user/agent-relay.service" >"$relay_unit.tmp"
+chmod 0644 "$relay_unit.tmp"
+mv "$relay_unit.tmp" "$relay_unit"
+grep -F "ExecStart=$relay_prefix/usr/bin/agent-relay --headless" "$relay_unit"
+if ! loginctl show-user "$USER" -p Linger | grep -qx 'Linger=yes'; then
+  sudo loginctl enable-linger "$USER"
+fi
+systemd-analyze --user verify "$relay_unit"
+systemctl --user daemon-reload
+systemctl --user enable agent-relay.service
+systemctl --user restart agent-relay.service
+systemctl --user is-active agent-relay.service
+loginctl show-user "$USER" -p Linger
+```
+
+Do not improvise Alpine/RHEL packaging. Before replacing an existing service,
+apply the earlier version check and refuse to downgrade a newer running app.
 
 ### macOS DMG
 
@@ -352,11 +434,23 @@ if test -z "${relay_cli:-}"; then
   for candidate in \
     "$HOME/.local/bin/agent-relay" \
     "$HOME/.npm-global/bin/agent-relay" \
-    "$HOME/.agentworkforce/relay/bin/agent-relay" \
-    "$HOME"/.local/share/mise/installs/node/*/bin/agent-relay \
-    "$HOME"/.nvm/versions/node/*/bin/agent-relay
+    "$HOME/.agentworkforce/relay/bin/agent-relay"
   do
     if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      relay_cli=$candidate
+      break
+    fi
+  done
+fi
+if test -z "${relay_cli:-}"; then
+  for relay_root in \
+    "$HOME/.local/share/mise/installs/node" \
+    "$HOME/.nvm/versions/node"
+  do
+    test -d "$relay_root" || continue
+    candidate=$(find "$relay_root" -mindepth 3 -maxdepth 3 \
+      -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
+    if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
       relay_cli=$candidate
       break
     fi
