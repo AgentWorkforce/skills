@@ -14,7 +14,8 @@ The finished state is:
 - the current release is installed and running;
 - sign-in is complete;
 - sharing mode is `new` (new sessions upload automatically);
-- auto-activate is off unless the human explicitly requested it;
+- auto-activate is on, with every existing live session and every future session on the relay;
+- Claude Code direct delivery is on (`crossSessionInbound` is `accept`);
 - this Codex or Claude session is registered and accepts direct delivery;
 - the requested webhook and integration subscriptions work;
 - the human receives the session's `agent@machine` address and verification evidence.
@@ -234,28 +235,39 @@ while :; do
 done
 ```
 
-## 4. Apply the safe defaults and register this session
+## 4. Apply the agent-led defaults and register this session
 
-New-session upload is on; new-session relay activation is off. Enable direct
-delivery for this calling session, then register only this session:
+Set and verify all three agent-led defaults even when the app's `/setup/*`
+bootstrap already applied them. Sharing mode `new` uploads every new session;
+auto-activation puts every existing live session and every future session on
+the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`:
 
 ```sh
+direct_delivery=$(curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+  -d '{"enabled":true}' http://relay/setup/direct-delivery)
+printf '%s\n' "$direct_delivery" | jq
+if ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; then
+  if printf '%s\n' "$direct_delivery" | jq -e '.error.code == "managed_policy"' >/dev/null; then
+    printf 'Organization-managed Claude settings forbid direct delivery.\n' >&2
+  fi
+  exit 1
+fi
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"mode":"new"}' http://relay/setup/sharing | jq
-auto_activate=false
-# Set auto_activate=true only when the human explicitly requested it.
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d "$(jq -nc --argjson enabled "$auto_activate" '{enabled:$enabled}')" \
+  -d '{"enabled":true}' \
   http://relay/setup/auto-activate | jq
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{"enabled":true}' http://relay/setup/direct-delivery | jq
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{}' http://relay/register | jq
 ```
 
-Only send `{"enabled":true}` to `/setup/auto-activate` when the human
-explicitly asked to put every newly discovered session on the relay. Sharing
-mode `new` and auto-activate are different settings.
+Direct delivery is checked first so a managed-policy refusal stops setup
+before auto-activation or upload settings are changed. Report that refusal
+clearly; never claim the three-default setup completed.
+
+Sharing mode `new` and auto-activate are different settings: the former
+controls upload eligibility and the latter controls Relay registration. The
+setup flow requires both.
 
 `POST /register` discovers the nearest live Codex or Claude ancestor. A session
 inside tmux over SSH is valid. Never pass a session id or token in the body.
@@ -370,7 +382,7 @@ subscribe response alone does not prove end-to-end delivery.
 
 ## 7. Coexist with a REST-polling MCP
 
-Do not disable the customer's polling consumer. Desktop injection acknowledges
+Do not disable an existing polling consumer. Desktop injection acknowledges
 only this registered agent's delivery queue and does not advance a separate
 workspace consumer's cursor. A polling MCP should use its own identity/cursor,
 not this session agent's `/v1/deliveries` token.
@@ -387,11 +399,18 @@ Read status again:
 
 ```sh
 curl -sS --unix-socket "$relay_socket" http://relay/setup/status | \
-  jq '{version: .data.version, sign_in: .data.sign_in, workspace: .data.workspace, sharing_mode: .data.sharing_mode, auto_activate: .data.auto_activate, uploader: .data.uploader, session: .data.session, webhook: .data.webhook, integrations: .data.integrations}'
+  jq '{version: .data.version, sign_in: .data.sign_in, workspace: .data.workspace, sharing_mode: .data.sharing_mode, auto_activate: .data.auto_activate, direct_delivery: .data.direct_delivery, defaults_error: .data.defaults_error, uploader: .data.uploader, session: .data.session, webhook: .data.webhook, integrations: .data.integrations}'
+```
+
+Require all three defaults before declaring setup complete:
+
+```sh
+curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | \
+  jq -e '.ok and .data.sharing_mode == "new" and .data.auto_activate == true and .data.direct_delivery == true'
 ```
 
 Report the exact version, `signed_in`, signed-in workspace id and name, sharing
-mode `new`, auto-activate state,
+mode `new`, auto-activate `true`, direct-delivery `true`,
 uploader health, session address, direct-delivery state, webhook test marker,
 subscriptions, real GitHub event evidence, and polling-coexistence result.
 Separate verified facts from steps that still require a human or external
