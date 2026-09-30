@@ -243,11 +243,6 @@ auto-activation puts every existing live session and every future session on
 the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`:
 
 ```sh
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{"mode":"new"}' http://relay/setup/sharing | jq
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{"enabled":true}' \
-  http://relay/setup/auto-activate | jq
 direct_delivery=$(curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"enabled":true}' http://relay/setup/direct-delivery)
 printf '%s\n' "$direct_delivery" | jq
@@ -258,8 +253,17 @@ if ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; t
   exit 1
 fi
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+  -d '{"mode":"new"}' http://relay/setup/sharing | jq
+curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+  -d '{"enabled":true}' \
+  http://relay/setup/auto-activate | jq
+curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{}' http://relay/register | jq
 ```
+
+Direct delivery is checked first so a managed-policy refusal stops setup
+before auto-activation or upload settings are changed. Report that refusal
+clearly; never claim the three-default setup completed.
 
 Sharing mode `new` and auto-activate are different settings: the former
 controls upload eligibility and the latter controls Relay registration. The
