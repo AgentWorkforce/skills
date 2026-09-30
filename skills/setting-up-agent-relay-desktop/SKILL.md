@@ -154,7 +154,7 @@ if test -z "$relay_cli"; then
     "$HOME/.nvm/versions/node"
   do
     test -d "$relay_root" || continue
-    candidate=$(find "$relay_root" -mindepth 3 -maxdepth 3 \
+    candidate=$(find -L "$relay_root" -mindepth 3 -maxdepth 3 \
       -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
     if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
       relay_cli=$candidate
@@ -198,10 +198,30 @@ relay_version=$(sed -n 's/^__version__ = "\([0-9A-Za-z._-]*\)"$/\1/p' \
 case "$relay_version" in
   ''|*[!0-9A-Za-z._-]*) printf 'Invalid Agent Relay version in archive.\n' >&2; exit 1 ;;
 esac
+relay_unit="$HOME/.config/systemd/user/agent-relay.service"
+relay_installed_version=
+if test -S "${relay_socket:-/nonexistent}"; then
+  relay_installed_version=$(curl -fsS --unix-socket "$relay_socket" \
+    http://relay/setup/status 2>/dev/null | jq -r '.data.version // empty' || true)
+fi
+if test -z "$relay_installed_version" && test -r "$relay_unit"; then
+  relay_installed_version=$(sed -n \
+    's#^ExecStart=.*/agent-relay/\([^/ ]*\)/usr/bin/agent-relay .*#\1#p' \
+    "$relay_unit")
+fi
+case "$relay_installed_version" in
+  ''|*[!0-9A-Za-z._-]*) relay_installed_version= ;;
+esac
+if test -n "$relay_installed_version" && \
+   test "$relay_installed_version" != "$relay_version" && \
+   test "$(printf '%s\n%s\n' "$relay_version" "$relay_installed_version" | sort -V | tail -n 1)" = "$relay_installed_version"; then
+  printf 'Installed Agent Relay %s is newer than archive %s; refusing downgrade.\n' \
+    "$relay_installed_version" "$relay_version" >&2
+  exit 1
+fi
 relay_prefix="$HOME/.local/lib/agent-relay/$relay_version"
 mkdir -p "$relay_prefix"
 cp -a "$relay_tree/usr" "$relay_prefix/"
-relay_unit="$HOME/.config/systemd/user/agent-relay.service"
 mkdir -p "$(dirname "$relay_unit")"
 sed "s#^ExecStart=/usr/bin/agent-relay#ExecStart=$relay_prefix/usr/bin/agent-relay#" \
   "$relay_tree/usr/lib/systemd/user/agent-relay.service" >"$relay_unit.tmp"
@@ -219,8 +239,7 @@ systemctl --user is-active agent-relay.service
 loginctl show-user "$USER" -p Linger
 ```
 
-Do not improvise Alpine/RHEL packaging. Before replacing an existing service,
-apply the earlier version check and refuse to downgrade a newer running app.
+Do not improvise Alpine/RHEL packaging.
 
 ### macOS DMG
 
@@ -448,7 +467,7 @@ if test -z "${relay_cli:-}"; then
     "$HOME/.nvm/versions/node"
   do
     test -d "$relay_root" || continue
-    candidate=$(find "$relay_root" -mindepth 3 -maxdepth 3 \
+    candidate=$(find -L "$relay_root" -mindepth 3 -maxdepth 3 \
       -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
     if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
       relay_cli=$candidate
