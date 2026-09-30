@@ -59,12 +59,25 @@ uname -s
 uname -m
 test -n "${TMUX:-}" && printf 'session=tmux\n' || true
 test -n "${SSH_CONNECTION:-}" && printf 'transport=ssh\n' || true
+if test "$(uname -s)" = Linux; then
+  if command -v dpkg-query >/dev/null; then
+    printf 'linux_install=deb\n'
+  else
+    printf 'linux_install=per-user-tarball\n'
+  fi
+fi
 command -v systemctl >/dev/null && systemctl --user is-system-running || true
 ```
 
-On the supported headless Linux path, expect current Ubuntu LTS, systemd, SSH,
-and Codex or Claude in tmux. The app scans same-user process trees and TTYs; it
-does not require the service itself to share the tmux session.
+On Ubuntu with `dpkg`, prefer the `.deb` path below. On Arch-based and other
+systemd Linux hosts without `dpkg`, use the checksum-verified per-user tarball
+path; do not try to install the `.deb`. The app scans same-user process trees
+and TTYs; it does not require the service itself to share the tmux session.
+
+`systemctl --user is-system-running` may report `degraded` because an unrelated
+user unit failed. That is not a Relay failure when
+`systemctl --user is-active agent-relay.service` reports `active` and the Relay
+socket passes its status check.
 
 Find an existing socket without printing private files:
 
@@ -89,8 +102,9 @@ curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq
 
 Preserve a working newer install. When the socket is absent, check for an
 installed-but-stopped copy before downloading: use `dpkg-query -W agent-relay`
-and `systemctl --user status agent-relay.service` on Linux, or test
-`/Applications/Agent Relay.app` on macOS. Start it and retry status first.
+when `dpkg-query` exists and `systemctl --user status agent-relay.service` on
+Linux, or test `/Applications/Agent Relay.app` on macOS. Start it and retry
+status first.
 Update an older install only when it lacks the setup contract or reports an
 older version. A `404` from `/setup/status` means the installed build is too
 old for agent-driven setup and should be updated.
@@ -169,10 +183,11 @@ test -n "$relay_cli" || {
 "$relay_cli" integration subscribe --help >/dev/null
 ```
 
-If `.deb` installation is unavailable but the human approves a per-user
-tarball installation, install it under a versioned user directory. The archive
-contains a unit whose `/usr/bin` path is correct for packages, so rewrite only
-that `ExecStart` in the user copy:
+On Linux without `dpkg`, use this per-user tarball installation under a
+versioned user directory. It is also the fallback on Ubuntu when `.deb`
+installation is unavailable and the human approves a per-user install. The
+archive contains a unit whose `/usr/bin` path is correct for packages, so
+rewrite only that `ExecStart` in the user copy:
 
 ```sh
 case "$(uname -m)" in
@@ -239,7 +254,9 @@ systemctl --user is-active agent-relay.service
 loginctl show-user "$USER" -p Linger
 ```
 
-Do not improvise Alpine/RHEL packaging.
+Do not improvise Alpine or RHEL distribution packages. On a compatible
+systemd host without `dpkg`, use only the verified per-user tarball path above;
+non-systemd hosts remain unsupported by this Linux workflow.
 
 ### macOS DMG
 
@@ -312,24 +329,72 @@ sign_in_payload=$(jq -nc --arg workspace "$relay_workspace_uuid" '{workspace:$wo
 sign_in=$(curl -sS --unix-socket "$relay_socket" \
   -H 'Content-Type: application/json' \
   -d "$sign_in_payload" http://relay/setup/sign-in)
-printf '%s\n' "$sign_in" | jq '{ok, data: {status: .data.status, workspace: .data.workspace, verification_url: .data.verification_url, verification_url_complete: .data.verification_url_complete, user_code: .data.user_code, expires_at: .data.expires_at, interval: .data.interval}, error}'
+printf '%s\n' "$sign_in" | jq \
+  '{ok, data: {
+    status: .data.status,
+    reused_login: .data.reused_login,
+    workspace: .data.workspace
+  }, error}'
 ```
 
-If this returns `signed_in` with `reused_login:true`, the app reused an
-eligible same-origin CLI or desktop login. Confirm the returned workspace id
-and name match the intended workspace before continuing.
+If sign-in reports that older upload schedules could not be inspected, first
+inspect the user's legacy cron, launchd, and user-service upload schedules.
+After completing that safety check, retry the original request with the
+acknowledgement added; never use it merely to suppress the error:
 
-For `pending_approval`, show the human the `verification_url_complete` when it
-is non-null, otherwise show `verification_url` and `user_code`. On a headless
-server the human can approve from any phone or browser. Do not create another
-code while this one is pending. Wait at the reported interval and poll:
+```sh
+sign_in_payload=$(printf '%s\n' "$sign_in_payload" | \
+  jq '. + {acknowledge_uninspected_schedules:true}')
+sign_in=$(curl -sS --unix-socket "$relay_socket" \
+  -H 'Content-Type: application/json' \
+  -d "$sign_in_payload" http://relay/setup/sign-in)
+printf '%s\n' "$sign_in" | jq \
+  '{ok, data: {
+    status: .data.status,
+    reused_login: .data.reused_login,
+    workspace: .data.workspace
+  }, error}'
+```
+
+Print a device link and code only when the response actually contains a code:
+
+```sh
+user_code=$(printf '%s\n' "$sign_in" | jq -r '.data.user_code // empty')
+if test -n "$user_code"; then
+  verification_url_complete=$(printf '%s\n' "$sign_in" | \
+    jq -r '.data.verification_url_complete // empty')
+  if test -n "$verification_url_complete"; then
+    printf 'Open %s and approve code %s\n' "$verification_url_complete" "$user_code"
+  else
+    verification_url=$(printf '%s\n' "$sign_in" | \
+      jq -r '.data.verification_url // empty')
+    printf 'Open %s and enter code %s\n' "$verification_url" "$user_code"
+  fi
+fi
+```
+
+If the response is `signed_in` with `reused_login:true`, the app reused an
+eligible same-origin CLI or desktop login and intentionally issued no device
+code. Confirm the returned workspace id and name with the human rather than
+waiting for a code, then continue only if it is the intended workspace.
+
+For `pending_approval`, the human can approve from any phone or browser. Do not
+create another code while this one is pending. A `preparing` response is also
+normal: poll `/setup/status` at the reported interval. Preparing local history
+can take about a minute when the app reuses an existing `agent-relay` CLI login.
+Poll both states until sign-in finishes:
 
 ```sh
 while :; do
   state=$(curl -sS --unix-socket "$relay_socket" http://relay/setup/status)
   phase=$(printf '%s' "$state" | jq -r '.data.sign_in // .error.code')
   case "$phase" in
-    signed_in) break ;;
+    signed_in)
+      printf '%s\n' "$state" | jq \
+        '{sign_in: .data.sign_in, workspace: .data.workspace}'
+      break
+      ;;
+    preparing|pending_approval) ;;
     denied|expired|error) printf '%s\n' "$state" | jq; exit 1 ;;
   esac
   sleep "$(printf '%s' "$sign_in" | jq -r '.data.interval // 5')"
@@ -358,8 +423,17 @@ curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"enabled":true}' \
   http://relay/setup/auto-activate | jq
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{}' http://relay/register | jq
+register=$(curl -sS --unix-socket "$relay_socket" \
+  -H 'Content-Type: application/json' \
+  -d '{}' http://relay/register)
+printf '%s\n' "$register" | jq
+registration_status=$(curl -sS --unix-socket "$relay_socket" \
+  http://relay/setup/status)
+printf '%s\n' "$registration_status" | \
+  jq '{session: .data.session, direct_delivery: .data.direct_delivery, error}'
+printf '%s\n' "$registration_status" | jq -e \
+  '.ok and (.data.session.id | type == "string" and length > 0) and
+   .data.session.registered == true and .data.session.direct_delivery == true'
 ```
 
 Direct delivery is checked first so a managed-policy refusal stops setup
@@ -374,8 +448,12 @@ setup flow requires both.
 inside tmux over SSH is valid. Never pass a session id or token in the body.
 The default name includes a 128-bit session-derived suffix, so dozens of
 sessions in the same checkout receive distinct `name@direct` addresses. Save
-and report the address returned by each session's own registration call; never
-reuse one session's address for another.
+and report the address from `/setup/status` for each session; never reuse one
+session's address for another. `/register` may omit the session id or
+direct-delivery state, so its response alone is not verification. Require the
+status response to show this session's non-empty id, `registered:true`, and
+`session.direct_delivery:true` as above. An app fix is expected to add those
+fields to `/register`, but the status check remains authoritative.
 
 ## 5. Create and test the webhook
 
@@ -393,10 +471,12 @@ curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
 jq '{ok, created: .data.created, webhook_id: .data.webhook_id, url: .data.url, error}' "$hook_file"
 ```
 
-When `created:true`, send a unique marker and wait for it to appear in this
-session:
+When `created:true`, send a unique marker. Initialize every temporary path so
+cleanup can name and delete exact files without `-f` or globs:
 
 ```sh
+hook_config=
+marker=
 if test "$(jq -r '.data.created // false' "$hook_file")" = true && \
    test "$(jq -r '.data.secret // empty' "$hook_file")" != ''; then
   hook_url=$(jq -r '.data.url' "$hook_file")
@@ -408,23 +488,32 @@ if test "$(jq -r '.data.created // false' "$hook_file")" = true && \
   curl -fsS --config "$hook_config" -X POST "$hook_url" \
     -H 'Content-Type: application/json' \
     -d "{\"text\":\"$marker\",\"source\":\"agent-driven-setup\"}"
-  rm -f "$hook_config"
 else
   printf 'Webhook already exists; its original secret is required to repeat delivery verification.\n' >&2
 fi
-rm -f "$hook_file"
-test -z "${hook_config:-}" || rm -f "$hook_config"
+if test -n "$hook_config" && test -e "$hook_config"; then
+  rm -- "$hook_config"
+fi
+if test -e "$hook_file"; then
+  rm -- "$hook_file"
+fi
 unset hook_secret
+if test -n "$marker"; then
+  printf 'Webhook test sent; end this turn and wait for marker: %s\n' "$marker"
+fi
 ```
 
-Do not claim success merely because the POST returned 2xx. Wait for a new
-injected turn whose body contains the exact marker and whose Agent Relay header
-contains a full message id; record that id in the final evidence. If a polling
-consumer is part of the setup, also observe that same id there before declaring
-the webhook test complete. If the webhook already existed, its secret is
-correctly returned as null; do not revoke or recreate it without human
-authorization. Ask for the existing secret or report that the delivery test
-could not be repeated.
+Do not claim success merely because the POST returned 2xx, and do not sleep or
+poll for the injected message during the same turn. Relay injects only after
+the session becomes idle between turns. After the POST and exact-file cleanup,
+end the current turn by saying that setup is waiting for the exact marker. On
+the next turn, confirm that the injected body contains that marker and its
+Agent Relay header contains a full message id; record that id in the final
+evidence. If a polling consumer is part of the setup, also observe that same id
+there before declaring the webhook test complete. If the webhook already
+existed, its secret is correctly returned as null; do not revoke or recreate it
+without human authorization. Ask for the existing secret or report that the
+delivery test could not be repeated.
 
 ## 6. Subscribe requested integrations
 
@@ -489,8 +578,10 @@ without subscribing unrelated repository traffic. The desktop endpoint accepts
 every explicit glob, so this is automatable even though there is no per-PR UI.
 For real GitHub verification, use a harmless event the human authorized
 on that PR (for example, a test conversation comment and a requested bot
-review), then wait for the injected event and record its full message id. Do not
-create a comment, review, or rerun without authorization. A successful
+review). After causing the event, do not wait or poll within the active turn:
+end the turn saying which event marker is expected. Confirm the injected event
+and record its full message id on the next turn after Relay has delivered it.
+Do not create a comment, review, or rerun without authorization. A successful
 subscribe response alone does not prove end-to-end delivery.
 
 ## 7. Coexist with a REST-polling MCP
@@ -503,8 +594,9 @@ not this session agent's `/v1/deliveries` token.
 Injected text contains both the full Relaycast message id and a short `ref`.
 When polling and injection can surface the same workspace message, deduplicate
 on the full message id before acting. During verification, leave the poller
-running, confirm it can still observe the test message, and confirm the agent
-acts only once.
+running and observe the test message there. Then end the current turn so Relay
+can inject it, and on the next turn confirm the same full id arrived while the
+agent acted only once.
 
 ## 8. Final verification and report
 
