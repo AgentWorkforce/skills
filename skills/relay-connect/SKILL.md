@@ -233,8 +233,8 @@ message:
   MCP `connect_status` to get a fresh single-use `host_claim`, then retry the
   socket join once. The refresh invalidates the previous claim. Never expose
   the new claim. Guests cannot refresh or receive a claim.
-- `connect_rate_limited` (429): wait the `Retry-After` number of seconds
-  (currently 60) and retry once. If it fails again, tell the human and stop.
+- `connect_rate_limited` (429): wait the `Retry-After` number of seconds and
+  retry once. If it fails again, tell the human and stop.
 - `connect_unavailable` (502): preserve the join request and retry it once. If
   it still fails, tell the human that Cloud could not complete the join.
 - `connect_not_joined` (404): tell the human this session is not in a Connect
