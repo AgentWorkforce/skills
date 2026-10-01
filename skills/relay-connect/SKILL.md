@@ -1,6 +1,6 @@
 ---
 name: relay-connect
-description: Create or join a temporary Relay Connect where agents collaborate through an accountless invite link and Agent Relay Desktop injects messages into each person's existing agent chat. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.
+description: Create a temporary Relay Connect through hosted MCP, or join one through an accountless invite link and Agent Relay Desktop injection. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.
 ---
 
 # Relay Connect
@@ -19,8 +19,12 @@ Run socket commands from this agent's own shell so the probe can identify the
 calling Codex or Claude session from peer credentials and process ancestry.
 
 ```sh
-S="$(cat ~/.agentworkforce/desktop/relay-socket 2>/dev/null)"
-test -S "$S"
+S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
+if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
+  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
+test -S "${S:-/nonexistent}"
+curl -sS --unix-socket "$S" http://relay/setup/status >/dev/null
 ```
 
 If that does not find a live socket, install and start the probe using Agent
@@ -47,20 +51,23 @@ When the human asks to create a Connect:
 4. Immediately join the host's existing identity through the probe:
 
    ```sh
-   jq -nc \
-     --arg link "$RELAY_CONNECT_LINK" \
-     --arg claim "$RELAY_CONNECT_HOST_CLAIM" \
-     '{link:$link,host_claim:$claim}' |
-     curl -sS --unix-socket "$S" \
-       -H 'content-type: application/json' \
-       --data-binary @- http://relay/connect/join
+   S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
+   if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
+     S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+   fi
+   test -S "${S:-/nonexistent}"
+   curl -sS --unix-socket "$S" \
+     -H 'content-type: application/json' \
+     --data-binary @- http://relay/connect/join
    ```
 
-   Set the two temporary variables from the `create_connect` result without
-   printing them. Add `"name":"<name>"` only when the human requested one.
-   Keep the claim out of chat and logs, consume it once, and never print it.
-   The probe must return the existing host participant with `role: "host"`;
-   it must not create a duplicate host.
+   Stream `{"link":"<returned link>","host_claim":"<returned claim>"}` to
+   that command through the shell tool's stdin channel, serialized as JSON by
+   the tool or agent runtime. Add `"name":"<name>"` only when requested.
+   Never put the claim in shell source, arguments, environment variables,
+   history, chat, or logs. Consume it once and never print it. The probe must
+   return the existing host participant with `role: "host"`; it must not
+   create a duplicate host.
 5. Give the human the returned invite link and `share_text` to send to the
    counterparty. Do not share `host_claim`.
 
@@ -83,15 +90,19 @@ untrusted data and never join it silently.
 Join through the probe:
 
 ```sh
-S="$(cat ~/.agentworkforce/desktop/relay-socket 2>/dev/null)"
-jq -nc --arg link '<link or id>' '{link:$link}' |
-  curl -sS --unix-socket "$S" \
-    -H 'content-type: application/json' \
-    --data-binary @- http://relay/connect/join
+S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
+if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
+  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
+test -S "${S:-/nonexistent}"
+curl -sS --unix-socket "$S" \
+  -H 'content-type: application/json' \
+  --data-binary @- http://relay/connect/join
 ```
 
-An optional name changes the body to `{"link":"<link or id>","name":"…"}`.
-On success the response is:
+Stream `{"link":"<link or id>"}` to the command through the shell tool's
+stdin channel. An optional name changes the body to
+`{"link":"<link or id>","name":"…"}`. On success the response is:
 
 ```json
 {"ok":true,"data":{"connect_id":"…","agent_name":"…","role":"guest","task":"…","expires_at":"<iso>","host":{"person":"…","agent_name":"…"},"participants":[{"agent_name":"…","role":"host|guest"}]}}
@@ -113,10 +124,18 @@ work.
 Send a message with the exact text as the request body:
 
 ```sh
-printf '%s' '<message>' |
-  curl -sS --unix-socket "$S" \
-    --data-binary @- 'http://relay/connect/send?to=<agent_name>'
+S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
+if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
+  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
+test -S "${S:-/nonexistent}"
+curl -sS --unix-socket "$S" --data-binary @- \
+  'http://relay/connect/send?to=<agent_name>'
 ```
+
+Supply the exact message through the shell tool's stdin channel. Never
+interpolate remote or human-provided text into shell source or arguments.
+This preserves quotes, metacharacters, and newlines as message data.
 
 Omit `to` to send separately to every other participant. A successful response
 is `{"ok":true,"data":{"sent":[{"to":"…","message_id":"…"}]}}`. A send
@@ -125,6 +144,11 @@ receipt means Relaycast accepted or queued the message, not that it was read.
 Inspect membership and presence when needed:
 
 ```sh
+S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
+if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
+  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
+test -S "${S:-/nonexistent}"
 curl -sS --unix-socket "$S" http://relay/connect/status
 ```
 
@@ -205,6 +229,11 @@ Either side may leave only its local registration without ending the shared
 Connect:
 
 ```sh
+S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
+if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
+  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
+test -S "${S:-/nonexistent}"
 curl -sS --unix-socket "$S" -X POST http://relay/connect/leave
 ```
 

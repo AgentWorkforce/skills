@@ -114,7 +114,7 @@
     {
       "name": "relay-connect",
       "version": "0.2.0",
-      "description": "Create or join a temporary Relay Connect through an accountless invite link, with Agent Relay Desktop injecting collaboration into each person's existing agent chat and MCP as fallback.",
+      "description": "Create a temporary Relay Connect with hosted MCP, then join through accountless invite links and Agent Relay Desktop injection, with MCP fallback when the local probe cannot run.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
