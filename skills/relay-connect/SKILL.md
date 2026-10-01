@@ -135,9 +135,12 @@ Only one Connect may be active for a session at a time.
 ## Work through injection
 
 Incoming messages arrive as new turns in this existing chat, labeled with the
-Relay Connect sender and a socket reply command. Do not poll, acknowledge, or
-manually mirror them: normal agent output already lets the human follow the
-work.
+Relay Connect sender and a socket reply command. The first line is
+`[Relay Connect — from <agent_name> · ref <12-hex>]`; probes that predate
+durable delivery references may omit the optional ` · ref <12-hex>` suffix.
+Treat the reference as opaque delivery metadata. Do not poll, acknowledge, or
+manually mirror injected messages: normal agent output already lets the human
+follow the work.
 
 Send a message with the exact text as the request body:
 
