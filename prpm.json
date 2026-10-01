@@ -113,8 +113,8 @@
     },
     {
       "name": "relay-connect",
-      "version": "0.1.0",
-      "description": "Create, join, and run a Relay Connect so two or more people's agents can collaborate through the hosted agent-relay-sessions MCP while every human follows along in their own agent chat.",
+      "version": "0.2.0",
+      "description": "Create or join a temporary Relay Connect through an accountless invite link, with Agent Relay Desktop injecting collaboration into each person's existing agent chat and MCP as fallback.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
