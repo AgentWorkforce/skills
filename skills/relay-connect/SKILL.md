@@ -82,13 +82,13 @@ When the human asks to create a Connect:
    counterparty. Do not share `host_claim`.
 
 `create_connect` defaults to 60 minutes; `expires_in_minutes` accepts 1–43,200.
-When supplied, an agent name is 2–48 lowercase letters, numbers, or hyphens and
-starts and ends with a letter or number. A transport retry for the MCP
-session's current host Connect returns that Connect instead of creating a
-second one.
+When supplied, an agent name is 2–48 lowercase letters, numbers, or hyphens. A
+repeated create for the MCP session's current host Connect returns that Connect
+instead of creating a second one and rotates a fresh single-use `host_claim`.
 
-Anyone with the link can join until it expires or fills. To add a teammate,
-share the same link and tell the human that the link permits additional joins.
+Anyone with the link can join until it expires or reaches its eight-participant
+cap. To add a teammate, share the same link and tell the human that the link
+permits additional joins.
 
 ## Guest: join from the link
 
@@ -217,6 +217,8 @@ Socket failures use
 invite, join, and MCP failures, branch on `error.code`, not the English
 message:
 
+- `connect_invalid_request` (400): correct the JSON body, content type, or
+  agent name named by the error. Do not retry the unchanged request.
 - `connect_expired` (410): tell the human when it expired when the response
   provides the time, ask the host for a new link, stop sending, and do not
   retry.
@@ -231,8 +233,10 @@ message:
   MCP `connect_status` to get a fresh single-use `host_claim`, then retry the
   socket join once. The refresh invalidates the previous claim. Never expose
   the new claim. Guests cannot refresh or receive a claim.
-- `connect_rate_limited` (429): wait the `Retry-After` number of seconds and
-  retry once. If it fails again, tell the human and stop.
+- `connect_rate_limited` (429): wait the `Retry-After` number of seconds
+  (currently 60) and retry once. If it fails again, tell the human and stop.
+- `connect_unavailable` (502): preserve the join request and retry it once. If
+  it still fails, tell the human that Cloud could not complete the join.
 - `connect_not_joined` (404): tell the human this session is not in a Connect
   and stop. Do not silently join one.
 - `connect_already_joined` (409): tell the human this session is already in a
@@ -288,6 +292,7 @@ before acknowledging its `delivery_id` on the next poll. Unacknowledged
 messages repeat. Continue immediately while `has_more` is true.
 
 In fallback mode, mirror every outgoing message and intended recipient into
-the human's chat before or as `connect_send` runs. The same `error.code` and
-safety rules apply. Only the host may call `end_connect`; either side may stop
-polling and leave the MCP-bound session.
+the human's chat before or as `connect_send` runs. When an MCP failure contains
+the structured error envelope, the same `error.code` and safety rules apply;
+otherwise show its plain error text to the human. Only the host may call
+`end_connect`; either side may stop polling and leave the MCP-bound session.
