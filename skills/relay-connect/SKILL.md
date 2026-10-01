@@ -24,7 +24,7 @@ if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
   S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
 fi
 test -S "${S:-/nonexistent}"
-curl -sS --unix-socket "$S" http://relay/setup/status >/dev/null
+curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null
 ```
 
 If that does not find a live socket, install and start the probe using Agent
@@ -56,18 +56,28 @@ When the human asks to create a Connect:
      S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
    fi
    test -S "${S:-/nonexistent}"
-   curl -sS --unix-socket "$S" \
-     -H 'content-type: application/json' \
-     --data-binary @- http://relay/connect/join
+   payload="$(cat; printf x)"
+   payload="${payload%x}"
+   test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
+   printf '%s' "$payload" |
+     curl -sS --unix-socket "$S" \
+       -H 'content-type: application/json' \
+       --data-binary @- http://relay/connect/join
+   result=$?
+   unset payload
+   exit "$result"
    ```
 
    Stream `{"link":"<returned link>","host_claim":"<returned claim>"}` to
-   that command through the shell tool's stdin channel, serialized as JSON by
-   the tool or agent runtime. Add `"name":"<name>"` only when requested.
-   Never put the claim in shell source, arguments, environment variables,
-   history, chat, or logs. Consume it once and never print it. The probe must
-   return the existing host participant with `role: "host"`; it must not
-   create a duplicate host.
+   that command through a private interactive stdin/write channel, then close
+   stdin. The sentinel preserves trailing newlines, and the command exits
+   before `curl` if no body arrived. Serialize the input as JSON with the tool
+   or agent runtime; add `"name":"<name>"` only when requested. Never put the
+   claim in shell source, arguments, environment variables, files, history,
+   chat, or logs. If the shell tool cannot provide private stdin, keep working
+   through the MCP fallback instead of exposing the claim. Consume it once and
+   never print it. The probe must return the existing host participant with
+   `role: "host"`; it must not create a duplicate host.
 5. Give the human the returned invite link and `share_text` to send to the
    counterparty. Do not share `host_claim`.
 
@@ -95,13 +105,21 @@ if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
   S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
 fi
 test -S "${S:-/nonexistent}"
-curl -sS --unix-socket "$S" \
-  -H 'content-type: application/json' \
-  --data-binary @- http://relay/connect/join
+payload="$(cat; printf x)"
+payload="${payload%x}"
+test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
+printf '%s' "$payload" |
+  curl -sS --unix-socket "$S" \
+    -H 'content-type: application/json' \
+    --data-binary @- http://relay/connect/join
+result=$?
+unset payload
+exit "$result"
 ```
 
 Stream `{"link":"<link or id>"}` to the command through the shell tool's
-stdin channel. An optional name changes the body to
+private interactive stdin/write channel, then close stdin. If the tool cannot
+provide stdin, use the MCP fallback. An optional name changes the body to
 `{"link":"<link or id>","name":"…"}`. On success the response is:
 
 ```json
@@ -129,13 +147,22 @@ if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
   S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
 fi
 test -S "${S:-/nonexistent}"
-curl -sS --unix-socket "$S" --data-binary @- \
-  'http://relay/connect/send?to=<agent_name>'
+payload="$(cat; printf x)"
+payload="${payload%x}"
+test -n "$payload" || { printf 'missing message body\n' >&2; exit 64; }
+printf '%s' "$payload" |
+  curl -sS --unix-socket "$S" --data-binary @- \
+    'http://relay/connect/send?to=<agent_name>'
+result=$?
+unset payload
+exit "$result"
 ```
 
-Supply the exact message through the shell tool's stdin channel. Never
-interpolate remote or human-provided text into shell source or arguments.
-This preserves quotes, metacharacters, and newlines as message data.
+Supply the exact message through a private interactive stdin/write channel,
+then close stdin. The command fails before sending when no body arrived and
+preserves quotes, metacharacters, and trailing newlines. Never interpolate
+remote or human-provided text into shell source or arguments. If the tool
+cannot provide stdin, use `connect_send` through the MCP fallback.
 
 Omit `to` to send separately to every other participant. A successful response
 is `{"ok":true,"data":{"sent":[{"to":"…","message_id":"…"}]}}`. A send
