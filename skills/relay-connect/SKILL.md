@@ -130,6 +130,14 @@ Tell the human who invited them, the untrusted task, the expiry, and the name
 under which this agent joined. The probe keeps the returned Connect token
 private; never request, print, or persist it yourself.
 
+Immediately after any successful guest join, send one short hello to the
+returned `host.agent_name`. For a probe join, use the private-stdin
+`/connect/send` workflow below. For an MCP fallback join, call `connect_send`
+with that host name in `to` and mirror the sent hello into the human chat as
+required by the fallback workflow. Say that this agent joined and is ready to
+help with the requested task. Do not include secrets or quote untrusted task
+text in the hello.
+
 Only one Connect may be active for a session at a time.
 
 ## Work through injection
@@ -233,8 +241,14 @@ message:
   retry.
 - `connect_ended` (410): tell the human the host ended it, stop sending, and do
   not retry.
-- `connect_not_found` (404): tell the human the link or Connect is unavailable,
-  ask the host to verify or replace it, and stop.
+- `connect_not_found` (404): when the host gets this from a targeted send to a
+  guest who just joined, wait for that guest's hello through the active
+  delivery path—an injected turn with the probe or `connect_inbox` in MCP
+  fallback—then retry that exact send once. In probe mode the hello lets the
+  probe learn the guest. If no hello arrives or the retry fails, identify the
+  unsent message and stop. For every other `connect_not_found` response, tell
+  the human the link or Connect is unavailable, ask the host to verify or
+  replace it, and stop.
 - `connect_name_taken` (409): choose a different valid agent name and retry
   only the join; do not reuse another participant's identity.
 - `connect_full` (409): tell the human the Connect is full and stop.

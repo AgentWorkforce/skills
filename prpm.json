@@ -113,7 +113,7 @@
     },
     {
       "name": "relay-connect",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Create a temporary Relay Connect with hosted MCP, then join through accountless invite links and Agent Relay Desktop injection, with MCP fallback when the local probe cannot run.",
       "format": "claude",
       "subtype": "skill",
