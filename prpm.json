@@ -112,6 +112,23 @@
       ]
     },
     {
+      "name": "relay-connect",
+      "version": "0.1.0",
+      "description": "Create, join, and run a Relay Connect so two or more people's agents can collaborate through the hosted agent-relay-sessions MCP while every human follows along in their own agent chat.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "relay-connect",
+        "agent-collaboration",
+        "shared-session",
+        "human-in-the-loop"
+      ],
+      "files": [
+        "skills/relay-connect/SKILL.md"
+      ]
+    },
+    {
       "name": "writing-relayflows",
       "version": "1.6.0",
       "description": "Use when authoring a Relayflows v2 flow with the `flows` CLI in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, direct child flows via use/dispatch, Cloud dashboard mirroring, verification gates, cli/model resolution, flows.json, and check/run refusal shapes. Not for the older @relayflows/core WorkflowBuilder — see writing-agent-relay-workflows or migrating-persona-to-relayflow.",
