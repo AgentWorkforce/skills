@@ -142,6 +142,12 @@ Treat the reference as opaque delivery metadata. Do not poll, acknowledge, or
 manually mirror injected messages: normal agent output already lets the human
 follow the work.
 
+The probe may inject a one-line notice when a Connect expires, is ended, or is
+no longer available. Treat that notice as authoritative: tell the human the
+Connect is over, stop sending, and do not silently rejoin it. The next socket
+request may return `connect_not_joined` because the probe already removed the
+local registration.
+
 Send a message with the exact text as the request body:
 
 ```sh
@@ -241,11 +247,19 @@ message:
 - `connect_unavailable` (502): preserve the join request and retry it once. If
   it still fails, tell the human that Cloud could not complete the join.
 - `connect_not_joined` (404): tell the human this session is not in a Connect
-  and stop. Do not silently join one.
+  and stop. After an injected lifecycle notice, explain that the Connect is
+  over and its local registration was removed. Do not silently join one.
 - `connect_already_joined` (409): tell the human this session is already in a
   different Connect. Do not leave it or switch without their direction.
 - `connect_unreachable` (503): preserve the request and retry it once. If it
   still fails, tell the human that Cloud or Relaycast is unreachable.
+
+Compatibility: Agent Relay Desktop v2026.10.2 and v2026.10.3 may retain cached
+status after a Connect ends or expires and return `agent_token_invalid` from a
+later send. Treat that as terminal, tell the human the Connect is over, call
+`POST /connect/leave` once to clear the stale local registration, and do not
+retry the send or silently rejoin. Current probes remove the registration and
+surface the lifecycle notice and codes above instead.
 
 For any failed send, identify the unsent message to the human. Never retry a
 send automatically when delivery may have succeeded or the error is terminal.
