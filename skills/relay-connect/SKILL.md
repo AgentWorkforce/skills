@@ -20,10 +20,7 @@ calling Codex or Claude session from peer credentials and process ancestry.
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null
 ```
 
@@ -232,10 +229,7 @@ When the human asks to create a Connect:
 
    ```sh
    S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-   if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-     S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-   fi
-   test -S "${S:-/nonexistent}"
+   test -n "$S" && test -S "$S"
    payload="$(cat; printf x)"
    payload="${payload%x}"
    test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
@@ -281,10 +275,7 @@ Join through the probe:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 payload="$(cat; printf x)"
 payload="${payload%x}"
 test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
@@ -340,10 +331,7 @@ Send a message with the exact text as the request body:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 payload="$(cat; printf x)"
 payload="${payload%x}"
 test -n "$payload" || { printf 'missing message body\n' >&2; exit 64; }
@@ -369,10 +357,7 @@ Inspect membership and presence when needed:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 curl -sS --unix-socket "$S" http://relay/connect/status
 ```
 
@@ -472,10 +457,7 @@ Connect:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 curl -sS --unix-socket "$S" -X POST http://relay/connect/leave
 ```
 
