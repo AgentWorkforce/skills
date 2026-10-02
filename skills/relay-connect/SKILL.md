@@ -115,8 +115,8 @@ pointer file only when it starts, so leave an existing pointer in place:
 
 ```sh
 set -eu
-for tool in awk codesign curl ditto grep hdiutil mkdir mktemp open osascript \
-  pgrep rm sed shasum sleep uname; do
+for tool in awk codesign curl ditto grep hdiutil mkdir mktemp mv open \
+  osascript pgrep rm sed shasum sleep uname; do
   command -v "$tool" >/dev/null || {
     printf 'Missing prerequisite: %s\n' "$tool" >&2
     exit 2
@@ -169,11 +169,14 @@ else
   app="$HOME/Applications/Agent Relay.app"
   printf 'Using the untested per-user Applications fallback: %s\n' "$app" >&2
 fi
-rm -rf -- "$app"
-ditto "$volume/Agent Relay.app" "$app"
+staged="$app.new"
+rm -rf -- "$staged"
+ditto "$volume/Agent Relay.app" "$staged"
 hdiutil detach "$volume"
 volume=
-codesign --verify --deep --strict "$app"
+codesign --verify --deep --strict "$staged"
+rm -rf -- "$app"
+mv "$staged" "$app"
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
 open "$app"
 S=
