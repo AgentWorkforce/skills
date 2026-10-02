@@ -32,7 +32,7 @@ inline steps below. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
-On Linux, require `curl`, `tar`, `sha256sum`, and `stat`. Use the relocatable
+On Linux, require `curl`, `tar`, and `sha256sum`. Use the relocatable
 tarball so the guest needs neither root nor `sudo`. The adjacent checksum
 detects download corruption; `latest` intentionally follows the current
 compatible probe release:
@@ -44,7 +44,7 @@ case "$(uname -m)" in
   aarch64|arm64) relay_arch=arm64 ;;
   *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
 esac
-for tool in curl tar sha256sum stat; do
+for tool in curl tar sha256sum; do
   command -v "$tool" >/dev/null || {
     printf 'Missing prerequisite: %s\n' "$tool" >&2
     exit 2
@@ -65,35 +65,34 @@ probe="$(find "$install_dir" -type f \
 test -n "$probe" && test -x "$probe"
 ln -sfn "$probe" "$HOME/.local/bin/agent-relay-probe"
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
-expected_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-old_socket_id="$(stat -Lc '%d:%i' "$expected_socket" 2>/dev/null || true)"
 rm -f -- "$pointer"
 nohup "$HOME/.local/bin/agent-relay-probe" relay serve --headless \
   >"$HOME/.agentworkforce/desktop/headless.log" 2>&1 </dev/null &
 probe_pid=$!
+S=
 for _ in $(seq 1 60); do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
-  if ! test -S "${S:-/nonexistent}" && test -S "$expected_socket"; then
-    S="$expected_socket"
-  fi
   test -n "$S" && test -S "$S" && break
   sleep 1
 done
 kill -0 "$probe_pid" 2>/dev/null
-test -n "${S:-}" && test -S "$S"
-test "$S" = "$expected_socket"
-new_socket_id="$(stat -Lc '%d:%i' "$S")"
-test -n "$new_socket_id"
-test -z "$old_socket_id" || test "$new_socket_id" != "$old_socket_id"
+test -n "${S:-}"
+test -S "$S"
 curl -fsS --unix-socket "$S" http://relay/setup/status
 ```
 
-If the human has already authorized `sudo`, the public `.deb` and matching
-`.sha256` asset are an alternative. The accountless path defaults to the
+The probe chooses its own socket location and writes it to the pointer file, so
+the fresh pointer is the only source of truth for `S` after a start. If the
+human has already authorized `sudo`, the public `.deb` and matching `.sha256`
+asset are an alternative. The accountless path defaults to the
 relocatable tarball above.
 
-On macOS, require `curl`, `shasum`, `hdiutil`, and `ditto`. The per-user
-Applications folder works without administrator access:
+On macOS, require `curl`, `shasum`, `hdiutil`, `ditto`, and `codesign`. Install
+under `/Applications` when it is writable; that is the verified location.
+`~/Applications` is an untested fallback for accounts that cannot write there.
+A running app must quit before it is replaced; its process is named
+`RelayDesktop`. The relay core keeps running when the app quits and writes the
+pointer file only when it starts, so leave an existing pointer in place:
 
 ```sh
 set -eu
@@ -112,19 +111,42 @@ curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
 volume="$(hdiutil attach -nobrowse -readonly "$tmp_dir/$asset" | \
   awk '/\/Volumes\// {sub(/^.*\/Volumes\//,"/Volumes/"); print; exit}')"
 test -n "$volume"
-mkdir -p "$HOME/Applications"
-osascript -e 'tell application "Agent Relay" to quit' 2>/dev/null || true
-ditto "$volume/Agent Relay.app" "$HOME/Applications/Agent Relay.app"
+if pgrep -x RelayDesktop >/dev/null 2>&1; then
+  osascript -e 'tell application "Agent Relay" to quit' || {
+    printf 'Close any open Agent Relay sheet or dialog, quit the app, and retry.\n' >&2
+    hdiutil detach "$volume" >/dev/null 2>&1 || true
+    exit 3
+  }
+  for _ in $(seq 1 30); do
+    pgrep -x RelayDesktop >/dev/null 2>&1 || break
+    sleep 1
+  done
+  if pgrep -x RelayDesktop >/dev/null 2>&1; then
+    printf 'Agent Relay is still running; quit it and retry.\n' >&2
+    hdiutil detach "$volume" >/dev/null 2>&1 || true
+    exit 3
+  fi
+fi
+if test -w /Applications; then
+  app='/Applications/Agent Relay.app'
+else
+  mkdir -p "$HOME/Applications"
+  app="$HOME/Applications/Agent Relay.app"
+  printf 'Using the untested per-user Applications fallback: %s\n' "$app" >&2
+fi
+ditto "$volume/Agent Relay.app" "$app"
 hdiutil detach "$volume"
+codesign --verify --deep --strict "$app"
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
-rm -f -- "$pointer"
-open "$HOME/Applications/Agent Relay.app"
+open "$app"
+S=
 for _ in $(seq 1 60); do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
   test -n "$S" && test -S "$S" && break
   sleep 1
 done
-test -n "${S:-}" && test -S "$S"
+test -n "${S:-}"
+test -S "$S"
 curl -fsS --unix-socket "$S" http://relay/setup/status
 ```
 
