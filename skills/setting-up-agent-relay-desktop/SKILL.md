@@ -536,35 +536,66 @@ conversation comments, and checks. Pass the address `gh pr create` printed, or
 `OWNER/REPO#NUMBER`:
 
 ```sh
-relay_probe="$HOME/.local/bin/agent-relay-probe"
-"$relay_probe" relay subscribe "https://github.com/OWNER/REPO/pull/NUMBER" | jq
+relay_probe=
+for candidate in \
+  "$HOME/.local/bin/agent-relay-probe" \
+  /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
+  "/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe"
+do
+  if test -x "$candidate"; then relay_probe=$candidate; break; fi
+done
+if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then
+  relay_probe=$(find "$HOME/.local/lib/agent-relay" -type f -perm -u+x \
+    -path '*/agent_relay/helpers/agent-relay-probe' -print -quit 2>/dev/null)
+fi
+if test -n "$relay_probe"; then
+  "$relay_probe" relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER' | jq
+else
+  printf 'No agent-relay-probe found; use the single-request fallback below.\n' >&2
+fi
 ```
+
+A running production Desktop creates `~/.local/bin/agent-relay-probe` when it
+starts and keeps it at its own version; the other candidates are the copies
+bundled by the `.deb`, the macOS app, and the per-user tarball, for a
+development build or a start that has not finished.
 
 The command finds the socket itself and takes no agent name, workspace key, or
 token: the Desktop identifies the calling session from the process, so run it
 through this agent's own shell tool. Require `.ok` and `.data.subscribed` to be
 `true`. Repeating it is safe; a subscription this session already holds
-answers `"already_subscribed":true`. `--remove` ends it. One numeric
-subscription is enough: do not add separate `reviews`, `status`, or
-`issues/NUMBER/comments` globs, which the Desktop no longer needs.
+answers `"already_subscribed":true`. `--remove` ends it. With this command one
+numeric subscription is enough: do not add separate `reviews`, `status`, or
+`issues/NUMBER/comments` globs.
 
 When the installed app predates the command (`unrecognized subcommand
-'subscribe'`), send the same resource as one request instead. On macOS Codex
-use the probe client, because the system `curl` hides the session's identity:
+'subscribe'`) or no probe was found, subscribe through the socket instead.
+Apps older than v2026.10.2 read only explicit path globs and need all four, so
+this fallback sends those; every version accepts them. On macOS use the probe
+client when there is one, because the system `curl` hides a Codex session's
+identity:
 
 ```sh
-body='{"provider":"github","resource":"OWNER/REPO#NUMBER"}'
-if test "$(uname -s)" = Darwin; then
-  printf '%s' "$body" | "$relay_probe" relay socket-request \
-    --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
-else
-  curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-    -d "$body" http://relay/integrations/subscribe | jq
-fi
+for resource in \
+  '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
+  '/github/repos/OWNER/REPO/pulls/NUMBER/reviews/**' \
+  '/github/repos/OWNER/REPO/pulls/NUMBER/status/**' \
+  '/github/repos/OWNER/REPO/issues/NUMBER/comments/**'
+do
+  body=$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')
+  if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
+    printf '%s' "$body" | "$relay_probe" relay socket-request \
+      --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
+  else
+    curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+      -d "$body" http://relay/integrations/subscribe | jq
+  fi
+done
 ```
 
-On that older path a repeated request returns HTTP 409 `conflict` ("already
-subscribed"); treat that one code as success.
+On this path a repeated request returns HTTP 409 `conflict` ("already
+subscribed"); treat that one code as success. Require every other answer to
+have `.ok` true.
 
 Refusals and what they mean:
 
@@ -584,19 +615,25 @@ with `Workspace key required (rk_live_...)` even though `RELAY_WORKSPACE_KEY`
 is set:
 
 ```sh
-agent-relay --version   # require 13.x
-agent-relay integration subscribe github \
-  --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
-  --to "@AGENT_NAME" --no-input
-# 12.x and older, when the CLI cannot be upgraded:
-env -u RELAY_AGENT_TOKEN agent-relay integration subscribe github \
-  --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
-  --to "@AGENT_NAME" --no-input
-# or run the fixed release without installing it:
-npx -y agent-relay@13 integration subscribe github \
-  --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
-  --to "@AGENT_NAME" --no-input
+pull_glob='/github/repos/OWNER/REPO/pulls/NUMBER/**'
+if test -n "${relay_cli:-}"; then
+  "$relay_cli" --version   # require 13.x
+  "$relay_cli" integration subscribe github \
+    --resource "$pull_glob" --to '@AGENT_NAME' --no-input
+  # 12.x and older, when that CLI cannot be upgraded:
+  # env -u RELAY_AGENT_TOKEN "$relay_cli" integration subscribe github \
+  #   --resource "$pull_glob" --to '@AGENT_NAME' --no-input
+else
+  # No installed CLI: run the fixed release without installing it.
+  npx -y agent-relay@13 integration subscribe github \
+    --resource "$pull_glob" --to '@AGENT_NAME' --no-input
+fi
 ```
+
+Use the `relay_cli` found in section 2, never a bare `agent-relay`: on a
+`.deb` host `/usr/bin/agent-relay` is the Desktop launcher, and `PATH` may
+resolve to it or to a different, older CLI than the one whose version was
+checked.
 
 The CLI path follows `orchestrating-agent-relay`, which also subscribes
 `pulls/NUMBER/reviews/**`, `pulls/NUMBER/status/**`, and
@@ -676,7 +713,7 @@ event.
   organization controls `crossSessionInbound`; report the policy block rather
   than modifying managed settings.
 - **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
-- **Undo an integration:** `"$HOME/.local/bin/agent-relay-probe" relay subscribe --remove OWNER/REPO#NUMBER`,
+- **Undo an integration:** `"$relay_probe" relay subscribe --remove 'OWNER/REPO#NUMBER'`,
   or send the same provider/resource JSON with `-X DELETE` to
   `/integrations/subscribe`.
 - **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
