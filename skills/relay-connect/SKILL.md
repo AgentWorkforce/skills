@@ -32,110 +32,91 @@ inline steps below. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
-On Linux, require `curl`, `tar`, `sha256sum`, and `nohup`. Use the relocatable
-tarball so the guest needs neither root nor `sudo`:
+On Linux, require `curl`, `tar`, and `sha256sum`. Use the relocatable tarball
+so the guest needs neither root nor `sudo`:
 
 ```sh
+set -euo pipefail
 case "$(uname -m)" in
   x86_64|amd64) relay_arch=x64 ;;
   aarch64|arm64) relay_arch=arm64 ;;
   *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
 esac
-command -v curl >/dev/null
-command -v tar >/dev/null
-command -v sha256sum >/dev/null
-command -v nohup >/dev/null
-relay_tmp=$(mktemp -d)
-chmod 700 "$relay_tmp"
-relay_release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
-relay_asset="AgentRelay-Linux-$relay_arch.tar.gz"
-curl -fL "$relay_release/$relay_asset" -o "$relay_tmp/$relay_asset"
-curl -fL "$relay_release/$relay_asset.sha256" -o "$relay_tmp/$relay_asset.sha256"
-(cd "$relay_tmp" && sha256sum --check "$relay_asset.sha256") || {
-  printf 'Agent Relay checksum verification failed; refusing installation.\n' >&2
-  exit 1
-}
-mkdir "$relay_tmp/extracted"
-tar -xzf "$relay_tmp/$relay_asset" -C "$relay_tmp/extracted"
-relay_tree="$relay_tmp/extracted/AgentRelay-linux-$relay_arch"
-test -x "$relay_tree/usr/bin/agent-relay"
-relay_version=$(sed -n 's/^__version__ = "\([0-9A-Za-z._-]*\)"$/\1/p' \
-  "$relay_tree/usr/lib/agent-relay/agent_relay/__init__.py")
-case "$relay_version" in
-  ''|*[!0-9A-Za-z._-]*) printf 'Invalid Agent Relay version.\n' >&2; exit 1 ;;
-esac
-relay_prefix="$HOME/.local/lib/agent-relay/$relay_version"
-mkdir -p "$relay_prefix"
-cp -a "$relay_tree/usr" "$relay_prefix/"
-mkdir -p "$HOME/.agentworkforce/desktop"
-nohup "$relay_prefix/usr/bin/agent-relay" --headless \
-  >"$HOME/.agentworkforce/desktop/agent-relay.log" 2>&1 </dev/null &
+for tool in curl tar sha256sum; do
+  command -v "$tool" >/dev/null || {
+    printf 'Missing prerequisite: %s\n' "$tool" >&2
+    exit 2
+  }
+done
+release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
+asset="AgentRelay-Linux-$relay_arch.tar.gz"
+tmp_dir="$(mktemp -d)"
+curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
+curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
+(cd "$tmp_dir" && sha256sum --check "$asset.sha256")
+install_dir="$HOME/.local/lib/agent-relay/current"
+mkdir -p "$install_dir" "$HOME/.local/bin" "$HOME/.agentworkforce/desktop"
+tar -xzf "$tmp_dir/$asset" -C "$install_dir"
+probe="$(find "$install_dir" -type f \
+  -path '*/agent_relay/helpers/agent-relay-probe' -print -quit)"
+test -n "$probe" && test -x "$probe"
+ln -sfn "$probe" "$HOME/.local/bin/agent-relay-probe"
+nohup "$HOME/.local/bin/agent-relay-probe" relay serve --headless \
+  >"$HOME/.agentworkforce/desktop/headless.log" 2>&1 </dev/null &
+for _ in $(seq 1 60); do
+  S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" \
+    2>/dev/null || true)"
+  test -n "$S" && test -S "$S" && break
+  sleep 1
+done
+test -n "${S:-}" && test -S "$S"
+curl -fsS --unix-socket "$S" http://relay/setup/status
+rm -r -- "$tmp_dir"
 ```
 
 If the human has already authorized `sudo`, the public `.deb` and matching
 `.sha256` asset are an alternative. The accountless path defaults to the
 relocatable tarball above.
 
-On macOS, require `curl`, `hdiutil`, `shasum`, `ditto`, and `open`. Prefer the
-per-user Applications folder so installation needs no administrator access:
+On macOS, require `curl`, `shasum`, `hdiutil`, and `ditto`. The per-user
+Applications folder works without administrator access:
 
 ```sh
+set -euo pipefail
 case "$(uname -m)" in
   arm64) relay_arch=arm64 ;;
   x86_64) relay_arch=x64 ;;
   *) printf 'Unsupported Mac architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
 esac
-command -v curl >/dev/null
-command -v hdiutil >/dev/null
-command -v shasum >/dev/null
-command -v ditto >/dev/null
-command -v open >/dev/null
-relay_tmp=$(mktemp -d)
-chmod 700 "$relay_tmp"
-relay_release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
-relay_asset="AgentRelay-macOS-$relay_arch.dmg"
-curl -fL "$relay_release/$relay_asset" -o "$relay_tmp/$relay_asset"
-curl -fL "$relay_release/$relay_asset.sha256" -o "$relay_tmp/$relay_asset.sha256"
-(cd "$relay_tmp" && shasum -a 256 --check "$relay_asset.sha256") || {
-  printf 'Agent Relay checksum verification failed; refusing installation.\n' >&2
-  exit 1
-}
-relay_mount=$(hdiutil attach -nobrowse -readonly "$relay_tmp/$relay_asset" | \
-  awk '/\/Volumes\// {sub(/^.*\/Volumes\//,"/Volumes/"); print; exit}')
-test -d "$relay_mount/Agent Relay.app"
-test "$(defaults read "$relay_mount/Agent Relay.app/Contents/Info" \
-  CFBundleIdentifier)" = com.agentrelay.desktop
+release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
+asset="AgentRelay-macOS-$relay_arch.dmg"
+tmp_dir="$(mktemp -d)"
+curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
+curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
+(cd "$tmp_dir" && shasum -a 256 --check "$asset.sha256")
+volume="$(hdiutil attach -nobrowse -readonly "$tmp_dir/$asset" | \
+  awk '/\/Volumes\// {sub(/^.*\/Volumes\//,"/Volumes/"); print; exit}')"
+test -n "$volume"
 mkdir -p "$HOME/Applications"
-relay_app="$HOME/Applications/Agent Relay.app"
-if ! ditto "$relay_mount/Agent Relay.app" "$relay_app"; then
-  relay_app="/Applications/Agent Relay.app"
-  ditto "$relay_mount/Agent Relay.app" "$relay_app"
-fi
-hdiutil detach "$relay_mount"
-open "$relay_app"
-```
-
-After either platform install, wait for and verify the live socket:
-
-```sh
-relay_wait=0
-while test "$relay_wait" -lt 30; do
-  S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-  test -S "${S:-/nonexistent}" && break
+ditto "$volume/Agent Relay.app" "$HOME/Applications/Agent Relay.app"
+hdiutil detach "$volume"
+open "$HOME/Applications/Agent Relay.app"
+for _ in $(seq 1 60); do
+  S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" \
+    2>/dev/null || true)"
+  test -n "$S" && test -S "$S" && break
   sleep 1
-  relay_wait=$((relay_wait + 1))
 done
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
-curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null
+test -n "${S:-}" && test -S "$S"
+curl -fsS --unix-socket "$S" http://relay/setup/status
+rm -r -- "$tmp_dir"
 ```
 
-If the agent runtime cannot keep a background process alive after its shell
-command returns, run the same installed binary in a persistent terminal or
-`tmux`; if neither is possible, use the MCP fallback. Never claim the probe is
-ready until the status request succeeds.
+`nohup` survives an ordinary shell exit, but a sandbox, container, or SSH
+supervisor may kill all descendants. If so, keep that session alive or use the
+platform's durable user-service install outside this one-shot bootstrap. If
+neither is possible, use the MCP fallback. Never claim the probe is ready
+until the status request succeeds.
 
 Do not create a normal Relay workspace or register the session just to join a
 Connect. A session already registered on a team relay may also join one; the
