@@ -39,8 +39,8 @@ follows the current compatible probe release:
 
 ```sh
 set -eu
-for tool in curl find ln mkdir mktemp nohup rm sed sha256sum sleep tar \
-  uname; do
+for tool in curl find grep kill ln mkdir mktemp nohup rm sed sha256sum \
+  sleep tar uname; do
   command -v "$tool" >/dev/null || {
     printf 'Missing prerequisite: %s\n' "$tool" >&2
     exit 2
@@ -92,7 +92,11 @@ done
 kill -0 "$probe_pid" 2>/dev/null
 test -n "${S:-}"
 test -S "$S"
-curl -fsS --unix-socket "$S" http://relay/setup/status | grep -q '"ok":true'
+status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
+printf '%s\n' "$status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+printf '%s\n' "$status" | \
+  grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
+printf '%s\n' "$status"
 keep_probe=1
 ```
 
@@ -111,7 +115,7 @@ pointer file only when it starts, so leave an existing pointer in place:
 
 ```sh
 set -eu
-for tool in awk codesign curl ditto hdiutil mkdir mktemp open osascript \
+for tool in awk codesign curl ditto grep hdiutil mkdir mktemp open osascript \
   pgrep rm sed shasum sleep uname; do
   command -v "$tool" >/dev/null || {
     printf 'Missing prerequisite: %s\n' "$tool" >&2
@@ -173,7 +177,11 @@ while test "$i" -lt 60; do
 done
 test -n "${S:-}"
 test -S "$S"
-curl -fsS --unix-socket "$S" http://relay/setup/status | grep -q '"ok":true'
+status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
+printf '%s\n' "$status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+printf '%s\n' "$status" | \
+  grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
+printf '%s\n' "$status"
 ```
 
 `nohup` survives an ordinary shell exit, but a sandbox, container, or SSH
