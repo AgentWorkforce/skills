@@ -572,8 +572,9 @@ When the installed app predates the command (`unrecognized subcommand
 'subscribe'`) or no probe was found, subscribe through the socket instead.
 Apps older than v2026.10.2 read only explicit path globs and need all four, so
 this fallback sends those; every version accepts them. On macOS use the probe
-client when there is one, because the system `curl` hides a Codex session's
-identity:
+client when there is one. The system `curl` hides a Codex session's identity
+there and is refused `not_a_relay_session`, so a Codex session with no probe
+stops instead; `curl` remains correct for Claude Code and on Linux:
 
 ```sh
 for resource in \
@@ -586,6 +587,9 @@ do
   if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
     printf '%s' "$body" | "$relay_probe" relay socket-request \
       --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
+  elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
+    printf 'A Codex session on macOS needs agent-relay-probe to subscribe; start Agent Relay and retry.\n' >&2
+    exit 1
   else
     curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
       -d "$body" http://relay/integrations/subscribe | jq
@@ -616,15 +620,19 @@ is set:
 
 ```sh
 pull_glob='/github/repos/OWNER/REPO/pulls/NUMBER/**'
+relay_cli_major=
 if test -n "${relay_cli:-}"; then
-  "$relay_cli" --version   # require 13.x
+  relay_cli_major=$("$relay_cli" --version 2>/dev/null | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\..*/\1/p' | sed -n '1p')
+fi
+if test -n "$relay_cli_major" && test "$relay_cli_major" -ge 13; then
   "$relay_cli" integration subscribe github \
     --resource "$pull_glob" --to '@AGENT_NAME' --no-input
-  # 12.x and older, when that CLI cannot be upgraded:
-  # env -u RELAY_AGENT_TOKEN "$relay_cli" integration subscribe github \
-  #   --resource "$pull_glob" --to '@AGENT_NAME' --no-input
+elif test -n "$relay_cli_major"; then
+  # 12.x and older: keep the ambient agent token from displacing the key.
+  env -u RELAY_AGENT_TOKEN "$relay_cli" integration subscribe github \
+    --resource "$pull_glob" --to '@AGENT_NAME' --no-input
 else
-  # No installed CLI: run the fixed release without installing it.
+  # No usable installed CLI: run the fixed release without installing it.
   npx -y agent-relay@13 integration subscribe github \
     --resource "$pull_glob" --to '@AGENT_NAME' --no-input
 fi
@@ -713,8 +721,10 @@ event.
   organization controls `crossSessionInbound`; report the policy block rather
   than modifying managed settings.
 - **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
-- **Undo an integration:** `"$relay_probe" relay subscribe --remove 'OWNER/REPO#NUMBER'`,
-  or send the same provider/resource JSON with `-X DELETE` to
+- **Undo an integration:** `"$HOME/.local/bin/agent-relay-probe" relay subscribe --remove 'OWNER/REPO#NUMBER'`
+  (or the probe section 6 found, when that path is absent). Without a probe,
+  or for a subscription made through the four-glob fallback, send each
+  subscribed provider/resource JSON with `-X DELETE` to
   `/integrations/subscribe`.
 - **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
