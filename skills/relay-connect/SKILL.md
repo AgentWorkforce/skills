@@ -28,7 +28,9 @@ curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null
 ```
 
 If that does not find a live socket, install and start the probe with the
-inline steps below. Expect the agent to ask its human to approve a few shell
+inline steps below. Each install block runs under `sh` through a here-document,
+so it behaves the same whether the agent's shell tool is bash or zsh; run it
+exactly as written. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
@@ -38,6 +40,7 @@ The adjacent checksum detects download corruption; `latest` intentionally
 follows the current compatible probe release:
 
 ```sh
+sh <<'RELAY_CONNECT_INSTALL'
 set -eu
 for tool in curl find grep kill ln mkdir mktemp nohup rm sed sha256sum \
   sleep tar uname; do
@@ -92,12 +95,13 @@ done
 kill -0 "$probe_pid" 2>/dev/null
 test -n "${S:-}"
 test -S "$S"
-status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
-printf '%s\n' "$status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
-printf '%s\n' "$status" | \
+relay_status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
+printf '%s\n' "$relay_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+printf '%s\n' "$relay_status" | \
   grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
-printf '%s\n' "$status"
+printf '%s\n' "$relay_status"
 keep_probe=1
+RELAY_CONNECT_INSTALL
 ```
 
 The probe chooses its own socket location and writes it to the pointer file, so
@@ -114,6 +118,7 @@ A running app must quit before it is replaced; its process is named
 pointer file only when it starts, so leave an existing pointer in place:
 
 ```sh
+sh <<'RELAY_CONNECT_INSTALL'
 set -eu
 for tool in awk codesign curl ditto grep hdiutil mkdir mktemp mv open \
   osascript pgrep rm sed shasum sleep uname; do
@@ -189,11 +194,12 @@ while test "$i" -lt 60; do
 done
 test -n "${S:-}"
 test -S "$S"
-status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
-printf '%s\n' "$status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
-printf '%s\n' "$status" | \
+relay_status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
+printf '%s\n' "$relay_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+printf '%s\n' "$relay_status" | \
   grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
-printf '%s\n' "$status"
+printf '%s\n' "$relay_status"
+RELAY_CONNECT_INSTALL
 ```
 
 `nohup` survives an ordinary shell exit, but a sandbox, container, or SSH
