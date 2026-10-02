@@ -88,7 +88,8 @@ i=0
 while test "$i" -lt 60; do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
   test -n "$S" && test -S "$S" &&
-    curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null 2>&1 &&
+    curl -fsS --max-time 5 --unix-socket "$S" http://relay/setup/status \
+      >/dev/null 2>&1 &&
     break
   sleep 1
   i=$((i + 1))
@@ -96,7 +97,8 @@ done
 kill -0 "$probe_pid" 2>/dev/null
 test -n "${S:-}"
 test -S "$S"
-relay_status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
+relay_status="$(curl -fsS --max-time 30 --unix-socket "$S" \
+  http://relay/setup/status)"
 printf '%s\n' "$relay_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
 printf '%s\n' "$relay_status" | \
   grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
@@ -190,14 +192,16 @@ i=0
 while test "$i" -lt 60; do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
   test -n "$S" && test -S "$S" &&
-    curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null 2>&1 &&
+    curl -fsS --max-time 5 --unix-socket "$S" http://relay/setup/status \
+      >/dev/null 2>&1 &&
     break
   sleep 1
   i=$((i + 1))
 done
 test -n "${S:-}"
 test -S "$S"
-relay_status="$(curl -fsS --unix-socket "$S" http://relay/setup/status)"
+relay_status="$(curl -fsS --max-time 30 --unix-socket "$S" \
+  http://relay/setup/status)"
 printf '%s\n' "$relay_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
 printf '%s\n' "$relay_status" | \
   grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
