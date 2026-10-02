@@ -20,19 +20,210 @@ calling Codex or Claude session from peer credentials and process ancestry.
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null
 ```
 
-If that does not find a live socket, install and start the probe using Agent
-Relay Desktop's
-[`docs/agent-driven-setup.md`](https://github.com/AgentWorkforce/relay-desktop/blob/main/docs/agent-driven-setup.md):
-use the headless systemd user unit on Linux or start the macOS app, then read
-the socket pointer again. Follow only the install/start guidance needed to make
-the socket live. **Do not sign in. Relay Connect joining needs no account.**
+If that does not find a live socket, install and start the probe with the
+inline steps below. Each install block runs under `sh` through a here-document,
+so it behaves the same whether the agent's shell tool is bash or zsh; run it
+exactly as written. The wait loop only finishes when the socket answers
+`/setup/status`, so a stale pointer or a leftover socket file is never taken
+for a live probe. Expect the agent to ask its human to approve a few shell
+commands for this local install and start. **Do not sign in. Relay Connect
+joining needs no account.**
+
+Tell the human before installing: for Claude Code, starting the probe sets
+`"crossSessionInbound": "accept"` in the user-level `~/.claude/settings.json`.
+That is what lets Connect messages arrive in this session without a prompt. If a
+repository or managed setting pins it to `hold`, each message shows a "Held peer
+message" banner and is not delivered until that setting is changed; say so to
+the human rather than retrying. To turn delivery back off afterwards, run
+`curl -fsS --unix-socket "$S" -X POST http://relay/setup/direct-delivery -H
+'content-type: application/json' -d '{"enabled":false}'`, which removes that
+user setting.
+
+On Linux, use the relocatable tarball so the guest needs neither root nor
+`sudo`. The block checks every external command it needs before downloading.
+The adjacent checksum detects download corruption; `latest` intentionally
+follows the current compatible probe release:
+
+```sh
+sh <<'RELAY_CONNECT_INSTALL'
+set -eu
+for tool in curl find grep kill ln mkdir mktemp nohup rm sed sha256sum \
+  sleep tar uname; do
+  command -v "$tool" >/dev/null || {
+    printf 'Missing prerequisite: %s\n' "$tool" >&2
+    exit 2
+  }
+done
+case "$(uname -m)" in
+  x86_64|amd64) relay_arch=x64 ;;
+  aarch64|arm64) relay_arch=arm64 ;;
+  *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
+esac
+release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
+asset="AgentRelay-Linux-$relay_arch.tar.gz"
+tmp_dir="$(mktemp -d)"
+probe_pid=
+keep_probe=
+cleanup() {
+  if test -z "${keep_probe:-}" && test -n "${probe_pid:-}"; then
+    kill "$probe_pid" 2>/dev/null || true
+  fi
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT
+curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
+curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
+(cd "$tmp_dir" && sha256sum --check "$asset.sha256")
+install_dir="$HOME/.local/lib/agent-relay/current"
+mkdir -p "$install_dir" "$HOME/.local/bin" "$HOME/.agentworkforce/desktop"
+tar -xzf "$tmp_dir/$asset" -C "$install_dir"
+probe="$(find "$install_dir" -type f \
+  -path '*/agent_relay/helpers/agent-relay-probe' -print -quit)"
+if test -z "$probe" || ! test -x "$probe"; then
+  printf 'agent-relay-probe not found or not executable in %s\n' "$asset" >&2
+  exit 1
+fi
+ln -sfn "$probe" "$HOME/.local/bin/agent-relay-probe"
+pointer="$HOME/.agentworkforce/desktop/relay-socket"
+rm -f -- "$pointer"
+nohup "$HOME/.local/bin/agent-relay-probe" relay serve --headless \
+  >"$HOME/.agentworkforce/desktop/headless.log" 2>&1 </dev/null &
+probe_pid=$!
+S=
+i=0
+while test "$i" -lt 60; do
+  S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
+  test -n "$S" && test -S "$S" &&
+    curl -fsS --max-time 5 --unix-socket "$S" http://relay/setup/status \
+      >/dev/null 2>&1 &&
+    break
+  sleep 1
+  i=$((i + 1))
+done
+kill -0 "$probe_pid" 2>/dev/null
+test -n "${S:-}"
+test -S "$S"
+relay_status="$(curl -fsS --max-time 30 --unix-socket "$S" \
+  http://relay/setup/status)"
+printf '%s\n' "$relay_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+printf '%s\n' "$relay_status" | \
+  grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
+printf '%s\n' "$relay_status"
+keep_probe=1
+RELAY_CONNECT_INSTALL
+```
+
+The probe chooses its own socket location and writes it to the pointer file, so
+the fresh pointer is the only source of truth for `S` after a start. If the
+human has already authorized `sudo`, the public `.deb` and matching `.sha256`
+asset are an alternative. The accountless path defaults to the
+relocatable tarball above.
+
+On macOS, the block likewise checks every external command it needs. Install
+under `/Applications` when it is writable; that is the verified location.
+`~/Applications` is an untested fallback for accounts that cannot write there.
+A running app must quit before it is replaced; its process is named
+`RelayDesktop`. The relay core keeps running when the app quits and writes the
+pointer file only when it starts, so leave an existing pointer in place:
+
+```sh
+sh <<'RELAY_CONNECT_INSTALL'
+set -eu
+for tool in awk codesign curl ditto grep hdiutil mkdir mktemp mv open \
+  osascript pgrep rm sed shasum sleep uname; do
+  command -v "$tool" >/dev/null || {
+    printf 'Missing prerequisite: %s\n' "$tool" >&2
+    exit 2
+  }
+done
+case "$(uname -m)" in
+  arm64) relay_arch=arm64 ;;
+  x86_64) relay_arch=x64 ;;
+  *) printf 'Unsupported Mac architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
+esac
+release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
+asset="AgentRelay-macOS-$relay_arch.dmg"
+tmp_dir="$(mktemp -d)"
+volume=
+cleanup() {
+  if test -n "${volume:-}"; then
+    hdiutil detach "$volume" >/dev/null 2>&1 || true
+  fi
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT
+curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
+curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
+(cd "$tmp_dir" && shasum -a 256 --check "$asset.sha256")
+volume="$(hdiutil attach -nobrowse -readonly "$tmp_dir/$asset" | \
+  awk '/\/Volumes\// {sub(/^.*\/Volumes\//,"/Volumes/"); print; exit}')"
+test -n "$volume"
+if pgrep -x RelayDesktop >/dev/null 2>&1; then
+  osascript -e 'tell application "Agent Relay" to quit' || {
+    printf 'Close any open Agent Relay sheet or dialog, quit the app, and retry.\n' >&2
+    hdiutil detach "$volume" >/dev/null 2>&1 || true
+    exit 3
+  }
+  i=0
+  while test "$i" -lt 30; do
+    pgrep -x RelayDesktop >/dev/null 2>&1 || break
+    sleep 1
+    i=$((i + 1))
+  done
+  if pgrep -x RelayDesktop >/dev/null 2>&1; then
+    printf 'Agent Relay is still running; quit it and retry.\n' >&2
+    hdiutil detach "$volume" >/dev/null 2>&1 || true
+    exit 3
+  fi
+fi
+if test -w /Applications; then
+  app='/Applications/Agent Relay.app'
+else
+  mkdir -p "$HOME/Applications"
+  app="$HOME/Applications/Agent Relay.app"
+  printf 'Using the untested per-user Applications fallback: %s\n' "$app" >&2
+fi
+staged="$app.new"
+rm -rf -- "$staged"
+ditto "$volume/Agent Relay.app" "$staged"
+hdiutil detach "$volume"
+volume=
+codesign --verify --deep --strict "$staged"
+rm -rf -- "$app"
+mv "$staged" "$app"
+pointer="$HOME/.agentworkforce/desktop/relay-socket"
+open "$app"
+S=
+i=0
+while test "$i" -lt 60; do
+  S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
+  test -n "$S" && test -S "$S" &&
+    curl -fsS --max-time 5 --unix-socket "$S" http://relay/setup/status \
+      >/dev/null 2>&1 &&
+    break
+  sleep 1
+  i=$((i + 1))
+done
+test -n "${S:-}"
+test -S "$S"
+relay_status="$(curl -fsS --max-time 30 --unix-socket "$S" \
+  http://relay/setup/status)"
+printf '%s\n' "$relay_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+printf '%s\n' "$relay_status" | \
+  grep -Eq '"version"[[:space:]]*:[[:space:]]*"[^"]+"'
+printf '%s\n' "$relay_status"
+RELAY_CONNECT_INSTALL
+```
+
+`nohup` survives an ordinary shell exit, but a sandbox, container, or SSH
+supervisor may kill all descendants. If so, keep that session alive or use the
+platform's durable user-service install outside this one-shot bootstrap. If
+neither is possible, use the MCP fallback. Never claim the probe is ready
+until the status request succeeds.
 
 Do not create a normal Relay workspace or register the session just to join a
 Connect. A session already registered on a team relay may also join one; the
@@ -52,10 +243,7 @@ When the human asks to create a Connect:
 
    ```sh
    S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-   if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-     S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-   fi
-   test -S "${S:-/nonexistent}"
+   test -n "$S" && test -S "$S"
    payload="$(cat; printf x)"
    payload="${payload%x}"
    test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
@@ -101,10 +289,7 @@ Join through the probe:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 payload="$(cat; printf x)"
 payload="${payload%x}"
 test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
@@ -160,10 +345,7 @@ Send a message with the exact text as the request body:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 payload="$(cat; printf x)"
 payload="${payload%x}"
 test -n "$payload" || { printf 'missing message body\n' >&2; exit 64; }
@@ -189,10 +371,7 @@ Inspect membership and presence when needed:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 curl -sS --unix-socket "$S" http://relay/connect/status
 ```
 
@@ -292,10 +471,7 @@ Connect:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-if ! test -S "${S:-/nonexistent}" && test "$(uname -s)" = Linux; then
-  S="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${S:-/nonexistent}"
+test -n "$S" && test -S "$S"
 curl -sS --unix-socket "$S" -X POST http://relay/connect/leave
 ```
 
