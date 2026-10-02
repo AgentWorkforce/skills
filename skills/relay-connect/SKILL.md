@@ -30,7 +30,9 @@ curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null
 If that does not find a live socket, install and start the probe with the
 inline steps below. Each install block runs under `sh` through a here-document,
 so it behaves the same whether the agent's shell tool is bash or zsh; run it
-exactly as written. Expect the agent to ask its human to approve a few shell
+exactly as written. The wait loop only finishes when the socket answers
+`/setup/status`, so a stale pointer or a leftover socket file is never taken
+for a live probe. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
@@ -88,7 +90,9 @@ S=
 i=0
 while test "$i" -lt 60; do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
-  test -n "$S" && test -S "$S" && break
+  test -n "$S" && test -S "$S" &&
+    curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null 2>&1 &&
+    break
   sleep 1
   i=$((i + 1))
 done
@@ -188,7 +192,9 @@ S=
 i=0
 while test "$i" -lt 60; do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
-  test -n "$S" && test -S "$S" && break
+  test -n "$S" && test -S "$S" &&
+    curl -fsS --unix-socket "$S" http://relay/setup/status >/dev/null 2>&1 &&
+    break
   sleep 1
   i=$((i + 1))
 done
