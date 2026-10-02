@@ -32,17 +32,17 @@ inline steps below. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
-On Linux, require `curl`, `tar`, and `sha256sum`. Use the relocatable tarball
-so the guest needs neither root nor `sudo`:
+On Linux, require `curl`, `tar`, `sha256sum`, and `stat`. Use the relocatable
+tarball so the guest needs neither root nor `sudo`:
 
 ```sh
-set -euo pipefail
+set -eu
 case "$(uname -m)" in
   x86_64|amd64) relay_arch=x64 ;;
   aarch64|arm64) relay_arch=arm64 ;;
   *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
 esac
-for tool in curl tar sha256sum; do
+for tool in curl tar sha256sum stat; do
   command -v "$tool" >/dev/null || {
     printf 'Missing prerequisite: %s\n' "$tool" >&2
     exit 2
@@ -61,15 +61,27 @@ probe="$(find "$install_dir" -type f \
   -path '*/agent_relay/helpers/agent-relay-probe' -print -quit)"
 test -n "$probe" && test -x "$probe"
 ln -sfn "$probe" "$HOME/.local/bin/agent-relay-probe"
+pointer="$HOME/.agentworkforce/desktop/relay-socket"
+expected_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+old_socket_id="$(stat -Lc '%d:%i' "$expected_socket" 2>/dev/null || true)"
+rm -f -- "$pointer"
 nohup "$HOME/.local/bin/agent-relay-probe" relay serve --headless \
   >"$HOME/.agentworkforce/desktop/headless.log" 2>&1 </dev/null &
+probe_pid=$!
 for _ in $(seq 1 60); do
-  S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" \
-    2>/dev/null || true)"
+  S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
+  if ! test -S "${S:-/nonexistent}" && test -S "$expected_socket"; then
+    S="$expected_socket"
+  fi
   test -n "$S" && test -S "$S" && break
   sleep 1
 done
+kill -0 "$probe_pid" 2>/dev/null
 test -n "${S:-}" && test -S "$S"
+test "$S" = "$expected_socket"
+new_socket_id="$(stat -Lc '%d:%i' "$S")"
+test -n "$new_socket_id"
+test -z "$old_socket_id" || test "$new_socket_id" != "$old_socket_id"
 curl -fsS --unix-socket "$S" http://relay/setup/status
 rm -r -- "$tmp_dir"
 ```
@@ -82,7 +94,7 @@ On macOS, require `curl`, `shasum`, `hdiutil`, and `ditto`. The per-user
 Applications folder works without administrator access:
 
 ```sh
-set -euo pipefail
+set -eu
 case "$(uname -m)" in
   arm64) relay_arch=arm64 ;;
   x86_64) relay_arch=x64 ;;
@@ -98,12 +110,14 @@ volume="$(hdiutil attach -nobrowse -readonly "$tmp_dir/$asset" | \
   awk '/\/Volumes\// {sub(/^.*\/Volumes\//,"/Volumes/"); print; exit}')"
 test -n "$volume"
 mkdir -p "$HOME/Applications"
+osascript -e 'tell application "Agent Relay" to quit' 2>/dev/null || true
 ditto "$volume/Agent Relay.app" "$HOME/Applications/Agent Relay.app"
 hdiutil detach "$volume"
+pointer="$HOME/.agentworkforce/desktop/relay-socket"
+rm -f -- "$pointer"
 open "$HOME/Applications/Agent Relay.app"
 for _ in $(seq 1 60); do
-  S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" \
-    2>/dev/null || true)"
+  S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
   test -n "$S" && test -S "$S" && break
   sleep 1
 done
