@@ -243,7 +243,10 @@ When the human asks to create a Connect:
 
    ```sh
    S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-   test -n "$S" && test -S "$S" || exit $?
+   test -n "$S" && test -S "$S" || {
+     printf 'No live Agent Relay socket; run the install steps first.\n' >&2
+     exit 1
+   }
    curl -fsS --max-time 30 --unix-socket "$S" \
      http://relay/setup/status >/dev/null || exit $?
    payload="$(cat; printf x)"
@@ -291,7 +294,10 @@ Join through the probe:
 
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
-test -n "$S" && test -S "$S" || exit $?
+test -n "$S" && test -S "$S" || {
+  printf 'No live Agent Relay socket; run the install steps first.\n' >&2
+  exit 1
+}
 curl -fsS --max-time 30 --unix-socket "$S" \
   http://relay/setup/status >/dev/null || exit $?
 payload="$(cat; printf x)"
