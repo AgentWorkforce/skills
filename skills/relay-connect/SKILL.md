@@ -33,7 +33,9 @@ commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
 On Linux, require `curl`, `tar`, `sha256sum`, and `stat`. Use the relocatable
-tarball so the guest needs neither root nor `sudo`:
+tarball so the guest needs neither root nor `sudo`. The adjacent checksum
+detects download corruption; `latest` intentionally follows the current
+compatible probe release:
 
 ```sh
 set -eu
@@ -51,6 +53,7 @@ done
 release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
 asset="AgentRelay-Linux-$relay_arch.tar.gz"
 tmp_dir="$(mktemp -d)"
+trap 'rm -rf -- "$tmp_dir"' EXIT
 curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
 curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
 (cd "$tmp_dir" && sha256sum --check "$asset.sha256")
@@ -83,7 +86,6 @@ new_socket_id="$(stat -Lc '%d:%i' "$S")"
 test -n "$new_socket_id"
 test -z "$old_socket_id" || test "$new_socket_id" != "$old_socket_id"
 curl -fsS --unix-socket "$S" http://relay/setup/status
-rm -r -- "$tmp_dir"
 ```
 
 If the human has already authorized `sudo`, the public `.deb` and matching
@@ -103,6 +105,7 @@ esac
 release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
 asset="AgentRelay-macOS-$relay_arch.dmg"
 tmp_dir="$(mktemp -d)"
+trap 'rm -rf -- "$tmp_dir"' EXIT
 curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
 curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
 (cd "$tmp_dir" && shasum -a 256 --check "$asset.sha256")
@@ -123,7 +126,6 @@ for _ in $(seq 1 60); do
 done
 test -n "${S:-}" && test -S "$S"
 curl -fsS --unix-socket "$S" http://relay/setup/status
-rm -r -- "$tmp_dir"
 ```
 
 `nohup` survives an ordinary shell exit, but a sandbox, container, or SSH
