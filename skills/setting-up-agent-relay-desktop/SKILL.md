@@ -146,9 +146,11 @@ loginctl show-user "$USER" -p Linger
 ```
 
 The unit runs `/usr/bin/agent-relay --headless`: no display, X server, or GTK
-window is needed. GitHub subscriptions use the separate Agent Relay CLI. Find
-the same user-level npm, mise, or nvm CLI the app discovers; never run the
-desktop's `/usr/bin/agent-relay` launcher as a CLI:
+window is needed. This session's own GitHub subscriptions (section 6) go
+through the Desktop and need no CLI. The separate Agent Relay CLI is needed
+only to subscribe a fleet-spawned or named agent; record whether it is present
+and at least 13.0.0. Find the same user-level npm, mise, or nvm CLI the app
+discovers; never run the desktop's `/usr/bin/agent-relay` launcher as a CLI:
 
 ```sh
 relay_cli=
@@ -176,11 +178,12 @@ if test -z "$relay_cli"; then
     fi
   done
 fi
-test -n "$relay_cli" || {
-  printf 'Install the official Agent Relay CLI with npm before GitHub integration setup.\n' >&2
-  exit 1
-}
-"$relay_cli" integration subscribe --help >/dev/null
+if test -n "$relay_cli"; then
+  "$relay_cli" --version
+  "$relay_cli" integration subscribe --help >/dev/null
+else
+  printf 'No Agent Relay CLI found; Desktop subscriptions do not need one.\n'
+fi
 ```
 
 On Linux without `dpkg`, use this per-user tarball installation under a
@@ -527,65 +530,85 @@ delivery test could not be repeated.
 
 ## 6. Subscribe requested integrations
 
-Require the provider and repository from the human. A PR needs four resource
-globs: its pull data, reviews, checks/status, and GitHub's separate issue-comment
-path. Subscribe all four:
+Require the provider and repository from the human. For a GitHub pull request,
+one command subscribes this session to its reviews, review comments,
+conversation comments, and checks. Pass the address `gh pr create` printed, or
+`OWNER/REPO#NUMBER`:
 
 ```sh
-for resource in \
-  '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
-  '/github/repos/OWNER/REPO/pulls/NUMBER/reviews/**' \
-  '/github/repos/OWNER/REPO/pulls/NUMBER/status/**' \
-  '/github/repos/OWNER/REPO/issues/NUMBER/comments/**'
-do
-  curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-    -d "$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')" \
-    http://relay/integrations/subscribe | jq
-done
+relay_probe="$HOME/.local/bin/agent-relay-probe"
+"$relay_probe" relay subscribe "https://github.com/OWNER/REPO/pull/NUMBER" | jq
 ```
 
-Equivalent CLI form, when the CLI is available, must likewise be repeated for
-all four globs.
+The command finds the socket itself and takes no agent name, workspace key, or
+token: the Desktop identifies the calling session from the process, so run it
+through this agent's own shell tool. Require `.ok` and `.data.subscribed` to be
+`true`. Repeating it is safe; a subscription this session already holds
+answers `"already_subscribed":true`. `--remove` ends it. One numeric
+subscription is enough: do not add separate `reviews`, `status`, or
+`issues/NUMBER/comments` globs, which the Desktop no longer needs.
+
+When the installed app predates the command (`unrecognized subcommand
+'subscribe'`), send the same resource as one request instead. On macOS Codex
+use the probe client, because the system `curl` hides the session's identity:
 
 ```sh
-if test -z "${relay_cli:-}"; then
-  for candidate in \
-    "$HOME/.local/bin/agent-relay" \
-    "$HOME/.npm-global/bin/agent-relay" \
-    "$HOME/.agentworkforce/relay/bin/agent-relay"
-  do
-    if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
-      relay_cli=$candidate
-      break
-    fi
-  done
+body='{"provider":"github","resource":"OWNER/REPO#NUMBER"}'
+if test "$(uname -s)" = Darwin; then
+  printf '%s' "$body" | "$relay_probe" relay socket-request \
+    --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
+else
+  curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+    -d "$body" http://relay/integrations/subscribe | jq
 fi
-if test -z "${relay_cli:-}"; then
-  for relay_root in \
-    "$HOME/.local/share/mise/installs/node" \
-    "$HOME/.nvm/versions/node"
-  do
-    test -d "$relay_root" || continue
-    candidate=$(find -L "$relay_root" -mindepth 3 -maxdepth 3 \
-      -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
-    if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
-      relay_cli=$candidate
-      break
-    fi
-  done
-fi
-test -n "${relay_cli:-}" || exit 1
-"$relay_cli" integration subscribe github \
+```
+
+On that older path a repeated request returns HTTP 409 `conflict` ("already
+subscribed"); treat that one code as success.
+
+Refusals and what they mean:
+
+- `not_a_relay_session`, "Register this session before subscribing it": run
+  section 4's `POST /register` first.
+- `not_a_relay_session`, "already managed by this computer's relay" from
+  `/register`: this session was started by the Agent Relay fleet broker, not
+  the Desktop. Use the workspace CLI below instead.
+- `refused` or `busy`: an earlier subscription is still being made or cleaned
+  up; repeat the command shortly.
+
+A fleet-spawned session, or an operator subscribing a named agent, uses the
+`agent-relay` CLI with `--to @AGENT_NAME` (a spawned worker's name is in
+`RELAY_AGENT_NAME`). **`agent-relay` 13.0.0 is the minimum.** Older CLIs let
+the worker's ambient `RELAY_AGENT_TOKEN` displace the workspace key and fail
+with `Workspace key required (rk_live_...)` even though `RELAY_WORKSPACE_KEY`
+is set:
+
+```sh
+agent-relay --version   # require 13.x
+agent-relay integration subscribe github \
+  --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
+  --to "@AGENT_NAME" --no-input
+# 12.x and older, when the CLI cannot be upgraded:
+env -u RELAY_AGENT_TOKEN agent-relay integration subscribe github \
+  --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
+  --to "@AGENT_NAME" --no-input
+# or run the fixed release without installing it:
+npx -y agent-relay@13 integration subscribe github \
   --resource "/github/repos/OWNER/REPO/pulls/NUMBER/**" \
   --to "@AGENT_NAME" --no-input
 ```
 
-Make those four calls a required post-create step in the agent's PR workflow:
-whenever it authors a PR, it subscribes its own live session immediately,
-without waiting for an operator to name the PR. This is the authored-PR pattern
-from `orchestrating-agent-relay`; it covers every future PR the agent authors
-without subscribing unrelated repository traffic. The desktop endpoint accepts
-every explicit glob, so this is automatable even though there is no per-PR UI.
+The CLI path follows `orchestrating-agent-relay`, which also subscribes
+`pulls/NUMBER/reviews/**`, `pulls/NUMBER/status/**`, and
+`issues/NUMBER/comments/**`; repeat the command for those globs there. Never
+put the workspace key in argv.
+
+Make the subscribe command a required post-create step in the agent's PR
+workflow: whenever it authors a PR, it subscribes its own live session
+immediately, without waiting for an operator to name the PR. This is the
+authored-PR pattern from `orchestrating-agent-relay`; it covers every future PR
+the agent authors without subscribing unrelated repository traffic. The
+Desktop removes the subscription itself after the PR closes or merges.
 For real GitHub verification, use a harmless event the human authorized
 on that PR (for example, a test conversation comment and a requested bot
 review). After causing the event, do not wait or poll within the active turn:
@@ -653,8 +676,9 @@ event.
   organization controls `crossSessionInbound`; report the policy block rather
   than modifying managed settings.
 - **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
-- **Undo an integration:** send the same provider/resource JSON with `-X DELETE`
-  to `/integrations/subscribe`.
+- **Undo an integration:** `"$HOME/.local/bin/agent-relay-probe" relay subscribe --remove OWNER/REPO#NUMBER`,
+  or send the same provider/resource JSON with `-X DELETE` to
+  `/integrations/subscribe`.
 - **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
   `/setup/direct-delivery`. On Claude this restores the local opt-out; managed
