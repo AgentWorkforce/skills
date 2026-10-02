@@ -130,7 +130,14 @@ esac
 release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
 asset="AgentRelay-macOS-$relay_arch.dmg"
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf -- "$tmp_dir"' EXIT
+volume=
+cleanup() {
+  if test -n "${volume:-}"; then
+    hdiutil detach "$volume" >/dev/null 2>&1 || true
+  fi
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT
 curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
 curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
 (cd "$tmp_dir" && shasum -a 256 --check "$asset.sha256")
@@ -162,8 +169,10 @@ else
   app="$HOME/Applications/Agent Relay.app"
   printf 'Using the untested per-user Applications fallback: %s\n' "$app" >&2
 fi
+rm -rf -- "$app"
 ditto "$volume/Agent Relay.app" "$app"
 hdiutil detach "$volume"
+volume=
 codesign --verify --deep --strict "$app"
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
 open "$app"
