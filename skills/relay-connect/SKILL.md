@@ -244,6 +244,8 @@ When the human asks to create a Connect:
    ```sh
    S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
    test -n "$S" && test -S "$S"
+   curl -fsS --max-time 30 --unix-socket "$S" \
+     http://relay/setup/status >/dev/null
    payload="$(cat; printf x)"
    payload="${payload%x}"
    test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
@@ -290,6 +292,8 @@ Join through the probe:
 ```sh
 S="$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)"
 test -n "$S" && test -S "$S"
+curl -fsS --max-time 30 --unix-socket "$S" \
+  http://relay/setup/status >/dev/null
 payload="$(cat; printf x)"
 payload="${payload%x}"
 test -n "$payload" || { printf 'missing join body\n' >&2; exit 64; }
