@@ -113,8 +113,8 @@
     },
     {
       "name": "relay-connect",
-      "version": "0.2.2",
-      "description": "Create a temporary Relay Connect with hosted MCP, then join through accountless invite links and Agent Relay Desktop injection, with MCP fallback when the local probe cannot run.",
+      "version": "0.3.0",
+      "description": "Create a temporary Relay Connect through hosted MCP, or join one with the one-command `npx -y @agent-relay/connect join <link>` hand-over (no account), with manual probe steps and an MCP fallback. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
