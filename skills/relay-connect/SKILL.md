@@ -33,6 +33,16 @@ for a live probe. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
+Tell the human before installing: for Claude Code, starting the probe sets
+`"crossSessionInbound": "accept"` in the user-level `~/.claude/settings.json`.
+That is what lets Connect messages arrive in this session without a prompt. If a
+repository or managed setting pins it to `hold`, each message shows a "Held peer
+message" banner and is not delivered until that setting is changed; say so to
+the human rather than retrying. To turn delivery back off afterwards, run
+`curl -fsS --unix-socket "$S" -X POST http://relay/setup/direct-delivery -H
+'content-type: application/json' -d '{"enabled":false}'`, which removes that
+user setting.
+
 On Linux, use the relocatable tarball so the guest needs neither root nor
 `sudo`. The block checks every external command it needs before downloading.
 The adjacent checksum detects download corruption; `latest` intentionally
