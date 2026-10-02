@@ -32,28 +32,37 @@ inline steps below. Expect the agent to ask its human to approve a few shell
 commands for this local install and start. **Do not sign in. Relay Connect
 joining needs no account.**
 
-On Linux, require `curl`, `tar`, and `sha256sum`. Use the relocatable
-tarball so the guest needs neither root nor `sudo`. The adjacent checksum
-detects download corruption; `latest` intentionally follows the current
-compatible probe release:
+On Linux, use the relocatable tarball so the guest needs neither root nor
+`sudo`. The block checks every external command it needs before downloading.
+The adjacent checksum detects download corruption; `latest` intentionally
+follows the current compatible probe release:
 
 ```sh
 set -eu
-case "$(uname -m)" in
-  x86_64|amd64) relay_arch=x64 ;;
-  aarch64|arm64) relay_arch=arm64 ;;
-  *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
-esac
-for tool in curl tar sha256sum; do
+for tool in curl find jq kill ln mkdir mktemp nohup rm sed sha256sum \
+  sleep tar uname; do
   command -v "$tool" >/dev/null || {
     printf 'Missing prerequisite: %s\n' "$tool" >&2
     exit 2
   }
 done
+case "$(uname -m)" in
+  x86_64|amd64) relay_arch=x64 ;;
+  aarch64|arm64) relay_arch=arm64 ;;
+  *) printf 'Unsupported Linux architecture: %s\n' "$(uname -m)" >&2; exit 2 ;;
+esac
 release=https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest/download
 asset="AgentRelay-Linux-$relay_arch.tar.gz"
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf -- "$tmp_dir"' EXIT
+probe_pid=
+keep_probe=
+cleanup() {
+  if test -z "${keep_probe:-}" && test -n "${probe_pid:-}"; then
+    kill "$probe_pid" 2>/dev/null || true
+  fi
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT
 curl -fsSL --retry 3 -o "$tmp_dir/$asset" "$release/$asset"
 curl -fsSL --retry 3 -o "$tmp_dir/$asset.sha256" "$release/$asset.sha256"
 (cd "$tmp_dir" && sha256sum --check "$asset.sha256")
@@ -62,7 +71,10 @@ mkdir -p "$install_dir" "$HOME/.local/bin" "$HOME/.agentworkforce/desktop"
 tar -xzf "$tmp_dir/$asset" -C "$install_dir"
 probe="$(find "$install_dir" -type f \
   -path '*/agent_relay/helpers/agent-relay-probe' -print -quit)"
-test -n "$probe" && test -x "$probe"
+if test -z "$probe" || ! test -x "$probe"; then
+  printf 'agent-relay-probe not found or not executable in %s\n' "$asset" >&2
+  exit 1
+fi
 ln -sfn "$probe" "$HOME/.local/bin/agent-relay-probe"
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
 rm -f -- "$pointer"
@@ -70,15 +82,19 @@ nohup "$HOME/.local/bin/agent-relay-probe" relay serve --headless \
   >"$HOME/.agentworkforce/desktop/headless.log" 2>&1 </dev/null &
 probe_pid=$!
 S=
-for _ in $(seq 1 60); do
+i=0
+while test "$i" -lt 60; do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
   test -n "$S" && test -S "$S" && break
   sleep 1
+  i=$((i + 1))
 done
 kill -0 "$probe_pid" 2>/dev/null
 test -n "${S:-}"
 test -S "$S"
-curl -fsS --unix-socket "$S" http://relay/setup/status
+curl -fsS --unix-socket "$S" http://relay/setup/status | \
+  jq -e '.ok and (.data.version | length > 0)'
+keep_probe=1
 ```
 
 The probe chooses its own socket location and writes it to the pointer file, so
@@ -87,7 +103,7 @@ human has already authorized `sudo`, the public `.deb` and matching `.sha256`
 asset are an alternative. The accountless path defaults to the
 relocatable tarball above.
 
-On macOS, require `curl`, `shasum`, `hdiutil`, `ditto`, and `codesign`. Install
+On macOS, the block likewise checks every external command it needs. Install
 under `/Applications` when it is writable; that is the verified location.
 `~/Applications` is an untested fallback for accounts that cannot write there.
 A running app must quit before it is replaced; its process is named
@@ -96,6 +112,13 @@ pointer file only when it starts, so leave an existing pointer in place:
 
 ```sh
 set -eu
+for tool in awk codesign curl ditto hdiutil jq mkdir mktemp open osascript \
+  pgrep rm sed shasum sleep uname; do
+  command -v "$tool" >/dev/null || {
+    printf 'Missing prerequisite: %s\n' "$tool" >&2
+    exit 2
+  }
+done
 case "$(uname -m)" in
   arm64) relay_arch=arm64 ;;
   x86_64) relay_arch=x64 ;;
@@ -117,9 +140,11 @@ if pgrep -x RelayDesktop >/dev/null 2>&1; then
     hdiutil detach "$volume" >/dev/null 2>&1 || true
     exit 3
   }
-  for _ in $(seq 1 30); do
+  i=0
+  while test "$i" -lt 30; do
     pgrep -x RelayDesktop >/dev/null 2>&1 || break
     sleep 1
+    i=$((i + 1))
   done
   if pgrep -x RelayDesktop >/dev/null 2>&1; then
     printf 'Agent Relay is still running; quit it and retry.\n' >&2
@@ -140,14 +165,17 @@ codesign --verify --deep --strict "$app"
 pointer="$HOME/.agentworkforce/desktop/relay-socket"
 open "$app"
 S=
-for _ in $(seq 1 60); do
+i=0
+while test "$i" -lt 60; do
   S="$(sed -n '1p' "$pointer" 2>/dev/null || true)"
   test -n "$S" && test -S "$S" && break
   sleep 1
+  i=$((i + 1))
 done
 test -n "${S:-}"
 test -S "$S"
-curl -fsS --unix-socket "$S" http://relay/setup/status
+curl -fsS --unix-socket "$S" http://relay/setup/status | \
+  jq -e '.ok and (.data.version | length > 0)'
 ```
 
 `nohup` survives an ordinary shell exit, but a sandbox, container, or SSH
