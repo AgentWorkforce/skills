@@ -15,9 +15,12 @@ app and the dashboard. The finished state is:
   this session, so the handoff tools (`list_relay_agents`, `send_relay_message`,
   `read_relay_conversation`, `check_relay_inbox`, `get_shared_session`,
   `get_shared_session_context`, `search_shared_sessions`) are available;
-- a live round trip is proven: this agent messages a teammate's agent and reads
-  the teammate's **real** session content back (or, when no teammate is online
-  yet, the roster and the person's own uploaded session read back cleanly).
+- a live round trip is proven when a teammate is online: this agent messages the
+  teammate's agent, **reads the teammate's real session back** with
+  `get_shared_session_context`, and the teammate reads this session and replies.
+  When no teammate is online yet, the fallback is the roster plus this person's
+  own uploaded session reading back cleanly — reported as self-verified, not as a
+  proven two-way handoff.
 
 ## The only human steps
 
@@ -25,9 +28,13 @@ Everything else is automatable; be honest that these are not:
 
 1. **Approve one Google device-login link** — only when no reusable `agent-relay`
    CLI/desktop login exists. A reused login needs zero clicks.
-2. **Paste one Bearer token** minted in the dashboard's **"Connect your agent"**
-   card. No setup route returns this token by design, so the person mints it and
-   hands it to this agent once. Treat it as a secret (below).
+2. **Provide one Bearer token** minted in the dashboard's **"Connect your agent"**
+   card. No setup route returns this token by design. **Do not have the person
+   paste it into this conversation** — the uploader shares this session's prompts
+   with teammates, so a pasted secret would become teammate-readable. Instead the
+   person puts it into the **environment that launches their agent** (or an OS
+   keychain / a mode-0600 file) via a shell *they* run, and this agent references
+   it only by variable name — never by value. See **Token handling** below.
 3. **Same workspace, both sides.** The teammate (or workspace admin) must have
    invited this person's email to the **shared** workspace — two agents can only
    reach each other inside one workspace. Confirm the workspace id matches on
@@ -86,12 +93,31 @@ failure.
 
 ## Token handling
 
-Never put the Bearer token, a Cloud token, workspace key, or agent token in a
-Relay message, in argv that gets logged, or in the repo. For Codex, keep it in
-an environment variable and pass `--bearer-token-env-var`. For Claude Code, pass
-it in the `Authorization` header on the one `claude mcp add` call; do not echo
-it afterward. If you must hold it on disk briefly, use a mode-0600 file and
-delete it when done.
+The token must never land in the agent conversation, in a Relay message, in
+process argv, or in the repo. Three places leak it, and this skill avoids all
+three:
+
+- **The chat** — this session is uploaded and teammate-readable, so a token
+  pasted to the agent leaks to the workspace. The person sets it themselves (see
+  below); the agent only ever sees the variable **name**.
+- **Process argv** — a token interpolated into `claude mcp add --header
+  "... Bearer $TOKEN"` is visible to `ps` and gets written literally into
+  `~/.claude.json`. Pass the unexpanded placeholder `${AGENT_RELAY_SESSIONS_TOKEN}`
+  instead; Claude Code expands `${VAR}` from the environment at launch, so the
+  stored config holds only a reference and argv holds only the literal `${…}`.
+- **The launching environment** — both CLIs read the token from an environment
+  variable (`${VAR}` for Claude, `--bearer-token-env-var` for Codex), so the
+  variable must exist in the environment that **launches the agent**, not in a
+  transient shell-tool subprocess (which cannot alter its parent or a later
+  process). Have the person export it in their shell profile / launcher, or
+  start the agent from a shell that has it exported.
+
+Use the single variable name `AGENT_RELAY_SESSIONS_TOKEN` throughout. Tell the
+person to set it with a non-echoing command they run themselves, e.g.
+`read -rs AGENT_RELAY_SESSIONS_TOKEN && export AGENT_RELAY_SESSIONS_TOKEN`
+(paste at the silent prompt), added to their shell profile so a restarted agent
+inherits it. The agent never prints the value; verify presence with
+`test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo present` only.
 
 ## 1. Confirm the host and this session
 
@@ -136,7 +162,7 @@ Verify the desktop state this skill depends on:
 ```sh
 curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq '{
   version: .data.version,
-  signed_in: .data.signed_in,
+  sign_in: .data.sign_in,
   workspace: .data.workspace,
   uploader: .data.uploader,
   direct_delivery: .data.direct_delivery,
@@ -146,16 +172,21 @@ curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq '{
 ```
 
 Require all of these before continuing, and stop with a clear message if any
-fails:
+fails. `/setup/status` reports sign-in as the string `sign_in` (match the desktop
+skill), and the flag that actually governs whether **this** session's handoff
+replies arrive live is the session-level `session.direct_delivery`, not the
+top-level default — require both:
 
 ```sh
 curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq -e '
   .ok
-  and .data.signed_in == true
+  and .data.sign_in == "signed_in"
   and (.data.workspace.id | type == "string" and length > 0)
   and .data.uploader.healthy == true
   and .data.direct_delivery == true
-  and .data.session.registered == true'
+  and (.data.session.id | type == "string" and length > 0)
+  and .data.session.registered == true
+  and .data.session.direct_delivery == true'
 ```
 
 Confirm `workspace.id` is the **shared** workspace both sides agreed on. A
@@ -167,35 +198,51 @@ handoff silently fails.
 
 ## 3. Install the agent-sessions cloud MCP (before the session uses it)
 
-Get the Bearer token from the person (minted in the dashboard "Connect your
-agent" card). Detect which agent CLI this session runs and install accordingly.
-
-Claude Code — the token rides the `Authorization` header:
+First confirm the token is present in the environment **without printing it**
+(see **Token handling** — the person set `AGENT_RELAY_SESSIONS_TOKEN` in the
+environment that launches their agent):
 
 ```sh
-# relay_sessions_token holds the pasted token in this shell only; do not echo it.
+test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo present || {
+  echo 'Set AGENT_RELAY_SESSIONS_TOKEN in your shell profile first (see Token handling).' >&2
+}
+```
+
+Detect which agent CLI this session runs and install accordingly.
+
+Claude Code — pass the **unexpanded** placeholder so the token stays out of argv
+and out of `~/.claude.json`; Claude expands `${VAR}` from the environment at
+launch. Single-quote it so the shell does not expand it here. Default scope is
+`local` (this project only), which is what you want:
+
+```sh
 claude mcp add --transport http agent-relay-sessions \
   https://agentrelay.com/cloud/api/v1/mcp/shared-sessions \
-  --header "Authorization: Bearer $relay_sessions_token"
+  --header 'Authorization: Bearer ${AGENT_RELAY_SESSIONS_TOKEN}'
 claude mcp list | grep -F agent-relay-sessions
 ```
 
-Codex — the token stays in an environment variable:
+Codex — `codex mcp add` records the **variable name**, not the value, and writes
+to user-level `~/.codex/config.toml`, so the server is enabled for **all** Codex
+projects (Codex has no project-scoped MCP). Confirm the person is OK with
+user-wide access before adding it:
 
 ```sh
-# Export AGENT_RELAY_SESSIONS_TOKEN in the environment first (do not log it).
 codex mcp add agent-relay-sessions \
   --url https://agentrelay.com/cloud/api/v1/mcp/shared-sessions \
   --bearer-token-env-var AGENT_RELAY_SESSIONS_TOKEN
 codex mcp list | grep -F agent-relay-sessions
 ```
 
-Add the MCP at **project** scope where the handoff work will happen, so it loads
-for sessions started in that project. If this session was already running before
-this step, it has not loaded the MCP: tell the person to restart it (or restart
-it yourself), and continue verification in the restarted session. Do not report
-the tools as missing without first confirming the session started *after* the
-MCP was added.
+Because MCPs load at startup, the running session must be **restarted** to pick
+up the server — and because both CLIs read the token from the environment at
+launch, the restarted process must **inherit** `AGENT_RELAY_SESSIONS_TOKEN`.
+That is why the variable belongs in the shell profile / launcher, not a transient
+shell-tool subprocess: an `export` in this agent's shell tool cannot reach the
+parent or a freshly launched session. After the restart, re-verify presence with
+`test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"` before using the tools, and do not
+report the tools as missing without first confirming the session started *after*
+the MCP was added and with the variable set.
 
 ## 4. Confirm the handoff tools loaded
 
@@ -224,14 +271,20 @@ matches what is available:
 teammate's relay address (e.g. `@manav`), then:
 
 1. `list_relay_agents` — confirm the teammate's address is listed.
-2. `send_relay_message` — send a short, uniquely-marked message to that address.
-3. The teammate's agent reads this session with `get_shared_session_context` and
+2. **Prove the reverse read path first:** call `get_shared_session_context` on
+   the teammate's session and confirm it returns their **real** content (prompts/
+   events + a dashboard citation link). If it errors or is empty, their uploader
+   is unhealthy — stop and have them fix it; do not declare GREEN, because this
+   side cannot actually read their work yet.
+3. `send_relay_message` — send a short, uniquely-marked message to that address.
+4. The teammate's agent reads this session with `get_shared_session_context` and
    continues; have them reply through the relay.
-4. GREEN is the teammate's **real** content appearing in this session and the
-   reply landing. There is no automatic ack — confirm by the reply/activity, not
-   a push. Because Relay injects an inbound message only when the session is idle
-   between turns, **end the turn** after sending and confirm the reply on the
-   next turn; do not sleep or poll inside one turn.
+5. GREEN requires **both directions**: this agent read the teammate's real
+   content (step 2) **and** the teammate's reply lands here. There is no
+   automatic ack — confirm by the reply/activity, not a push. Because Relay
+   injects an inbound message only when the session is idle between turns, **end
+   the turn** after sending and confirm the reply on the next turn; do not sleep
+   or poll inside one turn.
 
 **No teammate online yet (self-verify the read path).** Prove the machinery
 without a second person:
