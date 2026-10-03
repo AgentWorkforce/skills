@@ -263,7 +263,13 @@ for i in $(seq 1 30); do                      # poll up to ~90s for the receipt
   grep -q '"created"' "$draft" 2>/dev/null && break
   sleep 3
 done
-cat "$draft"                                  # a receipt once delivered
+if ! grep -q '"created"' "$draft" 2>/dev/null; then
+  echo 'no receipt after ~90s: the draft was NOT delivered (still a plain draft)' >&2
+  relayfile writeback list --state pending
+  relayfile writeback list --state dead
+  exit 1
+fi
+cat "$draft"                                  # the receipt
 relayfile writeback status       # want pending: 0  failed: 0  dead-lettered: 0
 ```
 
