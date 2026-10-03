@@ -382,7 +382,9 @@ For `pending_approval`, the human can approve from any phone or browser. Do not
 create another code while this one is pending. A `preparing` response is also
 normal: poll `/setup/status` at the reported interval. Preparing local history
 can take about a minute when the app reuses an existing `agent-relay` CLI login.
-Poll both states until sign-in finishes:
+Poll both states until sign-in finishes. The reason for a failure is in
+`.data.sign_in_message`, not in `.data.sign_in` (which only says `error`), so
+print it, and map the known messages to their fix instead of dumping raw state:
 
 ```sh
 while :; do
@@ -395,7 +397,18 @@ while :; do
       break
       ;;
     preparing|pending_approval) ;;
-    denied|expired|error) printf '%s\n' "$state" | jq; exit 1 ;;
+    denied|expired|error)
+      msg=$(printf '%s' "$state" | jq -r '.data.sign_in_message // .error.message // "no message reported"')
+      printf 'Sign-in %s: %s\n' "$phase" "$msg" >&2
+      case "$msg" in
+        *"older managed history uploader"*)
+          printf 'See "Sign-in blocked by a legacy uploader" under Recovery.\n' >&2 ;;
+        *"older upload schedules"*)
+          printf 'Inspect legacy schedules, then retry with acknowledge_uninspected_schedules (see above).\n' >&2 ;;
+        *) printf '%s\n' "$state" | jq '.data' >&2 ;;
+      esac
+      exit 1
+      ;;
   esac
   sleep "$(printf '%s' "$sign_in" | jq -r '.data.interval // 5')"
 done
@@ -640,6 +653,47 @@ event.
   live Codex/Claude session, or the session id/process start no longer matches.
   Run it through this agent's shell tool. In tmux, confirm the agent process and
   shell share the pane's process tree.
+- **Sign-in blocked by a legacy uploader** (`sign_in: error`, message "An older
+  managed history uploader is active. Stop it explicitly before enabling this
+  probe."): the probe counts any of these legacy `ai-hist push` registrations as
+  active, even when idle: the file
+  `~/Library/LaunchAgents/com.ai-hist.push.plist` (even if unloaded), a loaded
+  launchd label `com.ai-hist.push`, or a crontab line containing
+  `# ai-hist push (managed)`. Check each, then with the human's approval unload
+  and move aside (do not delete) what exists. Create the backup directory first,
+  use a unique no-clobber destination, and confirm the move before retrying:
+
+  ```sh
+  # bootout exits non-zero when the label was never loaded; that is fine, so
+  # judge success by whether the label is still loaded, not by its exit code.
+  launchctl bootout "gui/$(id -u)/com.ai-hist.push" 2>/dev/null || true
+  if launchctl list | awk '{print $NF}' | grep -qx com.ai-hist.push; then
+    echo 'com.ai-hist.push is still loaded; do not retry sign-in' >&2
+    exit 1
+  fi
+  plist="$HOME/Library/LaunchAgents/com.ai-hist.push.plist"
+  if test -e "$plist"; then
+    backup_dir="$HOME/.agentworkforce/backup"
+    mkdir -p "$backup_dir"
+    mv -n "$plist" "$backup_dir/com.ai-hist.push.plist.bak-$(date +%Y%m%d%H%M%S)"
+    test ! -e "$plist" || { echo 'plist was not moved; do not retry sign-in' >&2; exit 1; }
+  fi
+  ```
+
+  If instead the marked cron line is the cause, back up the full crontab first
+  and remove only that line, so the change can be reversed with
+  `crontab <backup-file>`:
+
+  ```sh
+  mkdir -p "$HOME/.agentworkforce/backup"
+  cron_backup="$HOME/.agentworkforce/backup/crontab.bak-$(date +%Y%m%d%H%M%S)"
+  crontab -l > "$cron_backup" && test -s "$cron_backup" || { echo 'crontab backup failed; do not edit it' >&2; exit 1; }
+  grep -vF '# ai-hist push (managed)' "$cron_backup" | crontab -
+  ! crontab -l | grep -qF '# ai-hist push (managed)' || { echo 'cron line still present; do not retry sign-in' >&2; exit 1; }
+  ```
+
+  Leave `com.ai-hist.sync` alone; it is not checked. Then re-run
+  `/setup/sign-in` with the same payload.
 - **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
   request. Restart after `expired` or `denied` to obtain a new code.
 - **Older schedules could not be inspected:** inspect the user's legacy cron,

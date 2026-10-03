@@ -24,7 +24,11 @@ app and the dashboard. The finished state is:
 
 ## The only human steps
 
-Everything else is automatable; be honest that these are not:
+Everything else is automatable; be honest that these are not. **Ask for all of
+them up front, before touching anything** — the token in particular is needed
+only at section 3, but minting it and exporting it into the launching
+environment takes the person a few minutes, so have them start it while the
+desktop install and sign-in run:
 
 1. **Approve one Google device-login link** — only when no reusable `agent-relay`
    CLI/desktop login exists. A reused login needs zero clicks.
@@ -130,6 +134,31 @@ one-time entry separate from durable supply:
 The agent never prints the value; verify presence only with
 `test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"`.
 
+## 0. Preflight: collect the human inputs first
+
+Before section 1, tell the person what they need and ask for it in one message:
+
+1. the **shared workspace id** (or the teammate/admin who invited them);
+2. a **Bearer token** minted in the dashboard's "Connect your agent" card for
+   that workspace, stored by *them* as `AGENT_RELAY_SESSIONS_TOKEN` in the
+   environment that launches their agent (see **Token handling** — never pasted
+   into this chat);
+3. the **teammate's relay address** for the round trip, if one will be online.
+
+Check presence without printing the value:
+
+```sh
+test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo token=present || echo token=missing
+```
+
+A missing token does **not** block sections 1–3: the MCP config stores only a
+`${AGENT_RELAY_SESSIONS_TOKEN}` reference, never the value, so it can be added
+now. Do the desktop work and add the MCP, then have the person restart the agent
+**once**, from an environment that exports the token, so that single restart both
+loads the MCP and supplies the credential. Sections 4–5 are gated on that
+restart. If the person would rather not defer, they can export the token and
+restart first, which then costs a second restart only if the MCP was added after.
+
 ## 1. Confirm the host and this session
 
 Run every command from this agent's own shell tool, and only from a **genuine
@@ -209,15 +238,16 @@ handoff silently fails.
 
 ## 3. Install the agent-sessions cloud MCP (before the session uses it)
 
-First confirm the token is present in the environment **without printing it**
-(see **Token handling** — the person set `AGENT_RELAY_SESSIONS_TOKEN` in the
-environment that launches their agent). Stop setup if it is missing — proceeding
-leaves an unresolved credential that only fails after the restart:
+Check whether the token is present in the environment **without printing it**
+(see **Token handling**). It is not required to *add* the MCP, since only a
+reference is stored, but it is required for the tools to authenticate after the
+restart. If it is missing, add the MCP anyway, tell the person plainly that the
+tools will fail auth until they restart the agent from an environment that
+exports `AGENT_RELAY_SESSIONS_TOKEN`, and do not report setup complete:
 
 ```sh
 if ! test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"; then
-  echo 'AGENT_RELAY_SESSIONS_TOKEN is not set in this environment; set it (see Token handling) and restart the agent before continuing.' >&2
-  exit 1
+  echo 'AGENT_RELAY_SESSIONS_TOKEN is not set here; the MCP will be added by reference, but the agent must be restarted from an environment that exports it.' >&2
 fi
 ```
 
