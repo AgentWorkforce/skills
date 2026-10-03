@@ -664,7 +664,13 @@ event.
   use a unique no-clobber destination, and confirm the move before retrying:
 
   ```sh
+  # bootout exits non-zero when the label was never loaded; that is fine, so
+  # judge success by whether the label is still loaded, not by its exit code.
   launchctl bootout "gui/$(id -u)/com.ai-hist.push" 2>/dev/null || true
+  if launchctl list | awk '{print $NF}' | grep -qx com.ai-hist.push; then
+    echo 'com.ai-hist.push is still loaded; do not retry sign-in' >&2
+    exit 1
+  fi
   plist="$HOME/Library/LaunchAgents/com.ai-hist.push.plist"
   if test -e "$plist"; then
     backup_dir="$HOME/.agentworkforce/backup"
