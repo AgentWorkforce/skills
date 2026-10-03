@@ -144,14 +144,26 @@ Do not disconnect an integration to "test" first-run: it breaks live users.
 
 ### Mount only what you need
 
-Mount one subtree, not the workspace:
+Mount one subtree, not the workspace. A channel can live under `<id>` or
+`<id>__<slug>`; resolve the directory that actually exists and mount that exact
+path, because `--local-layout exact` puts only the selected subtree at the
+local root:
 
 ```sh
-mkdir -p ~/relayfile-mount-test
-nohup relayfile mount --local-dir ~/relayfile-mount-test --local-layout exact \
-  --remote-path /slack/channels/CHANNEL_ID__CHANNEL-NAME \
-  >/tmp/relayfile-mount.log 2>&1 &
+chan_dir=$(relayfile read /discovery/slack/channels/_index.json |
+  jq -r '.. | objects | select(.id? == "CHANNEL_ID") | .path' | head -1)
+printf 'mounting %s\n' "$chan_dir"      # must be non-empty and the one you subscribed to
+test -n "$chan_dir" || { echo 'channel not found in the discovery index' >&2; exit 1; }
+mount_dir=~/relayfile-mount-test; mkdir -p "$mount_dir"
+nohup relayfile mount --local-dir "$mount_dir" --local-layout exact \
+  --remote-path "$chan_dir" >/tmp/relayfile-mount.log 2>&1 &
+echo $! > /tmp/relayfile-mount.pid       # kept for cleanup; do not pkill by name
 ```
+
+The index row's `path` is the directory the workspace actually uses for that
+channel (`/slack/channels/<id>` or `/slack/channels/<id>__<slug>`). Do not take
+it from `relayfile tree /slack/channels`: that listing is paged and a channel
+may not be on the first page.
 
 Use a **single** `--remote-path`. Multiple paths are currently impossible:
 `exact` is rejected for them and `scoped` is disabled
@@ -188,8 +200,11 @@ relayfile writeback status       # want pending: 0  failed: 0  dead-lettered: 0
 Success is the draft being **rewritten as a receipt**
 `{"created":..., "path":..., "externalId":"<ts>", "ts":"<ts>"}` and
 `dead-lettered: 0`. `pending` should drain to 0 within about 30 seconds. If it
-stays pending, `relayfile writeback list --state pending|dead`, then
-`relayfile writeback retry --op-id <op>`.
+stays pending, look at `relayfile writeback list --state pending` and the mount
+log first. Only a **dead-lettered** op is retried, with its workspace:
+`relayfile writeback list --state dead`, then
+`relayfile writeback retry --op-id <op> <workspace-id>` (the CLI also accepts
+`--opId`).
 
 **Do not expect the canonical record to appear.** After a successful post,
 `<mount>/messages/<ts>/meta.json` may never exist, and reading it returns 404
@@ -221,6 +236,17 @@ when `.adapter.md` says delete is supported.
 
 ## Clean up
 
-Stop the mount (`pkill -f 'relayfile mount'` only for the mount you started),
-remove the throwaway local mirror, and delete subscriptions you no longer need.
-Say what you left running.
+Stop only the mount this procedure started, using the PID recorded at start, and
+confirm it is still that process first. Never `pkill -f 'relayfile mount'`: it
+matches every mount on the machine, including other people's live mirrors and
+pending write-backs.
+
+```sh
+pid=$(cat /tmp/relayfile-mount.pid 2>/dev/null)
+if test -n "$pid" && ps -o command= -p "$pid" | grep -q 'relayfile mount.*relayfile-mount-test'; then
+  kill "$pid" && rm /tmp/relayfile-mount.pid
+fi
+```
+
+Remove the throwaway local mirror, delete subscriptions you no longer need, and
+say what you left running.
