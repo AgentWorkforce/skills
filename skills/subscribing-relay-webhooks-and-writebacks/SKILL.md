@@ -34,18 +34,55 @@ relayfile 0.10.71. Known defects are linked to their issues in
 
 ## Part 1: inbound
 
-### Find the socket and confirm the session
+### Set up the request helper and confirm the session
+
+Define these once per shell; every request in this skill goes through
+`relay_req`, which uses the Desktop's `agent-relay-probe` on macOS (the system
+`curl` hides a Codex session's identity there and is refused
+`not_a_relay_session`), `curl` on Linux and for Claude Code, and stops with a
+message for a macOS Codex session that has no probe:
 
 ```sh
 relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status |
-  jq '.data | {sign_in, session: .session.address, direct_delivery}'
+relay_probe=
+for c in "$HOME/.local/bin/agent-relay-probe" \
+         /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
+         "/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe"; do
+  if test -x "$c"; then relay_probe=$c; break; fi
+done
+# relay_req METHOD PATH [JSON-BODY]
+relay_req() {
+  if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
+    printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
+      --socket "$relay_socket" --method "$1" --path "$2"
+  elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
+    echo 'A Codex session on macOS needs agent-relay-probe; start Agent Relay and retry.' >&2
+    return 1
+  elif test -n "${3:-}"; then
+    curl -sS --unix-socket "$relay_socket" -X "$1" \
+      -H 'Content-Type: application/json' -d "$3" "http://relay$2"
+  else
+    curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
+  fi
+}
+integration() {   # integration subscribe|unsubscribe PROVIDER RESOURCE
+  case "$1" in subscribe) m=POST ;; unsubscribe) m=DELETE ;; esac
+  relay_req "$m" /integrations/subscribe \
+    "$(jq -nc --arg p "$2" --arg r "$3" '{provider:$p,resource:$r}')" |
+    jq -c '{ok, subscribed: .data.subscribed, resource: .data.resource, code: .error.code}'
+}
 ```
 
-Run it from this agent's own shell inside an interactive session. Another
-terminal or `codex exec` is refused with `not_a_relay_session`. On macOS a Codex
-session cannot use system `curl` (it hides the session identity); see the
-fallback in `setting-up-agent-relay-desktop` section 6.
+Then confirm the session is signed in **and registered**:
+
+```sh
+relay_req GET /setup/status |
+  jq '.data | {sign_in, address: .session.address, registered: .session.registered, direct_delivery}'
+```
+
+Require `sign_in: "signed_in"` and `registered: true`. Run it from this agent's
+own shell inside an interactive session; another terminal or `codex exec` is
+refused with `not_a_relay_session`.
 
 **Reinstalled or re-registered?** Wiping local state does not release the cloud
 registration. `POST /register` can answer `name_taken`; register under a new
@@ -58,22 +95,17 @@ A PR needs four globs: its pull data, reviews, checks, and GitHub's separate
 issue-comment path.
 
 ```sh
-subscribe() {
-  curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-    -d "$(jq -nc --arg p "$1" --arg r "$2" '{provider:$p,resource:$r}')" \
-    http://relay/integrations/subscribe | jq -c '{ok, subscribed: .data.subscribed, resource: .data.resource, error}'
-}
 R=OWNER/REPO; N=NUMBER
 for g in "/github/repos/$R/pulls/$N/**" \
          "/github/repos/$R/pulls/$N/reviews/**" \
          "/github/repos/$R/pulls/$N/status/**" \
-         "/github/repos/$R/issues/$N/comments/**"; do subscribe github "$g"; done
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.integrations'
+         "/github/repos/$R/issues/$N/comments/**"; do integration subscribe github "$g"; done
+relay_req GET /setup/status | jq -c '.data.integrations'
 ```
 
 Require `ok: true` and `subscribed: true` for each, and every entry `ready: true`
-in the status list. A repeat can answer HTTP 409 "already subscribed"; treat
-that as success.
+in the status list. A repeat answers HTTP 409, shown as `code: conflict` ("already subscribed");
+treat that one code as success.
 
 Make this a required step right after the agent opens a PR, so review feedback
 arrives without anyone naming the PR. A subscribe response alone does not prove
@@ -91,13 +123,14 @@ This lookup uses relayfile, so first run **Part 2's "Install and authenticate
 relayfile"** (`npm install -g relayfile`, then `relayfile login </dev/null`);
 without it the command fails with `command not found` or `delegated relayfile
 credentials are required`. Then find the channel id and subscribe to both
-directory spellings, because a channel can appear as `<id>` or `<id>__<slug>`:
+directory spellings, because a channel can appear as `<id>` or `<id>__<slug>`
+(the `integration` helper is defined at the top of Part 1):
 
 ```sh
 relayfile read /discovery/slack/channels/_index.json |
   jq -r '.. | objects | select(.name? == "CHANNEL-NAME") | .id'
-subscribe slack "/slack/channels/CHANNEL_ID/**"
-subscribe slack "/slack/channels/CHANNEL_ID__CHANNEL-NAME/**"
+integration subscribe slack "/slack/channels/CHANNEL_ID/**"
+integration subscribe slack "/slack/channels/CHANNEL_ID__CHANNEL-NAME/**"
 ```
 
 ### Verify delivery
@@ -119,8 +152,16 @@ temp file, unique marker, delete the file, confirm the marker next turn).
 
 ### Undo
 
-Send the same provider/resource JSON with `-X DELETE` to
-`/integrations/subscribe` for each glob. `DELETE /webhooks` removes the webhook.
+Remove a subscription with the same helper, once per glob:
+
+```sh
+integration unsubscribe github "/github/repos/$R/pulls/$N/**"   # repeat for each glob
+```
+
+Do **not** `DELETE /webhooks` as part of undoing subscriptions. That removes the
+workspace's shared webhook, which other subscriptions and agents may rely on, and
+its secret cannot be recovered. Do it only with the human's explicit
+authorization, and only for a webhook this procedure created.
 
 ## Part 2: outbound write-backs
 
