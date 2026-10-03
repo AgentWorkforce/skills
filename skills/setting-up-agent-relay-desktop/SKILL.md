@@ -575,10 +575,41 @@ there and is refused `not_a_relay_session`, so a Codex session with no probe
 stops instead. `curl` is correct for Claude Code and on Linux:
 
 ```sh
-# The one-command form (below) is used only when the installed probe has it;
-# otherwise the four globs. Exactly one of the two runs.
-if test -n "$relay_probe" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
-  "$relay_probe" relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER' | jq
+# One client for every socket request in this section and in undo: the probe
+# on macOS (system curl hides a Codex session there), curl elsewhere.
+relay_req() {  # METHOD PATH [JSON body]
+  if test "$(uname -s)" = Darwin && test -n "${relay_probe:-}"; then
+    printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
+      --socket "$relay_socket" --method "$1" --path "$2"
+  elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
+    printf 'A Codex session on macOS needs agent-relay-probe; start Agent Relay and retry.\n' >&2
+    return 1
+  elif test -n "${3:-}"; then
+    curl -sS --unix-socket "$relay_socket" -X "$1" \
+      -H 'Content-Type: application/json' -d "$3" "http://relay$2"
+  else
+    curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
+  fi
+}
+
+# This PR's subscriptions, in whichever form they were made.
+pr_url='https://github.com/OWNER/REPO/pull/NUMBER'
+pr_resources() {
+  relay_req GET /setup/status | jq -r --arg url "$pr_url" \
+    --arg short 'OWNER/REPO#NUMBER' \
+    --arg pulls '/github/repos/OWNER/REPO/pulls/NUMBER/' \
+    --arg issues '/github/repos/OWNER/REPO/issues/NUMBER/' '
+    .data.integrations[]? | select(.provider == "github") | .resource
+    | select(. == $url or . == $short or startswith($url + "/")
+             or startswith($pulls) or startswith($issues))'
+}
+
+if test -n "$(pr_resources)"; then
+  # Already subscribed in one form; adding the other would only duplicate it.
+  printf 'Already subscribed:\n%s\n' "$(pr_resources)"
+elif test -n "${relay_probe:-}" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
+  # The one-command form (below), only when the installed probe has it.
+  "$relay_probe" relay subscribe "$pr_url" | jq
 else
   for resource in \
     '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
@@ -586,20 +617,11 @@ else
     '/github/repos/OWNER/REPO/pulls/NUMBER/status/**' \
     '/github/repos/OWNER/REPO/issues/NUMBER/comments/**'
   do
-    body=$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')
-    if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
-      printf '%s' "$body" | "$relay_probe" relay socket-request \
-        --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
-    elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
-      printf 'A Codex session on macOS needs agent-relay-probe to subscribe; start Agent Relay and retry.\n' >&2
-      exit 1
-    else
-      curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-        -d "$body" http://relay/integrations/subscribe | jq
-    fi
+    relay_req POST /integrations/subscribe \
+      "$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')" | jq
   done
 fi
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.integrations'
+relay_req GET /setup/status | jq -c '.data.integrations'
 ```
 
 Require `.ok` and `.data.subscribed` to be `true` for each answer, and every
@@ -613,8 +635,10 @@ Desktop 2026.10.6 with both the probe client and `curl`.
 that the Desktop correlates with the PR's reviews, comments, and checks. It is
 absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
 'subscribe'`, so do not lead with it. Use it only when the installed probe
-advertises it; the block above makes that choice, so the two forms never both
-run for one pull request.
+advertises it. The block above makes that choice, and first checks the
+session's existing subscriptions, so a pull request subscribed one way (for
+example with the four globs before an upgrade) is never subscribed again the
+other way.
 
 Once released, re-test it before relying on its details; the behavior described
 in that PR (a repeat answering `"already_subscribed":true`, `--remove` to end it,
@@ -781,24 +805,21 @@ event.
   organization controls `crossSessionInbound`; report the policy block rather
   than modifying managed settings.
 - **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
-- **Undo an integration:** send each subscribed provider/resource JSON with
-  `DELETE` to `/integrations/subscribe` (the same four globs for a PR), through
-  the same client that subscribed. On macOS a Codex session must use the probe,
-  because the system `curl` hides its identity:
+- **Undo an integration:** with section 6's `relay_probe`, `relay_socket`,
+  `relay_req`, and `pr_resources` defined, remove every subscription the
+  session holds for the pull request, in whichever form it was made. On macOS
+  `relay_req` uses the probe, and a Codex session without one stops instead of
+  sending a `curl` request that cannot be identified:
 
   ```sh
-  body='{"provider":"github","resource":"/github/repos/OWNER/REPO/pulls/NUMBER/**"}'
-  if test "$(uname -s)" = Darwin && test -n "${relay_probe:-}"; then
-    printf '%s' "$body" | "$relay_probe" relay socket-request \
-      --socket "$relay_socket" --method DELETE --path /integrations/subscribe | jq
-  else
-    curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-      -X DELETE -d "$body" http://relay/integrations/subscribe | jq
-  fi
+  pr_resources | while IFS= read -r resource; do
+    relay_req DELETE /integrations/subscribe \
+      "$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')" | jq
+  done
+  relay_req GET /setup/status | jq -c '.data.integrations'
   ```
 
-  Repeat for each glob. A subscription made with the one-command form is
-  ended with `"$relay_probe" relay subscribe --remove 'OWNER/REPO#NUMBER'`.
+  Require the final list to hold none of that pull request's resources.
 - **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
   `/setup/direct-delivery`. On Claude this restores the local opt-out; managed
