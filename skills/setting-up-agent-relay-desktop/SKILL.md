@@ -385,7 +385,9 @@ For `pending_approval`, the human can approve from any phone or browser. Do not
 create another code while this one is pending. A `preparing` response is also
 normal: poll `/setup/status` at the reported interval. Preparing local history
 can take about a minute when the app reuses an existing `agent-relay` CLI login.
-Poll both states until sign-in finishes:
+Poll both states until sign-in finishes. The reason for a failure is in
+`.data.sign_in_message`, not in `.data.sign_in` (which only says `error`), so
+print it, and map the known messages to their fix instead of dumping raw state:
 
 ```sh
 while :; do
@@ -398,7 +400,18 @@ while :; do
       break
       ;;
     preparing|pending_approval) ;;
-    denied|expired|error) printf '%s\n' "$state" | jq; exit 1 ;;
+    denied|expired|error)
+      msg=$(printf '%s' "$state" | jq -r '.data.sign_in_message // .error.message // "no message reported"')
+      printf 'Sign-in %s: %s\n' "$phase" "$msg" >&2
+      case "$msg" in
+        *"older managed history uploader"*)
+          printf 'See "Sign-in blocked by a legacy uploader" under Recovery.\n' >&2 ;;
+        *"older upload schedules"*)
+          printf 'Inspect legacy schedules, then retry with acknowledge_uninspected_schedules (see above).\n' >&2 ;;
+        *) printf '%s\n' "$state" | jq '.data' >&2 ;;
+      esac
+      exit 1
+      ;;
   esac
   sleep "$(printf '%s' "$sign_in" | jq -r '.data.interval // 5')"
 done
@@ -530,10 +543,13 @@ delivery test could not be repeated.
 
 ## 6. Subscribe requested integrations
 
-Require the provider and repository from the human. For a GitHub pull request,
-one command subscribes this session to its reviews, review comments,
-conversation comments, and checks. Pass the address `gh pr create` printed, or
-`OWNER/REPO#NUMBER`:
+Require the provider and repository from the human. A GitHub pull request needs
+four resource globs: its pull data, reviews, checks/status, and GitHub's
+separate issue-comment path. This works on every released Desktop and is the
+path to use today.
+
+First find the Desktop's `agent-relay-probe`. macOS needs it for Codex sessions
+(below) and it is the client for the one-command form once that ships:
 
 ```sh
 relay_probe=
@@ -548,33 +564,15 @@ if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then
   relay_probe=$(find "$HOME/.local/lib/agent-relay" -type f -perm -u+x \
     -path '*/agent_relay/helpers/agent-relay-probe' -print -quit 2>/dev/null)
 fi
-if test -n "$relay_probe"; then
-  "$relay_probe" relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER' | jq
-else
-  printf 'No agent-relay-probe found; use the single-request fallback below.\n' >&2
-fi
+printf 'relay_probe=%s\n' "${relay_probe:-none}"
 ```
 
-A running production Desktop creates `~/.local/bin/agent-relay-probe` when it
-starts and keeps it at its own version; the other candidates are the copies
-bundled by the `.deb`, the macOS app, and the per-user tarball, for a
-development build or a start that has not finished.
-
-The command finds the socket itself and takes no agent name, workspace key, or
-token: the Desktop identifies the calling session from the process, so run it
-through this agent's own shell tool. Require `.ok` and `.data.subscribed` to be
-`true`. Repeating it is safe; a subscription this session already holds
-answers `"already_subscribed":true`. `--remove` ends it. With this command one
-numeric subscription is enough: do not add separate `reviews`, `status`, or
-`issues/NUMBER/comments` globs.
-
-When the installed app predates the command (`unrecognized subcommand
-'subscribe'`) or no probe was found, subscribe through the socket instead.
-Apps older than v2026.10.2 read only explicit path globs and need all four, so
-this fallback sends those; every version accepts them. On macOS use the probe
-client when there is one. The system `curl` hides a Codex session's identity
+A running Desktop keeps `~/.local/bin/agent-relay-probe` at its own version; the
+other candidates are the copies bundled by the `.deb`, the macOS app, and the
+per-user tarball. Then subscribe through the socket. On macOS use the probe
+client when there is one: the system `curl` hides a Codex session's identity
 there and is refused `not_a_relay_session`, so a Codex session with no probe
-stops instead; `curl` remains correct for Claude Code and on Linux:
+stops instead. `curl` is correct for Claude Code and on Linux:
 
 ```sh
 for resource in \
@@ -595,11 +593,30 @@ do
       -d "$body" http://relay/integrations/subscribe | jq
   fi
 done
+curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.integrations'
 ```
 
-On this path a repeated request returns HTTP 409 `conflict` ("already
-subscribed"); treat that one code as success. Require every other answer to
-have `.ok` true.
+Require `.ok` and `.data.subscribed` to be `true` for each answer, and every
+entry in the status list to be `ready: true`. A repeated request returns HTTP 409
+`conflict` ("already subscribed"); treat that one code as success. Verified on
+Desktop 2026.10.6 with both the probe client and `curl`.
+
+**One-command form (not yet released).** `relay-desktop#216` adds
+`agent-relay-probe relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER'`
+(or `OWNER/REPO#NUMBER`), which subscribes the same four paths in one call. It is
+absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
+'subscribe'`, so do not lead with it. Use it only when the installed probe
+advertises it, and fall back to the globs above otherwise:
+
+```sh
+if test -n "$relay_probe" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
+  "$relay_probe" relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER' | jq
+fi
+```
+
+Once released, re-test it before relying on its details; the behavior described
+in that PR (a repeat answering `"already_subscribed":true`, `--remove` to end it,
+and a numeric subscription covering all four paths) has not been verified here.
 
 Refusals and what they mean:
 
@@ -648,7 +665,7 @@ The CLI path follows `orchestrating-agent-relay`, which also subscribes
 `issues/NUMBER/comments/**`; repeat the command for those globs there. Never
 put the workspace key in argv.
 
-Make the subscribe command a required post-create step in the agent's PR
+Make the subscribe step a required post-create step in the agent's PR
 workflow: whenever it authors a PR, it subscribes its own live session
 immediately, without waiting for an operator to name the PR. This is the
 authored-PR pattern from `orchestrating-agent-relay`; it covers every future PR
@@ -708,6 +725,47 @@ event.
   live Codex/Claude session, or the session id/process start no longer matches.
   Run it through this agent's shell tool. In tmux, confirm the agent process and
   shell share the pane's process tree.
+- **Sign-in blocked by a legacy uploader** (`sign_in: error`, message "An older
+  managed history uploader is active. Stop it explicitly before enabling this
+  probe."): the probe counts any of these legacy `ai-hist push` registrations as
+  active, even when idle: the file
+  `~/Library/LaunchAgents/com.ai-hist.push.plist` (even if unloaded), a loaded
+  launchd label `com.ai-hist.push`, or a crontab line containing
+  `# ai-hist push (managed)`. Check each, then with the human's approval unload
+  and move aside (do not delete) what exists. Create the backup directory first,
+  use a unique no-clobber destination, and confirm the move before retrying:
+
+  ```sh
+  # bootout exits non-zero when the label was never loaded; that is fine, so
+  # judge success by whether the label is still loaded, not by its exit code.
+  launchctl bootout "gui/$(id -u)/com.ai-hist.push" 2>/dev/null || true
+  if launchctl list | awk '{print $NF}' | grep -qx com.ai-hist.push; then
+    echo 'com.ai-hist.push is still loaded; do not retry sign-in' >&2
+    exit 1
+  fi
+  plist="$HOME/Library/LaunchAgents/com.ai-hist.push.plist"
+  if test -e "$plist"; then
+    backup_dir="$HOME/.agentworkforce/backup"
+    mkdir -p "$backup_dir"
+    mv -n "$plist" "$backup_dir/com.ai-hist.push.plist.bak-$(date +%Y%m%d%H%M%S)"
+    test ! -e "$plist" || { echo 'plist was not moved; do not retry sign-in' >&2; exit 1; }
+  fi
+  ```
+
+  If instead the marked cron line is the cause, back up the full crontab first
+  and remove only that line, so the change can be reversed with
+  `crontab <backup-file>`:
+
+  ```sh
+  mkdir -p "$HOME/.agentworkforce/backup"
+  cron_backup="$HOME/.agentworkforce/backup/crontab.bak-$(date +%Y%m%d%H%M%S)"
+  crontab -l > "$cron_backup" && test -s "$cron_backup" || { echo 'crontab backup failed; do not edit it' >&2; exit 1; }
+  grep -vF '# ai-hist push (managed)' "$cron_backup" | crontab -
+  ! crontab -l | grep -qF '# ai-hist push (managed)' || { echo 'cron line still present; do not retry sign-in' >&2; exit 1; }
+  ```
+
+  Leave `com.ai-hist.sync` alone; it is not checked. Then re-run
+  `/setup/sign-in` with the same payload.
 - **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
   request. Restart after `expired` or `denied` to obtain a new code.
 - **Older schedules could not be inspected:** inspect the user's legacy cron,
@@ -721,11 +779,10 @@ event.
   organization controls `crossSessionInbound`; report the policy block rather
   than modifying managed settings.
 - **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
-- **Undo an integration:** `"$HOME/.local/bin/agent-relay-probe" relay subscribe --remove 'OWNER/REPO#NUMBER'`
-  (or the probe section 6 found, when that path is absent). Without a probe,
-  or for a subscription made through the four-glob fallback, send each
-  subscribed provider/resource JSON with `-X DELETE` to
-  `/integrations/subscribe`.
+- **Undo an integration:** send each subscribed provider/resource JSON with
+  `-X DELETE` to `/integrations/subscribe` (the same four globs for a PR). Once
+  `agent-relay-probe relay subscribe` ships, `... relay subscribe --remove
+  'OWNER/REPO#NUMBER'` is the one-command equivalent.
 - **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
   `/setup/direct-delivery`. On Claude this restores the local opt-out; managed
