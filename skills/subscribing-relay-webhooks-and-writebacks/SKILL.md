@@ -1,0 +1,226 @@
+---
+name: subscribing-relay-webhooks-and-writebacks
+description: Subscribe a running Codex or Claude session to inbound provider events (a GitHub pull request, a Slack channel) so they are injected into the session, and write back to providers (post to Slack, comment, review) through a Relayfile mount. Covers the desktop subscribe endpoint, the four PR globs, Slack channel globs, creating and testing a webhook, installing and authenticating relayfile, mounting a single subtree, discovering the write contract, posting a draft, and verifying delivery. Use when a human asks an agent to "get PR feedback injected", "subscribe to a channel", "post to Slack from the agent", or test write-backs.
+---
+
+# Subscribe to Webhooks and Write Back to Providers
+
+Two directions, one session:
+
+- **Inbound (subscribe):** provider events arrive in this session as injected
+  messages from `@__relay_webhook__`.
+- **Outbound (write back):** the agent writes a file into a Relayfile mount and
+  the cloud delivers it to the provider.
+
+Both need a signed-in, registered desktop. If `GET /setup/status` does not show
+`sign_in: signed_in` and `session.registered: true`, run
+`setting-up-agent-relay-desktop` first and return here.
+
+Everything below was verified on macOS with Agent Relay Desktop 2026.10.6 and
+relayfile 0.10.71. Known defects are linked to their issues in
+`AgentWorkforce/relayfile-cloud`; do not paper over them, report them.
+
+## Safety first
+
+- A write-back posts a real message under the workspace's bot. **Confirm the
+  channel or repo with the human before the first write** and say it will be
+  visible. Label test messages as tests. Never pick `#general` or an
+  investor/hiring channel for a test.
+- Identical content posted twice dedupes to one Slack message; use unique
+  content (a timestamp) when a fresh visible post is needed.
+- Never write under `<mount>/.relay/`; it is daemon state.
+- Never put a webhook secret, bearer token, or workspace key in a Relay message,
+  argv, or the repo.
+
+## Part 1: inbound
+
+### Find the socket and confirm the session
+
+```sh
+relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
+curl -sS --unix-socket "$relay_socket" http://relay/setup/status |
+  jq '.data | {sign_in, session: .session.address, direct_delivery}'
+```
+
+Run it from this agent's own shell inside an interactive session. Another
+terminal or `codex exec` is refused with `not_a_relay_session`. On macOS a Codex
+session cannot use system `curl` (it hides the session identity); see the
+fallback in `setting-up-agent-relay-desktop` section 6.
+
+**Reinstalled or re-registered?** Wiping local state does not release the cloud
+registration. `POST /register` can answer `name_taken`; register under a new
+name with `{"name":"<new-name>"}` and tell people the new address, because
+messages to the old address go to an offline agent and are never injected.
+
+### Subscribe to a GitHub pull request
+
+A PR needs four globs: its pull data, reviews, checks, and GitHub's separate
+issue-comment path.
+
+```sh
+subscribe() {
+  curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg p "$1" --arg r "$2" '{provider:$p,resource:$r}')" \
+    http://relay/integrations/subscribe | jq -c '{ok, subscribed: .data.subscribed, resource: .data.resource, error}'
+}
+R=OWNER/REPO; N=NUMBER
+for g in "/github/repos/$R/pulls/$N/**" \
+         "/github/repos/$R/pulls/$N/reviews/**" \
+         "/github/repos/$R/pulls/$N/status/**" \
+         "/github/repos/$R/issues/$N/comments/**"; do subscribe github "$g"; done
+curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.integrations'
+```
+
+Require `ok: true` and `subscribed: true` for each, and every entry `ready: true`
+in the status list. A repeat can answer HTTP 409 "already subscribed"; treat
+that as success.
+
+Make this a required step right after the agent opens a PR, so review feedback
+arrives without anyone naming the PR. A subscribe response alone does not prove
+delivery.
+
+> **Upgrade note.** A one-command form, `agent-relay-probe relay subscribe
+> <PR URL>`, is in `AgentWorkforce/relay-desktop#216` and is **not** in the
+> latest release (2026.10.6 reports `unrecognized subcommand 'subscribe'`). Use
+> the four globs until a release ships it, then re-check with
+> `agent-relay-probe relay --help`.
+
+### Subscribe to a Slack channel
+
+Find the channel id, then subscribe to both directory spellings, because a
+channel can appear as `<id>` or `<id>__<slug>`:
+
+```sh
+relayfile read /discovery/slack/channels/_index.json |
+  jq -r '.. | objects | select(.name? == "CHANNEL-NAME") | .id'
+subscribe slack "/slack/channels/CHANNEL_ID/**"
+subscribe slack "/slack/channels/CHANNEL_ID__CHANNEL-NAME/**"
+```
+
+### Verify delivery
+
+Relay injects an event only when the session is idle between turns. After
+causing a harmless authorized event (a test comment, a requested bot review, a
+labelled test post), **end the turn** and confirm on the next turn that the
+injected message arrived with its full message id. Do not sleep or poll.
+
+Expect noise: PR bots echo your own replies back as `review_comment.created`,
+empty "COMMENTED" review wrappers, and `synchronize` for your own pushes. Check
+`gh api` before acting; an echo of your own reply needs no response.
+
+### Webhook creation and test
+
+Creating a webhook is a persistent external change; do it only when asked.
+Follow `setting-up-agent-relay-desktop` section 5 (one-time secret to a mode-0600
+temp file, unique marker, delete the file, confirm the marker next turn).
+
+### Undo
+
+Send the same provider/resource JSON with `-X DELETE` to
+`/integrations/subscribe` for each glob. `DELETE /webhooks` removes the webhook.
+
+## Part 2: outbound write-backs
+
+### Install and authenticate relayfile
+
+```sh
+npm install -g relayfile
+relayfile --version            # 0.10.x
+relayfile login </dev/null     # reuses the desktop's agent-relay session
+relayfile status               # expect: auth: agent-relay session ok
+```
+
+Do **not** use `relayfile login --no-open`: it is listed in `--help` but fails
+with `unknown option '--no-open'`
+([relayfile-cloud#282](https://github.com/AgentWorkforce/relayfile-cloud/issues/282)).
+If a mount reports `delegated relayfile credentials are required`, run
+`relayfile login` once; it creates `~/.relayfile/delegated/*`.
+
+A provider that is not yet connected to the workspace is connected with
+`relayfile integration connect <provider> --no-open`, which prints a Nango
+connect URL for the human to approve in a browser (the URL expires in about 30
+minutes). Check what is already connected with `relayfile integration list`.
+Do not disconnect an integration to "test" first-run: it breaks live users.
+
+### Mount only what you need
+
+Mount one subtree, not the workspace:
+
+```sh
+mkdir -p ~/relayfile-mount-test
+nohup relayfile mount --local-dir ~/relayfile-mount-test --local-layout exact \
+  --remote-path /slack/channels/CHANNEL_ID__CHANNEL-NAME \
+  >/tmp/relayfile-mount.log 2>&1 &
+```
+
+Use a **single** `--remote-path`. Multiple paths are currently impossible:
+`exact` is rejected for them and `scoped` is disabled
+([#280](https://github.com/AgentWorkforce/relayfile-cloud/issues/280)). With
+`exact`, the local root is the mounted subtree itself (`messages/`, `meta.json`).
+The mirror syncs about every 30 seconds.
+
+### Discover the write contract; do not guess
+
+```sh
+relayfile read /discovery/slack/.adapter.md
+relayfile read '/discovery/slack/channels/{channelId}/messages/.create.example.json'
+```
+
+The docs live under `/discovery/<provider>/`. The paths printed inside
+`.adapter.md` omit that prefix, and `{channelId}` is a literal directory name
+([#283](https://github.com/AgentWorkforce/relayfile-cloud/issues/283)). For Slack,
+create = write JSON with **any non-canonical filename** into
+`<mount>/messages/`; at least one of `text`, `blocks`, `attachments` is required;
+add an `idempotencyKey` so a retry cannot double-post.
+
+### Post a draft and verify
+
+```sh
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+jq -nc --arg t "[writeback test $ts] <what this verifies>. Safe to ignore." \
+       --arg k "wb-test-$ts" '{text:$t,idempotencyKey:$k}' \
+  > ~/relayfile-mount-test/messages/wb-test-draft-$ts.json
+# wait one sync interval, then:
+cat ~/relayfile-mount-test/messages/wb-test-draft-$ts.json   # now a receipt
+relayfile writeback status       # want pending: 0  failed: 0  dead-lettered: 0
+```
+
+Success is the draft being **rewritten as a receipt**
+`{"created":..., "path":..., "externalId":"<ts>", "ts":"<ts>"}` and
+`dead-lettered: 0`. `pending` should drain to 0 within about 30 seconds. If it
+stays pending, `relayfile writeback list --state pending|dead`, then
+`relayfile writeback retry --op-id <op>`.
+
+**Do not expect the canonical record to appear.** After a successful post,
+`<mount>/messages/<ts>/meta.json` may never exist, and reading it returns 404
+([#277](https://github.com/AgentWorkforce/relayfile-cloud/issues/277)). The
+receipt's `ts` is the proof Slack accepted the message. Slack's provider status
+may also read `lagging` indefinitely
+([#278](https://github.com/AgentWorkforce/relayfile-cloud/issues/278)); that
+alone is not an outage.
+
+### Other write shapes
+
+Edit a message: write mutable fields to the canonical `<ts>/meta.json` (only
+once it exists). Reply or react: use the sibling `replies/` and `reactions/`
+resource directories from `.adapter.md`. Delete: remove the canonical file only
+when `.adapter.md` says delete is supported.
+
+## Failure cheat sheet
+
+| Symptom | Meaning | Do |
+|---|---|---|
+| `not_a_relay_session` | Not an interactive Claude/Codex session | Run from the agent's own shell |
+| `name_taken` on `/register` | Old cloud registration survives a reinstall | Register a new name; tell people the new address |
+| Messages to the old address never arrive | Old agent is offline | Use the new address; `agent-relay agent remove <old>` after confirming |
+| `429 workspace_busy` on `relayfile read` | Shared workspace admission pool is full; the CLI does not retry | Wait the advertised delay and retry; stop heavy mounts ([#279](https://github.com/AgentWorkforce/relayfile-cloud/issues/279)) |
+| `relayfile ops list` warns `credentials.json` not found | Reads the legacy credential store | Ignore the warning; use `writeback status` ([#281](https://github.com/AgentWorkforce/relayfile-cloud/issues/281)) |
+| `delegated relayfile credentials are required` | No login on this machine | `relayfile login </dev/null` |
+| `.schema.json` 404 under the resource | Docs are under `/discovery/...` | Read from `/discovery/<provider>/...` |
+| Draft never becomes a receipt | Mount not running or write-back failing | `relayfile status`, mount log, `writeback list --state dead` |
+
+## Clean up
+
+Stop the mount (`pkill -f 'relayfile mount'` only for the mount you started),
+remove the throwaway local mirror, and delete subscriptions you no longer need.
+Say what you left running.
