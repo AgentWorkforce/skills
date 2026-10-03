@@ -50,6 +50,10 @@ for c in "$HOME/.local/bin/agent-relay-probe" \
          "/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe"; do
   if test -x "$c"; then relay_probe=$c; break; fi
 done
+if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then   # per-user tarball
+  relay_probe=$(find "$HOME/.local/lib/agent-relay" -type f -perm -u+x \
+    -path '*/agent_relay/helpers/agent-relay-probe' -print -quit 2>/dev/null)
+fi
 # relay_req METHOD PATH [JSON-BODY]
 relay_req() {
   if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
@@ -66,7 +70,12 @@ relay_req() {
   fi
 }
 integration() {   # integration subscribe|unsubscribe PROVIDER RESOURCE
-  case "$1" in subscribe) m=POST ;; unsubscribe) m=DELETE ;; esac
+  local m=
+  case "$1" in
+    subscribe) m=POST ;;
+    unsubscribe) m=DELETE ;;
+    *) echo "integration: expected subscribe|unsubscribe, got '$1'" >&2; return 2 ;;
+  esac
   relay_req "$m" /integrations/subscribe \
     "$(jq -nc --arg p "$2" --arg r "$3" '{provider:$p,resource:$r}')" |
     jq -c '{ok, subscribed: .data.subscribed, resource: .data.resource, code: .error.code}'
@@ -231,13 +240,28 @@ add an `idempotencyKey` so a retry cannot double-post.
 
 ### Post a draft and verify
 
+Do not write until the mount is up and its `messages/` directory exists; a draft
+written too early fails with a missing path instead of producing a receipt:
+
 ```sh
+mount_dir=${mount_dir:-$HOME/relayfile-mount-test}
+for i in $(seq 1 45); do                      # up to ~90s for the first sync
+  kill -0 "$(cat /tmp/relayfile-mount.pid 2>/dev/null)" 2>/dev/null ||
+    { echo 'mount is not running; see /tmp/relayfile-mount.log' >&2; break; }
+  test -d "$mount_dir/messages" && break
+  sleep 2
+done
+test -d "$mount_dir/messages" || { echo 'messages/ never appeared' >&2; exit 1; }
+
 ts=$(date -u +%Y%m%dT%H%M%SZ)
+draft="$mount_dir/messages/wb-test-draft-$ts.json"
 jq -nc --arg t "[writeback test $ts] <what this verifies>. Safe to ignore." \
-       --arg k "wb-test-$ts" '{text:$t,idempotencyKey:$k}' \
-  > ~/relayfile-mount-test/messages/wb-test-draft-$ts.json
-# wait one sync interval, then:
-cat ~/relayfile-mount-test/messages/wb-test-draft-$ts.json   # now a receipt
+       --arg k "wb-test-$ts" '{text:$t,idempotencyKey:$k}' > "$draft"
+for i in $(seq 1 30); do                      # poll up to ~90s for the receipt
+  grep -q '"created"' "$draft" 2>/dev/null && break
+  sleep 3
+done
+cat "$draft"                                  # a receipt once delivered
 relayfile writeback status       # want pending: 0  failed: 0  dead-lettered: 0
 ```
 
