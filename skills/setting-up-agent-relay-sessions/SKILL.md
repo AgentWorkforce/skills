@@ -95,9 +95,13 @@ delete it when done.
 
 ## 1. Confirm the host and this session
 
-Run every command from this agent's own shell tool. The app identifies the
-caller from kernel credentials and the Codex/Claude process ancestry, so a
-command from an unrelated terminal is rejected with `not_a_relay_session`.
+Run every command from this agent's own shell tool, and only from a **genuine
+interactive** Claude Code or Codex session. The app identifies the caller from
+kernel credentials and resolves its process ancestry against discovered live
+sessions, so a command from an unrelated terminal — or from a non-interactive
+`codex exec` / `claude -p` run — is rejected with `not_a_relay_session`. (This
+is verified: a plain SSH shell and a `codex exec` invocation are both refused;
+an interactive session is admitted.)
 
 ```sh
 uname -s; uname -m
@@ -258,6 +262,11 @@ count a roster listing as a proven handoff.
 
 ## Recovery
 
+- **`not_a_relay_session` from `/setup/*`:** the caller is not inside a discovered
+  interactive session. Run it from this agent's own shell inside an **interactive**
+  Claude Code or Codex session — a non-interactive `codex exec` or `claude -p` run
+  is not admitted, and neither is an unrelated terminal. In tmux/SSH, confirm the
+  agent process and shell share the pane's process tree.
 - **No handoff tools in the session:** the MCP was added after the session
   started, or at the wrong scope. Reinstall at project scope (section 3) and
   **restart** the session; MCPs load only at startup.
