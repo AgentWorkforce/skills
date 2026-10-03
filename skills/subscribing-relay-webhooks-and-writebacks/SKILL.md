@@ -87,8 +87,11 @@ delivery.
 
 ### Subscribe to a Slack channel
 
-Find the channel id, then subscribe to both directory spellings, because a
-channel can appear as `<id>` or `<id>__<slug>`:
+This lookup uses relayfile, so first run **Part 2's "Install and authenticate
+relayfile"** (`npm install -g relayfile`, then `relayfile login </dev/null`);
+without it the command fails with `command not found` or `delegated relayfile
+credentials are required`. Then find the channel id and subscribe to both
+directory spellings, because a channel can appear as `<id>` or `<id>__<slug>`:
 
 ```sh
 relayfile read /discovery/slack/channels/_index.json |
