@@ -103,21 +103,32 @@ three:
 - **Process argv** — a token interpolated into `claude mcp add --header
   "... Bearer $TOKEN"` is visible to `ps` and gets written literally into
   `~/.claude.json`. Pass the unexpanded placeholder `${AGENT_RELAY_SESSIONS_TOKEN}`
-  instead; Claude Code expands `${VAR}` from the environment at launch, so the
-  stored config holds only a reference and argv holds only the literal `${…}`.
+  instead; Claude Code expands `${VAR}` in MCP headers from the environment at
+  launch, so the stored config holds only a reference and argv holds only the
+  literal `${…}`. **This expansion exists only in Claude Code ≥ 2.1.119** — an
+  older client sends the placeholder literally and auth fails, so check the
+  version first (section 3) and update Claude rather than inlining the token.
 - **The launching environment** — both CLIs read the token from an environment
   variable (`${VAR}` for Claude, `--bearer-token-env-var` for Codex), so the
   variable must exist in the environment that **launches the agent**, not in a
   transient shell-tool subprocess (which cannot alter its parent or a later
-  process). Have the person export it in their shell profile / launcher, or
-  start the agent from a shell that has it exported.
+  process).
 
-Use the single variable name `AGENT_RELAY_SESSIONS_TOKEN` throughout. Tell the
-person to set it with a non-echoing command they run themselves, e.g.
-`read -rs AGENT_RELAY_SESSIONS_TOKEN && export AGENT_RELAY_SESSIONS_TOKEN`
-(paste at the silent prompt), added to their shell profile so a restarted agent
-inherits it. The agent never prints the value; verify presence with
-`test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo present` only.
+Use the single variable name `AGENT_RELAY_SESSIONS_TOKEN` throughout. Keep the
+one-time entry separate from durable supply:
+
+- **One-time, into the current shell** (non-echoing, run by the person, never
+  the agent): `read -rs AGENT_RELAY_SESSIONS_TOKEN && export AGENT_RELAY_SESSIONS_TOKEN`,
+  then launch the agent from *that* shell. Do **not** add this `read` to a shell
+  profile — every shell that sources the profile would block waiting for input.
+- **Durable across restarts:** store the token in the OS keychain or a mode-0600
+  file, and have the launcher export it **non-interactively**, e.g.
+  `export AGENT_RELAY_SESSIONS_TOKEN="$(security find-generic-password -s agent-relay-sessions -w)"`
+  (macOS keychain) or from a 0600 file. Put that line in a dedicated launcher the
+  person starts the agent from — not an interactive prompt in the profile.
+
+The agent never prints the value; verify presence only with
+`test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"`.
 
 ## 1. Confirm the host and this session
 
@@ -200,22 +211,31 @@ handoff silently fails.
 
 First confirm the token is present in the environment **without printing it**
 (see **Token handling** — the person set `AGENT_RELAY_SESSIONS_TOKEN` in the
-environment that launches their agent):
+environment that launches their agent). Stop setup if it is missing — proceeding
+leaves an unresolved credential that only fails after the restart:
 
 ```sh
-test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo present || {
-  echo 'Set AGENT_RELAY_SESSIONS_TOKEN in your shell profile first (see Token handling).' >&2
-}
+if ! test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"; then
+  echo 'AGENT_RELAY_SESSIONS_TOKEN is not set in this environment; set it (see Token handling) and restart the agent before continuing.' >&2
+  exit 1
+fi
 ```
 
 Detect which agent CLI this session runs and install accordingly.
 
 Claude Code — pass the **unexpanded** placeholder so the token stays out of argv
-and out of `~/.claude.json`; Claude expands `${VAR}` from the environment at
-launch. Single-quote it so the shell does not expand it here. Default scope is
-`local` (this project only), which is what you want:
+and out of `~/.claude.json`; Claude expands `${VAR}` in MCP headers from the
+environment at launch. This expansion requires **Claude Code ≥ 2.1.119**, so
+verify the version first and update rather than inlining the token on an older
+client. Single-quote the header so the shell does not expand it here. Default
+scope is `local` (this project only), which is what you want:
 
 ```sh
+claude_ver=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if test -z "$claude_ver" || test "$(printf '%s\n2.1.119\n' "$claude_ver" | sort -V | head -1)" != 2.1.119; then
+  echo "Claude Code $claude_ver does not expand \${VAR} in MCP headers (need >= 2.1.119); update Claude Code before adding this server." >&2
+  exit 1
+fi
 claude mcp add --transport http agent-relay-sessions \
   https://agentrelay.com/cloud/api/v1/mcp/shared-sessions \
   --header 'Authorization: Bearer ${AGENT_RELAY_SESSIONS_TOKEN}'
@@ -324,8 +344,13 @@ count a roster listing as a proven handoff.
   started, or at the wrong scope. Reinstall at project scope (section 3) and
   **restart** the session; MCPs load only at startup.
 - **`list_relay_agents` auth error:** the token is wrong, expired, or from a
-  different workspace. Re-mint it from the intended workspace's "Connect your
-  agent" card and re-run `claude mcp add` / `codex mcp add`.
+  different workspace. Because the MCP config stores only a **reference** to
+  `AGENT_RELAY_SESSIONS_TOKEN`, fixing it means updating the **value in the
+  launch environment** (keychain / 0600 file) and **restarting** the agent so it
+  re-reads it — re-running `claude mcp add` / `codex mcp add` alone changes
+  nothing. Re-mint from the intended workspace's "Connect your agent" card if the
+  token itself is bad. On Claude, also confirm the client is ≥ 2.1.119 (older
+  clients send the `${VAR}` placeholder literally).
 - **Teammate's address missing from the roster:** they are not on the **same**
   workspace, or their session is not on the relay. Have them register their
   session and confirm the shared workspace id.
