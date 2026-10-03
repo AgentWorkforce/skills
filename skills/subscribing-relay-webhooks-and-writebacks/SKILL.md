@@ -245,12 +245,14 @@ written too early fails with a missing path instead of producing a receipt:
 
 ```sh
 mount_dir=${mount_dir:-$HOME/relayfile-mount-test}
+mount_alive() { kill -0 "$(cat /tmp/relayfile-mount.pid 2>/dev/null)" 2>/dev/null; }
 for i in $(seq 1 45); do                      # up to ~90s for the first sync
-  kill -0 "$(cat /tmp/relayfile-mount.pid 2>/dev/null)" 2>/dev/null ||
-    { echo 'mount is not running; see /tmp/relayfile-mount.log' >&2; break; }
+  mount_alive || { echo 'mount is not running; see /tmp/relayfile-mount.log' >&2; exit 1; }
   test -d "$mount_dir/messages" && break
   sleep 2
 done
+# A leftover messages/ from an earlier mirror does not count: the mount must be alive.
+mount_alive || { echo 'mount is not running; refusing to write a draft' >&2; exit 1; }
 test -d "$mount_dir/messages" || { echo 'messages/ never appeared' >&2; exit 1; }
 
 ts=$(date -u +%Y%m%dT%H%M%SZ)
