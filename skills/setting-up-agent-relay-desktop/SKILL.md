@@ -604,9 +604,10 @@ pr_resources() {
              or startswith($pulls) or startswith($issues))'
 }
 
-if test -n "$(pr_resources)"; then
+held=$(pr_resources)
+if test -n "$held"; then
   # Already subscribed in one form; adding the other would only duplicate it.
-  printf 'Already subscribed:\n%s\n' "$(pr_resources)"
+  printf 'Already subscribed:\n%s\n' "$held"
 elif test -n "${relay_probe:-}" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
   # The one-command form (below), only when the installed probe has it.
   "$relay_probe" relay subscribe "$pr_url" | jq
