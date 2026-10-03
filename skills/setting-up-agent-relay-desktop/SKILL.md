@@ -575,24 +575,30 @@ there and is refused `not_a_relay_session`, so a Codex session with no probe
 stops instead. `curl` is correct for Claude Code and on Linux:
 
 ```sh
-for resource in \
-  '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
-  '/github/repos/OWNER/REPO/pulls/NUMBER/reviews/**' \
-  '/github/repos/OWNER/REPO/pulls/NUMBER/status/**' \
-  '/github/repos/OWNER/REPO/issues/NUMBER/comments/**'
-do
-  body=$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')
-  if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
-    printf '%s' "$body" | "$relay_probe" relay socket-request \
-      --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
-  elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
-    printf 'A Codex session on macOS needs agent-relay-probe to subscribe; start Agent Relay and retry.\n' >&2
-    exit 1
-  else
-    curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-      -d "$body" http://relay/integrations/subscribe | jq
-  fi
-done
+# The one-command form (below) is used only when the installed probe has it;
+# otherwise the four globs. Exactly one of the two runs.
+if test -n "$relay_probe" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
+  "$relay_probe" relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER' | jq
+else
+  for resource in \
+    '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
+    '/github/repos/OWNER/REPO/pulls/NUMBER/reviews/**' \
+    '/github/repos/OWNER/REPO/pulls/NUMBER/status/**' \
+    '/github/repos/OWNER/REPO/issues/NUMBER/comments/**'
+  do
+    body=$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')
+    if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
+      printf '%s' "$body" | "$relay_probe" relay socket-request \
+        --socket "$relay_socket" --method POST --path /integrations/subscribe | jq
+    elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
+      printf 'A Codex session on macOS needs agent-relay-probe to subscribe; start Agent Relay and retry.\n' >&2
+      exit 1
+    else
+      curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+        -d "$body" http://relay/integrations/subscribe | jq
+    fi
+  done
+fi
 curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.integrations'
 ```
 
@@ -607,13 +613,8 @@ Desktop 2026.10.6 with both the probe client and `curl`.
 that the Desktop correlates with the PR's reviews, comments, and checks. It is
 absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
 'subscribe'`, so do not lead with it. Use it only when the installed probe
-advertises it, and fall back to the globs above otherwise:
-
-```sh
-if test -n "$relay_probe" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
-  "$relay_probe" relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER' | jq
-fi
-```
+advertises it; the block above makes that choice, so the two forms never both
+run for one pull request.
 
 Once released, re-test it before relying on its details; the behavior described
 in that PR (a repeat answering `"already_subscribed":true`, `--remove` to end it,
@@ -781,9 +782,23 @@ event.
   than modifying managed settings.
 - **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
 - **Undo an integration:** send each subscribed provider/resource JSON with
-  `-X DELETE` to `/integrations/subscribe` (the same four globs for a PR). Once
-  `agent-relay-probe relay subscribe` ships, `... relay subscribe --remove
-  'OWNER/REPO#NUMBER'` is the one-command equivalent.
+  `DELETE` to `/integrations/subscribe` (the same four globs for a PR), through
+  the same client that subscribed. On macOS a Codex session must use the probe,
+  because the system `curl` hides its identity:
+
+  ```sh
+  body='{"provider":"github","resource":"/github/repos/OWNER/REPO/pulls/NUMBER/**"}'
+  if test "$(uname -s)" = Darwin && test -n "${relay_probe:-}"; then
+    printf '%s' "$body" | "$relay_probe" relay socket-request \
+      --socket "$relay_socket" --method DELETE --path /integrations/subscribe | jq
+  else
+    curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+      -X DELETE -d "$body" http://relay/integrations/subscribe | jq
+  fi
+  ```
+
+  Repeat for each glob. A subscription made with the one-command form is
+  ended with `"$relay_probe" relay subscribe --remove 'OWNER/REPO#NUMBER'`.
 - **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
   `/setup/direct-delivery`. On Claude this restores the local opt-out; managed
