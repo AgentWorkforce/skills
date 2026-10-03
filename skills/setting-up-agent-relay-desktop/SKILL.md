@@ -605,11 +605,13 @@ pr_resources() {
 }
 
 held=$(pr_resources)
-if test -n "$held"; then
-  # Already subscribed in one form; adding the other would only duplicate it.
+if printf '%s\n' "$held" | grep -Fqx -e "$pr_url" -e 'OWNER/REPO#NUMBER'; then
+  # The one-command subscription is a single complete request: nothing to add.
   printf 'Already subscribed:\n%s\n' "$held"
-elif test -n "${relay_probe:-}" && "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
-  # The one-command form (below), only when the installed probe has it.
+elif test -z "$held" && test -n "${relay_probe:-}" && \
+     "$relay_probe" relay --help 2>&1 | grep -q '^  subscribe'; then
+  # The one-command form (below), only for a PR with no subscription yet and
+  # only when the installed probe has it.
   "$relay_probe" relay subscribe "$pr_url" | jq
 else
   for resource in \
@@ -637,9 +639,12 @@ that the Desktop correlates with the PR's reviews, comments, and checks. It is
 absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
 'subscribe'`, so do not lead with it. Use it only when the installed probe
 advertises it. The block above makes that choice, and first checks the
-session's existing subscriptions, so a pull request subscribed one way (for
-example with the four globs before an upgrade) is never subscribed again the
-other way.
+session's existing subscriptions. A pull request already subscribed with the
+one-command form is left alone. A pull request with any of the four globs
+(from an earlier or interrupted run, or from before an upgrade) stays on the
+four globs: the loop runs again, the globs it already holds answer 409
+`conflict`, and the missing ones are added. So repeating the block after
+`busy` or `refused` completes a partial subscription.
 
 Once released, re-test it before relying on its details; the behavior described
 in that PR (a repeat answering `"already_subscribed":true`, `--remove` to end it,
