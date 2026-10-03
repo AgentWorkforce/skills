@@ -112,6 +112,24 @@
       ]
     },
     {
+      "name": "setting-up-agent-relay-sessions",
+      "version": "0.1.0",
+      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "sessions",
+        "handoff",
+        "agent-setup",
+        "mcp",
+        "agent-collaboration"
+      ],
+      "files": [
+        "skills/setting-up-agent-relay-sessions/SKILL.md"
+      ]
+    },
+    {
       "name": "relay-connect",
       "version": "0.3.0",
       "description": "Create a temporary Relay Connect through hosted MCP, or join one with the one-command `npx -y @agent-relay/connect join <link>` hand-over (no account), with manual probe steps and an MCP fallback. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.",
