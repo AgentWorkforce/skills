@@ -145,16 +145,19 @@ Before section 1, tell the person what they need and ask for it in one message:
    into this chat);
 3. the **teammate's relay address** for the round trip, if one will be online.
 
-Check presence without printing the value, and keep going with sections 1–2
-either way — only section 3 is gated on it:
+Check presence without printing the value:
 
 ```sh
 test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo token=present || echo token=missing
 ```
 
-If it is missing, remind the person once, continue the desktop work, and stop at
-section 3 until it is set (the session must be restarted from an environment
-that has it, so batching that restart with the MCP install avoids a second one).
+A missing token does **not** block sections 1–3: the MCP config stores only a
+`${AGENT_RELAY_SESSIONS_TOKEN}` reference, never the value, so it can be added
+now. Do the desktop work and add the MCP, then have the person restart the agent
+**once**, from an environment that exports the token, so that single restart both
+loads the MCP and supplies the credential. Sections 4–5 are gated on that
+restart. If the person would rather not defer, they can export the token and
+restart first, which then costs a second restart only if the MCP was added after.
 
 ## 1. Confirm the host and this session
 
@@ -235,15 +238,16 @@ handoff silently fails.
 
 ## 3. Install the agent-sessions cloud MCP (before the session uses it)
 
-First confirm the token is present in the environment **without printing it**
-(see **Token handling** — the person set `AGENT_RELAY_SESSIONS_TOKEN` in the
-environment that launches their agent). Stop setup if it is missing — proceeding
-leaves an unresolved credential that only fails after the restart:
+Check whether the token is present in the environment **without printing it**
+(see **Token handling**). It is not required to *add* the MCP, since only a
+reference is stored, but it is required for the tools to authenticate after the
+restart. If it is missing, add the MCP anyway, tell the person plainly that the
+tools will fail auth until they restart the agent from an environment that
+exports `AGENT_RELAY_SESSIONS_TOKEN`, and do not report setup complete:
 
 ```sh
 if ! test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"; then
-  echo 'AGENT_RELAY_SESSIONS_TOKEN is not set in this environment; set it (see Token handling) and restart the agent before continuing.' >&2
-  exit 1
+  echo 'AGENT_RELAY_SESSIONS_TOKEN is not set here; the MCP will be added by reference, but the agent must be restarted from an environment that exports it.' >&2
 fi
 ```
 
