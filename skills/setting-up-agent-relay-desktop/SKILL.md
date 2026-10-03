@@ -680,8 +680,20 @@ event.
   fi
   ```
 
-  or remove the marked cron line. Leave `com.ai-hist.sync` alone; it is not
-  checked. Then re-run `/setup/sign-in` with the same payload.
+  If instead the marked cron line is the cause, back up the full crontab first
+  and remove only that line, so the change can be reversed with
+  `crontab <backup-file>`:
+
+  ```sh
+  mkdir -p "$HOME/.agentworkforce/backup"
+  cron_backup="$HOME/.agentworkforce/backup/crontab.bak-$(date +%Y%m%d%H%M%S)"
+  crontab -l > "$cron_backup" && test -s "$cron_backup" || { echo 'crontab backup failed; do not edit it' >&2; exit 1; }
+  grep -vF '# ai-hist push (managed)' "$cron_backup" | crontab -
+  ! crontab -l | grep -qF '# ai-hist push (managed)' || { echo 'cron line still present; do not retry sign-in' >&2; exit 1; }
+  ```
+
+  Leave `com.ai-hist.sync` alone; it is not checked. Then re-run
+  `/setup/sign-in` with the same payload.
 - **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
   request. Restart after `expired` or `denied` to obtain a new code.
 - **Older schedules could not be inspected:** inspect the user's legacy cron,
