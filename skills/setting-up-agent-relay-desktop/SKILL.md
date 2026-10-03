@@ -603,7 +603,8 @@ Desktop 2026.10.6 with both the probe client and `curl`.
 
 **One-command form (not yet released).** `relay-desktop#216` adds
 `agent-relay-probe relay subscribe 'https://github.com/OWNER/REPO/pull/NUMBER'`
-(or `OWNER/REPO#NUMBER`), which subscribes the same four paths in one call. It is
+(or `OWNER/REPO#NUMBER`), which makes one numeric `pulls/NUMBER/**` subscription
+that the Desktop correlates with the PR's reviews, comments, and checks. It is
 absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
 'subscribe'`, so do not lead with it. Use it only when the installed probe
 advertises it, and fall back to the globs above otherwise:
