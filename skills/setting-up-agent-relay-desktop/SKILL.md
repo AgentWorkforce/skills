@@ -660,9 +660,20 @@ event.
   `~/Library/LaunchAgents/com.ai-hist.push.plist` (even if unloaded), a loaded
   launchd label `com.ai-hist.push`, or a crontab line containing
   `# ai-hist push (managed)`. Check each, then with the human's approval unload
-  and move aside (do not delete) what exists, e.g.
-  `launchctl bootout "gui/$(id -u)/com.ai-hist.push"` and
-  `mv ~/Library/LaunchAgents/com.ai-hist.push.plist ~/.agentworkforce/backup/`,
+  and move aside (do not delete) what exists. Create the backup directory first,
+  use a unique no-clobber destination, and confirm the move before retrying:
+
+  ```sh
+  launchctl bootout "gui/$(id -u)/com.ai-hist.push" 2>/dev/null || true
+  plist="$HOME/Library/LaunchAgents/com.ai-hist.push.plist"
+  if test -e "$plist"; then
+    backup_dir="$HOME/.agentworkforce/backup"
+    mkdir -p "$backup_dir"
+    mv -n "$plist" "$backup_dir/com.ai-hist.push.plist.bak-$(date +%Y%m%d%H%M%S)"
+    test ! -e "$plist" || { echo 'plist was not moved; do not retry sign-in' >&2; exit 1; }
+  fi
+  ```
+
   or remove the marked cron line. Leave `com.ai-hist.sync` alone; it is not
   checked. Then re-run `/setup/sign-in` with the same payload.
 - **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
