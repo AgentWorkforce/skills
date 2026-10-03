@@ -130,6 +130,25 @@
       ]
     },
     {
+      "name": "subscribing-relay-webhooks-and-writebacks",
+      "version": "0.1.0",
+      "description": "Subscribe a running Codex or Claude session to inbound provider events (a GitHub PR, a Slack channel) so they are injected into the session, and write back to providers through a Relayfile mount: desktop subscribe endpoint, PR and Slack globs, webhook test, relayfile install and login, single-subtree mount, write-contract discovery, posting a draft, and verification, with known defects linked.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "relayfile",
+        "webhooks",
+        "writeback",
+        "slack",
+        "github",
+        "subscriptions"
+      ],
+      "files": [
+        "skills/subscribing-relay-webhooks-and-writebacks/SKILL.md"
+      ]
+    },
+    {
       "name": "relay-connect",
       "version": "0.4.0",
       "description": "Create a temporary Relay Connect through hosted MCP, or join one with the one-command `npx -y @agent-relay/connect join <link>` hand-over (no account), with manual probe steps and an MCP fallback. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.",
