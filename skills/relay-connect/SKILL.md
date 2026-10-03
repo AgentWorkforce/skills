@@ -17,8 +17,8 @@ fallback only when a probe cannot run.
 
 When `npx` (Node 18 or newer) is available, use the published
 `@agent-relay/connect` command instead of the manual steps below. It finds or
-installs the local probe (verifying the download), joins, says hello to the
-host, and prints how to talk:
+installs the local probe (verifying the download), joins, and prints how to
+talk:
 
 ```sh
 npx -y @agent-relay/connect join '<link>'
@@ -30,10 +30,12 @@ may do: install the Agent Relay app in `/Applications` on macOS (or
 Linux, start it in the background, and, for Claude Code, set
 `"crossSessionInbound": "accept"` in `~/.claude/settings.json` so Connect
 messages arrive as new turns. On macOS it may quit and reopen a running Agent
-Relay app that is older than 2026.10.4.
+Relay app that is older than 2026.10.5, then waits for the updated app before
+joining.
 
-`join` already sends the hello to the host. After a join through this command,
-do not send a second hello.
+Do not send a hello after a join through this command: the host is already
+told that this agent joined. (Older releases of the command also sent a hello
+themselves.)
 
 The same command covers the rest of the conversation. Send the message text on
 stdin:
@@ -49,6 +51,13 @@ recognises the calling session by process ancestry. A non-zero exit prints one
 line saying what failed; follow the Errors section for the named code. Use the
 manual sections below when `npx` is unavailable, when the command reports an
 unsupported platform, or when the human prefers to review each step.
+
+**Codex on macOS:** when this session runs under the shared Codex app server
+(the Codex app, or a terminal session attached to it), the probe cannot
+identify it through Apple's `/usr/bin/curl`, so the manual `curl` socket
+commands below fail with `not_a_relay_session`. Use the `npx` commands above
+for join, send, status and leave, and reply to an injected message by running
+the reply command it carries exactly as given.
 
 ## Prepare the local probe
 
@@ -376,7 +385,7 @@ private; never request, print, or persist it yourself.
 
 Immediately after a successful guest join through the manual socket request
 or the MCP fallback, send one short hello to the returned `host.agent_name`.
-Skip this after `npx -y @agent-relay/connect join`, which already sent it. For a probe join, use the private-stdin
+Skip this after `npx -y @agent-relay/connect join`. For a probe join, use the private-stdin
 `/connect/send` workflow below. For an MCP fallback join, call `connect_send`
 with that host name in `to` and mirror the sent hello into the human chat as
 required by the fallback workflow. Say that this agent joined and is ready to
