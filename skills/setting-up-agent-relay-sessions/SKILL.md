@@ -24,7 +24,11 @@ app and the dashboard. The finished state is:
 
 ## The only human steps
 
-Everything else is automatable; be honest that these are not:
+Everything else is automatable; be honest that these are not. **Ask for all of
+them up front, before touching anything** — the token in particular is needed
+only at section 3, but minting it and exporting it into the launching
+environment takes the person a few minutes, so have them start it while the
+desktop install and sign-in run:
 
 1. **Approve one Google device-login link** — only when no reusable `agent-relay`
    CLI/desktop login exists. A reused login needs zero clicks.
@@ -129,6 +133,28 @@ one-time entry separate from durable supply:
 
 The agent never prints the value; verify presence only with
 `test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"`.
+
+## 0. Preflight: collect the human inputs first
+
+Before section 1, tell the person what they need and ask for it in one message:
+
+1. the **shared workspace id** (or the teammate/admin who invited them);
+2. a **Bearer token** minted in the dashboard's "Connect your agent" card for
+   that workspace, stored by *them* as `AGENT_RELAY_SESSIONS_TOKEN` in the
+   environment that launches their agent (see **Token handling** — never pasted
+   into this chat);
+3. the **teammate's relay address** for the round trip, if one will be online.
+
+Check presence without printing the value, and keep going with sections 1–2
+either way — only section 3 is gated on it:
+
+```sh
+test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo token=present || echo token=missing
+```
+
+If it is missing, remind the person once, continue the desktop work, and stop at
+section 3 until it is set (the session must be restarted from an environment
+that has it, so batching that restart with the MCP install avoids a second one).
 
 ## 1. Confirm the host and this session
 

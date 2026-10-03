@@ -382,7 +382,9 @@ For `pending_approval`, the human can approve from any phone or browser. Do not
 create another code while this one is pending. A `preparing` response is also
 normal: poll `/setup/status` at the reported interval. Preparing local history
 can take about a minute when the app reuses an existing `agent-relay` CLI login.
-Poll both states until sign-in finishes:
+Poll both states until sign-in finishes. The reason for a failure is in
+`.data.sign_in_message`, not in `.data.sign_in` (which only says `error`), so
+print it, and map the known messages to their fix instead of dumping raw state:
 
 ```sh
 while :; do
@@ -395,7 +397,18 @@ while :; do
       break
       ;;
     preparing|pending_approval) ;;
-    denied|expired|error) printf '%s\n' "$state" | jq; exit 1 ;;
+    denied|expired|error)
+      msg=$(printf '%s' "$state" | jq -r '.data.sign_in_message // .error.message // "no message reported"')
+      printf 'Sign-in %s: %s\n' "$phase" "$msg" >&2
+      case "$msg" in
+        *"older managed history uploader"*)
+          printf 'See "Sign-in blocked by a legacy uploader" under Recovery.\n' >&2 ;;
+        *"older upload schedules"*)
+          printf 'Inspect legacy schedules, then retry with acknowledge_uninspected_schedules (see above).\n' >&2 ;;
+        *) printf '%s\n' "$state" | jq '.data' >&2 ;;
+      esac
+      exit 1
+      ;;
   esac
   sleep "$(printf '%s' "$sign_in" | jq -r '.data.interval // 5')"
 done
@@ -640,6 +653,18 @@ event.
   live Codex/Claude session, or the session id/process start no longer matches.
   Run it through this agent's shell tool. In tmux, confirm the agent process and
   shell share the pane's process tree.
+- **Sign-in blocked by a legacy uploader** (`sign_in: error`, message "An older
+  managed history uploader is active. Stop it explicitly before enabling this
+  probe."): the probe counts any of these legacy `ai-hist push` registrations as
+  active, even when idle: the file
+  `~/Library/LaunchAgents/com.ai-hist.push.plist` (even if unloaded), a loaded
+  launchd label `com.ai-hist.push`, or a crontab line containing
+  `# ai-hist push (managed)`. Check each, then with the human's approval unload
+  and move aside (do not delete) what exists, e.g.
+  `launchctl bootout "gui/$(id -u)/com.ai-hist.push"` and
+  `mv ~/Library/LaunchAgents/com.ai-hist.push.plist ~/.agentworkforce/backup/`,
+  or remove the marked cron line. Leave `com.ai-hist.sync` alone; it is not
+  checked. Then re-run `/setup/sign-in` with the same payload.
 - **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
   request. Restart after `expired` or `denied` to obtain a new code.
 - **Older schedules could not be inspected:** inspect the user's legacy cron,
