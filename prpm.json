@@ -666,7 +666,7 @@
     {
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
-      "description": "Set up Agent Relay Desktop, optional live session handoff between teammates, and subscriptions plus write-backs, installed together because the skills build on each other",
+      "description": "Set up Agent Relay Desktop, live session handoff between teammates, and subscriptions plus write-backs, installed together because the skills build on each other",
       "version": "1.0.0",
       "category": "development",
       "tags": [

@@ -31,7 +31,7 @@ then restart the agent. Do not improvise the install or sign-in from memory.
 
 - prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
 - skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill setting-up-agent-relay-sessions`
-- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` using the script in `setting-up-agent-relay-desktop`'s install section.
+- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` with the loop in **Install this skill (and its dependency)** below.
 
 ## The only human steps
 
@@ -191,7 +191,9 @@ pointer="$HOME/.agentworkforce/desktop/relay-socket"
 if test -r "$pointer"; then relay_socket=$(sed -n '1p' "$pointer"); fi
 if test -n "${relay_socket:-}" && ! test -S "$relay_socket"; then unset relay_socket; fi
 if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
-  relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+  for c in "${XDG_RUNTIME_DIR:-/nonexistent}/agent-relay/relay.sock" "/run/user/$(id -u)/agent-relay/relay.sock"; do
+    if test -S "$c"; then relay_socket=$c; break; fi
+  done
 fi
 relay_probe=
 for c in "$HOME/.local/bin/agent-relay-probe" \
@@ -199,6 +201,10 @@ for c in "$HOME/.local/bin/agent-relay-probe" \
          "/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe"; do
   if test -x "$c"; then relay_probe=$c; break; fi
 done
+if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then   # per-user tarball
+  relay_probe=$(find "$HOME/.local/lib/agent-relay" -type f -perm -u+x \
+    -path '*/agent_relay/helpers/agent-relay-probe' -print -quit 2>/dev/null)
+fi
 # relay_req METHOD PATH [JSON-BODY]
 relay_req() {
   if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then

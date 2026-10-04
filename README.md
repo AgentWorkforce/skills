@@ -103,7 +103,14 @@ With `prpm`, install the `agent-relay-setup` collection for Claude Code:
 npx prpm install collections/agent-relay-setup --as claude --global -y
 ```
 
-For Codex, do **not** use `--as codex` for these skills: the conversion drops explanatory paragraphs from the workflows and writes under `~/.agents/skills`, which Codex does not load as its global skill folder. Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` instead; the install section of `setting-up-agent-relay-desktop` has the exact script.
+For Codex, do **not** use `--as codex` for these skills: the conversion drops explanatory paragraphs from the workflows and writes under `~/.agents/skills`, which Codex does not load as its global skill folder. Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` instead:
+
+```bash
+for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks; do
+  mkdir -p "$HOME/.codex/skills/$pkg"
+  install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$HOME/.codex/skills/$pkg/SKILL.md"
+done
+```
 
 With `skills` (which has no dependency or collection concept, so name all three):
 
@@ -114,7 +121,7 @@ npx skills add https://github.com/AgentWorkforce/skills \
   --skill subscribing-relay-webhooks-and-writebacks
 ```
 
-Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) If you install only one of these skills, it stops and tells you which companion to install; it does not guess.
+Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) The sessions and subscribing skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
 
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 

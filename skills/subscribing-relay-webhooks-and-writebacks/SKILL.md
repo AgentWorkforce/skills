@@ -30,7 +30,14 @@ person, and have them install the companions together, then restart the agent:
 
 - prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
 - skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
-- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` using the script in `setting-up-agent-relay-desktop`'s install section.
+- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` (after the prpm `--as claude` install):
+
+  ```sh
+  for pkg in setting-up-agent-relay-desktop subscribing-relay-webhooks-and-writebacks; do
+    mkdir -p "$HOME/.codex/skills/$pkg"
+    install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$HOME/.codex/skills/$pkg/SKILL.md"
+  done
+  ```
 
 **Creating and testing a webhook** (see "Webhook creation and test" below) also
 needs that skill's section 5, because the procedure lives there and is not
@@ -65,7 +72,9 @@ pointer="$HOME/.agentworkforce/desktop/relay-socket"
 if test -r "$pointer"; then relay_socket=$(sed -n '1p' "$pointer"); fi
 if test -n "${relay_socket:-}" && ! test -S "$relay_socket"; then unset relay_socket; fi
 if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
-  relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+  for c in "${XDG_RUNTIME_DIR:-/nonexistent}/agent-relay/relay.sock" "/run/user/$(id -u)/agent-relay/relay.sock"; do
+    if test -S "$c"; then relay_socket=$c; break; fi
+  done
 fi
 relay_probe=
 for c in "$HOME/.local/bin/agent-relay-probe" \
