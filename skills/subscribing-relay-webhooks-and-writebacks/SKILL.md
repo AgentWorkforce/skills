@@ -180,6 +180,7 @@ Subscribe with the issue's projected directory name, which is `N__<title-slug>`:
 ```sh
 R=OWNER/REPO; N=NUMBER
 command -v relayfile >/dev/null || { echo 'relayfile is not installed or signed in; do Part 2 "Install and authenticate relayfile" first' >&2; exit 1; }
+command -v jq >/dev/null || { echo 'jq is required for this lookup; install it first' >&2; exit 1; }
 out=$(relayfile tree "/github/repos/$R/issues" --depth 1 --json) || { echo 'relayfile tree failed' >&2; exit 1; }
 # Match the directory name from its start: a plain "N__" substring would also match 142__ for N=42.
 d=$(printf '%s' "$out" | jq -r --arg n "$N" '.entries[].path | split("/")[-1] | select(startswith($n + "__"))' | head -1)
