@@ -33,10 +33,16 @@ person, and have them install the companions together, then restart the agent:
 - Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` (after the prpm `--as claude` install):
 
   ```sh
-  for pkg in setting-up-agent-relay-desktop subscribing-relay-webhooks-and-writebacks; do
-    mkdir -p "$HOME/.codex/skills/$pkg"
-    install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$HOME/.codex/skills/$pkg/SKILL.md"
-  done
+  (
+    set -e
+    for pkg in setting-up-agent-relay-desktop subscribing-relay-webhooks-and-writebacks; do
+      src="$HOME/.claude/skills/$pkg/SKILL.md"
+      test -f "$src" || { echo "missing $src: run the prpm --as claude install first" >&2; exit 1; }
+      mkdir -p "$HOME/.codex/skills/$pkg"
+      install -m 0644 "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+      cmp "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+    done
+  ) && echo "mirrored to ~/.codex/skills"
   ```
 
 **Creating and testing a webhook** (see "Webhook creation and test" below) also

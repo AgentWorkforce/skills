@@ -106,10 +106,16 @@ npx prpm install collections/agent-relay-setup --as claude --global -y
 For Codex, do **not** use `--as codex` for these skills: the conversion drops explanatory paragraphs from the workflows and writes under `~/.agents/skills`, which Codex does not load as its global skill folder. Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` instead:
 
 ```bash
-for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks; do
-  mkdir -p "$HOME/.codex/skills/$pkg"
-  install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$HOME/.codex/skills/$pkg/SKILL.md"
-done
+(
+  set -e
+  for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks; do
+    src="$HOME/.claude/skills/$pkg/SKILL.md"
+    test -f "$src" || { echo "missing $src: run the prpm --as claude install first" >&2; exit 1; }
+    mkdir -p "$HOME/.codex/skills/$pkg"
+    install -m 0644 "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+    cmp "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+  done
+) && echo "mirrored to ~/.codex/skills"
 ```
 
 With `skills` (which has no dependency or collection concept, so name all three):
