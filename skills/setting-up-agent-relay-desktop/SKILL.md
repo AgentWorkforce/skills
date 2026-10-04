@@ -592,19 +592,25 @@ relay_req() {  # METHOD PATH [JSON body]
   fi
 }
 
-# This PR's subscriptions, in whichever form they were made.
+# This PR's subscriptions, in whichever form they were made. Fails, rather than
+# answering "none", when the status cannot be read: both callers stop then.
 pr_url='https://github.com/OWNER/REPO/pull/NUMBER'
 pr_resources() {
-  relay_req GET /setup/status | jq -r --arg url "$pr_url" \
+  relay_status=$(relay_req GET /setup/status) || return 1
+  printf '%s\n' "$relay_status" | jq -r --arg url "$pr_url" \
     --arg short 'OWNER/REPO#NUMBER' \
     --arg pulls '/github/repos/OWNER/REPO/pulls/NUMBER/' \
     --arg issues '/github/repos/OWNER/REPO/issues/NUMBER/' '
-    .data.integrations[]? | select(.provider == "github") | .resource
-    | select(. == $url or . == $short or startswith($url + "/")
-             or startswith($pulls) or startswith($issues))'
+    if .ok == true and (.data.integrations | type) == "array" then
+      [.data.integrations[] | select(.provider == "github") | .resource
+       | select(. == $url or . == $short or startswith($url + "/")
+                or startswith($pulls) or startswith($issues))] | .[]
+    else
+      error("Agent Relay status is unreadable; no subscription was changed.")
+    end'
 }
 
-held=$(pr_resources)
+held=$(pr_resources) || exit 1
 if printf '%s\n' "$held" | grep -Fqx -e "$pr_url" -e 'OWNER/REPO#NUMBER'; then
   # The one-command subscription is a single complete request: nothing to add.
   printf 'Already subscribed:\n%s\n' "$held"
@@ -818,7 +824,9 @@ event.
   sending a `curl` request that cannot be identified:
 
   ```sh
-  pr_resources | while IFS= read -r resource; do
+  held=$(pr_resources) || exit 1
+  printf '%s\n' "$held" | while IFS= read -r resource; do
+    test -n "$resource" || continue
     relay_req DELETE /integrations/subscribe \
       "$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')" | jq
   done
