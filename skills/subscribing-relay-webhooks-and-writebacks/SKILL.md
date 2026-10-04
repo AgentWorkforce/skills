@@ -101,8 +101,9 @@ relay_req() {
     echo 'A Codex session on macOS needs agent-relay-probe; start Agent Relay and retry.' >&2
     return 1
   elif test -n "${3:-}"; then
-    curl -sS --unix-socket "$relay_socket" -X "$1" \
-      -H 'Content-Type: application/json' -d "$3" "http://relay$2"
+    # body on stdin: curl treats a -d/--data-binary value starting with @ as a filename
+    printf '%s' "$3" | curl -sS --unix-socket "$relay_socket" -X "$1" \
+      -H 'Content-Type: application/json' --data-binary @- "http://relay$2"
   else
     curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi
