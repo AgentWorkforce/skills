@@ -85,6 +85,10 @@ if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
     if test -S "$c"; then relay_socket=$c; break; fi
   done
 fi
+if test -z "${relay_socket:-}" && test "$(uname -s)" = Darwin; then   # pointer file missing: use the app's own socket
+  c="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+  if test -S "$c"; then relay_socket=$c; fi
+fi
 relay_probe=
 for c in "$HOME/.local/bin/agent-relay-probe" \
          /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
@@ -165,6 +169,38 @@ treat that one code as success.
 Make this a required step right after the agent opens a PR, so review feedback
 arrives without anyone naming the PR. A subscribe response alone does not prove
 delivery.
+
+### Subscribe to a plain GitHub issue
+
+A plain issue (not a PR) does **not** deliver on the number-only globs above.
+`issues/N/**` and `issues/N/comments/**` return `ok: true` and then never
+deliver, while a PR's globs do ([relayfile-cloud#298](https://github.com/AgentWorkforce/relayfile-cloud/issues/298)).
+Subscribe with the issue's projected directory name, which is `N__<title-slug>`:
+
+```sh
+R=OWNER/REPO; N=NUMBER
+command -v relayfile >/dev/null || { echo 'relayfile is not installed or signed in; do Part 2 "Install and authenticate relayfile" first' >&2; exit 1; }
+command -v jq >/dev/null || { echo 'jq is required for this lookup; install it first' >&2; exit 1; }
+out=$(relayfile tree "/github/repos/$R/issues" --depth 1 --json) || { echo 'relayfile tree failed' >&2; exit 1; }
+# Match the directory name from its start: a plain "N__" substring would also match 142__ for N=42.
+d=$(printf '%s' "$out" | jq -r --arg n "$N" '.entries[].path | split("/")[-1] | select(startswith($n + "__"))' | head -1)
+if test -z "$d"; then
+  if test -n "$(printf '%s' "$out" | jq -r '.nextCursor // empty')"; then
+    echo "the issue listing is paged and issue $N was not on the first page; take the N__slug directory from the path of any event for this issue" >&2
+  else
+    echo "issue $N is not in the workspace yet; retry in a minute" >&2
+  fi
+  exit 1
+fi
+for g in "/github/repos/$R/issues/$d/**" "/github/repos/$R/issues/$d/comments/**"; do
+  integration subscribe github "$g"
+done
+```
+
+A wildcard slug (`issues/N__*/...`) does not deliver either. The slug comes from
+the title, so editing the title breaks the subscription: re-run the block and
+unsubscribe the old globs. Delivery to a subscribed session can take about a
+minute, so wait before deciding it failed.
 
 > **Upgrade note.** A one-command form, `agent-relay-probe relay subscribe
 > <PR URL>`, is in `AgentWorkforce/relay-desktop#216` and is **not** in the

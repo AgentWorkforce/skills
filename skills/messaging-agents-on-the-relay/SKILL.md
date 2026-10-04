@@ -48,6 +48,10 @@ if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
     if test -S "$c"; then relay_socket=$c; break; fi
   done
 fi
+if test -z "${relay_socket:-}" && test "$(uname -s)" = Darwin; then   # pointer file missing: use the app's own socket
+  c="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+  if test -S "$c"; then relay_socket=$c; fi
+fi
 relay_probe=
 for c in "$HOME/.local/bin/agent-relay-probe" \
          /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
