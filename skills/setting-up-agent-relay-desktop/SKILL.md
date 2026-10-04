@@ -91,8 +91,9 @@ fi
 if ! test -S "${relay_socket:-/nonexistent}" && test "$(uname -s)" = Linux; then
   relay_socket="/run/user/$(id -u)/agent-relay/relay.sock"
 fi
-if ! test -S "${relay_socket:-/nonexistent}" && test "$(uname -s)" = Darwin; then   # pointer file missing: use the app's own socket
-  relay_socket="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+c="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+if ! test -S "${relay_socket:-/nonexistent}" && test "$(uname -s)" = Darwin && test -S "$c"; then   # pointer file missing: use the app's own socket
+  relay_socket=$c
 fi
 test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 ```
@@ -309,13 +310,15 @@ an unexpected bundle identity.
 After either install, wait up to 30 seconds for the pointer:
 
 ```sh
+app_sock="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
 for _ in $(seq 1 30); do
   test -r "$HOME/.agentworkforce/desktop/relay-socket" && break
+  test "$(uname -s)" = Darwin && test -S "$app_sock" && break   # the app is already listening
   sleep 1
 done
 relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)
-if ! test -S "$relay_socket" && test "$(uname -s)" = Darwin; then
-  relay_socket="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+if ! test -S "$relay_socket" && test "$(uname -s)" = Darwin && test -S "$app_sock"; then
+  relay_socket=$app_sock
 fi
 if ! test -S "$relay_socket" && test "$(uname -s)" = Linux; then
   relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"

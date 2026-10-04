@@ -179,8 +179,18 @@ Subscribe with the issue's projected directory name, which is `N__<title-slug>`:
 
 ```sh
 R=OWNER/REPO; N=NUMBER
-d=$(relayfile tree "/github/repos/$R/issues" --depth 1 | grep -o "${N}__[^ /]*" | head -1)
-test -n "$d" || { echo "issue $N is not projected yet; retry in a minute" >&2; exit 1; }
+command -v relayfile >/dev/null || { echo 'relayfile is not installed or signed in; do Part 2 "Install and authenticate relayfile" first' >&2; exit 1; }
+out=$(relayfile tree "/github/repos/$R/issues" --depth 1 --json) || { echo 'relayfile tree failed' >&2; exit 1; }
+# Match the directory name from its start: a plain "N__" substring would also match 142__ for N=42.
+d=$(printf '%s' "$out" | jq -r --arg n "$N" '.entries[].path | split("/")[-1] | select(startswith($n + "__"))' | head -1)
+if test -z "$d"; then
+  if test -n "$(printf '%s' "$out" | jq -r '.nextCursor // empty')"; then
+    echo "the issue listing is paged and issue $N was not on the first page; take the N__slug directory from the path of any event for this issue" >&2
+  else
+    echo "issue $N is not in the workspace yet; retry in a minute" >&2
+  fi
+  exit 1
+fi
 for g in "/github/repos/$R/issues/$d/**" "/github/repos/$R/issues/$d/comments/**"; do
   integration subscribe github "$g"
 done
