@@ -300,12 +300,12 @@ ts=$(date -u +%Y%m%dT%H%M%SZ)
 draft="$mount_dir/messages/wb-test-draft-$ts.json"
 jq -nc --arg t "[writeback test $ts] <what this verifies>. Safe to ignore." \
        --arg k "wb-test-$ts" '{text:$t,idempotencyKey:$k}' > "$draft"
-for i in $(seq 1 30); do                      # poll up to ~90s for the receipt
+for i in $(seq 1 60); do                      # poll up to ~3 min for the receipt
   grep -q '"created"' "$draft" 2>/dev/null && break
   sleep 3
 done
 if ! grep -q '"created"' "$draft" 2>/dev/null; then
-  echo 'no receipt after ~90s: the draft was NOT delivered (still a plain draft)' >&2
+  echo 'no receipt after ~3 min: the draft was NOT delivered (still a plain draft)' >&2
   relayfile writeback list --state pending
   relayfile writeback list --state dead
   exit 1
@@ -316,7 +316,7 @@ relayfile writeback status       # want pending: 0  failed: 0  dead-lettered: 0
 
 Success is the draft being **rewritten as a receipt**
 `{"created":..., "path":..., "externalId":"<ts>", "ts":"<ts>"}` and
-`dead-lettered: 0`. `pending` should drain to 0 within about 30 seconds. If it
+`dead-lettered: 0`. `pending` should drain to 0 within about a minute; on a large channel a mount sync cycle can time out (`context deadline exceeded` in the mount log) and the receipt then lands locally 1-2 minutes after delivery, so wait before concluding it failed (a real thread reply took ~50s). If it
 stays pending, look at `relayfile writeback list --state pending` and the mount
 log first. Only a **dead-lettered** op is retried, with its workspace:
 `relayfile writeback list --state dead`, then

@@ -131,7 +131,7 @@
     },
     {
       "name": "subscribing-relay-webhooks-and-writebacks",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "description": "Subscribe a running Codex or Claude session to inbound provider events (a GitHub PR, a Slack channel) so they are injected into the session, and write back to providers through a Relayfile mount: desktop subscribe endpoint, PR and Slack globs, webhook test, relayfile install and login, single-subtree mount, write-contract discovery, posting a draft, and verification, with known defects linked.",
       "format": "claude",
       "subtype": "skill",
@@ -146,6 +146,23 @@
       ],
       "files": [
         "skills/subscribing-relay-webhooks-and-writebacks/SKILL.md"
+      ]
+    },
+    {
+      "name": "messaging-agents-on-the-relay",
+      "version": "0.1.0",
+      "description": "Find other agents on Agent Relay and message them from a registered desktop session with no tokens: the GET /agents roster, POST /send with address or short name and reply_to, the macOS Codex probe form, how injected messages arrive, a briefing pattern, error codes and safety rules. Use when an agent needs to list agents, send a message to a peer, reply to one, or brief another agent.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "messaging",
+        "agent-collaboration",
+        "roster",
+        "agent-setup"
+      ],
+      "files": [
+        "skills/messaging-agents-on-the-relay/SKILL.md"
       ]
     },
     {
@@ -666,8 +683,8 @@
     {
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
-      "description": "Set up Agent Relay Desktop, live session handoff between teammates, and subscriptions plus write-backs, installed together because the skills build on each other",
-      "version": "1.0.0",
+      "description": "Set up Agent Relay Desktop, live session handoff between teammates, subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
+      "version": "1.1.0",
       "category": "development",
       "tags": [
         "agent-relay",
@@ -695,6 +712,12 @@
           "version": "latest",
           "required": true,
           "reason": "Inbound PR and Slack subscriptions and outbound Relayfile write-backs, with known defects linked"
+        },
+        {
+          "packageId": "@agent-relay/messaging-agents-on-the-relay",
+          "version": "latest",
+          "required": true,
+          "reason": "Find other agents on the relay and message them over the session socket without tokens"
         }
       ]
     }
