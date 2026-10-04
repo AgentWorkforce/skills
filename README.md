@@ -97,11 +97,13 @@ This collection includes:
 
 `setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions` and `subscribing-relay-webhooks-and-writebacks` build on each other (sessions and subscribing both need a working, signed-in desktop). Install them together so the references resolve.
 
-With `prpm`, install the `agent-relay-setup` collection:
+With `prpm`, install the `agent-relay-setup` collection for Claude Code:
 
 ```bash
-npx prpm install collections/agent-relay-setup --as codex,claude
+npx prpm install collections/agent-relay-setup --as claude --global -y
 ```
+
+For Codex, do **not** use `--as codex` for these skills: the conversion drops explanatory paragraphs from the workflows and writes under `~/.agents/skills`, which Codex does not load as its global skill folder. Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` instead; the install section of `setting-up-agent-relay-desktop` has the exact script.
 
 With `skills` (which has no dependency or collection concept, so name all three):
 
@@ -112,7 +114,7 @@ npx skills add https://github.com/AgentWorkforce/skills \
   --skill subscribing-relay-webhooks-and-writebacks
 ```
 
-Add `-g` for a user-level install, or `--agent claude-code` / `--agent codex` to pick a tool. If you install only one of these skills, it stops and tells you which companion to install; it does not guess.
+Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) If you install only one of these skills, it stops and tells you which companion to install; it does not guess.
 
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 

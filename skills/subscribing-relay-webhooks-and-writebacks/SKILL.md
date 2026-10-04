@@ -28,8 +28,9 @@ provides. If `GET /setup/status` does not already show `sign_in: signed_in` and
 `session.registered: true` and that skill is **not installed**, stop, tell the
 person, and have them install the companions together, then restart the agent:
 
-- prpm: `npx prpm install collections/agent-relay-setup --as codex,claude`
+- prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
 - skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
+- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` using the script in `setting-up-agent-relay-desktop`'s install section.
 
 **Creating and testing a webhook** (see "Webhook creation and test" below) also
 needs that skill's section 5, because the procedure lives there and is not
@@ -60,7 +61,12 @@ Define these once per shell; every request in this skill goes through
 message for a macOS Codex session that has no probe:
 
 ```sh
-relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
+pointer="$HOME/.agentworkforce/desktop/relay-socket"
+if test -r "$pointer"; then relay_socket=$(sed -n '1p' "$pointer"); fi
+if test -n "${relay_socket:-}" && ! test -S "$relay_socket"; then unset relay_socket; fi
+if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
+  relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
+fi
 relay_probe=
 for c in "$HOME/.local/bin/agent-relay-probe" \
          /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
