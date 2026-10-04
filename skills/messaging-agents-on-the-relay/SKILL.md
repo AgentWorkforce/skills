@@ -111,7 +111,18 @@ relay_req POST '/send?address=NAME@HOST' "$msg" |
 - A success is `{"ok":true,"data":{"conversation_id":..., "from":..., "message_id":..., "to":...}}`.
 - `?to=<short-name>` also works (the reply hints in injected messages use it);
   both forms resolved to the same agent in testing.
-- Keep a message self-contained. A 2.8 KB briefing was delivered intact.
+- **Keep messages short, and put long briefs in a file.** On 2026-10-04 long
+  text injected into a spawned (PTY) agent arrived truncated to its **tail**,
+  silently (a 6.7 KB task became its last 339 characters; a 2 KB message became its
+  last 213), while messages of about 150 bytes arrived intact every time. It was
+  intermittent (one 4.5 KB message arrived whole), so a long message that "went
+  through" proves nothing. Tracked in AgentWorkforce/relay#1890. Until that is
+  fixed: write the full brief to a file on the **receiving** machine (for example
+  `~/relay-briefs/<name>.md`; use `ssh`/`scp` for a remote node) and send a
+  pointer of 150 bytes or less, such as "Your full task is in
+  ~/relay-briefs/NAME.md on this machine. Read ALL of it first, then execute it.
+  Reply with one line when started." Then confirm by asking for a one-line reply
+  that names the brief's main parts.
 
 On Linux or from Claude Code, plain `curl` is equivalent:
 `curl -s --unix-socket "$relay_socket" 'http://relay/send?address=NAME@HOST' --data-binary 'text'`.
@@ -128,9 +139,9 @@ do not sleep or poll.
 ## 4. Briefing another agent (pattern that worked)
 
 1. Look up the address with `GET /agents`; confirm the entry exists.
-2. Write a self-contained message: what you want, the exact commands or paths,
-   and what proof of success you want back ("reply with one line using the send
-   command").
+2. For anything longer than ~150 bytes, write the brief to a file on the receiving
+   machine and send only a short pointer to it (see the length warning above). State
+   what proof of success you want back ("reply with one line naming the phases").
 3. Send it, end the turn, and treat the reply as confirmation that the whole
    path (send, delivery, their send) works. A send that returns `ok:true` only
    proves delivery to the relay.
