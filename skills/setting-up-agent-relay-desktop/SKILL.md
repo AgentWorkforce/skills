@@ -91,6 +91,9 @@ fi
 if ! test -S "${relay_socket:-/nonexistent}" && test "$(uname -s)" = Linux; then
   relay_socket="/run/user/$(id -u)/agent-relay/relay.sock"
 fi
+if ! test -S "${relay_socket:-/nonexistent}" && test "$(uname -s)" = Darwin; then   # pointer file missing: use the app's own socket
+  relay_socket="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+fi
 test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 ```
 
@@ -310,7 +313,10 @@ for _ in $(seq 1 30); do
   test -r "$HOME/.agentworkforce/desktop/relay-socket" && break
   sleep 1
 done
-relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
+relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null)
+if ! test -S "$relay_socket" && test "$(uname -s)" = Darwin; then
+  relay_socket="$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"
+fi
 if ! test -S "$relay_socket" && test "$(uname -s)" = Linux; then
   relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
 fi
