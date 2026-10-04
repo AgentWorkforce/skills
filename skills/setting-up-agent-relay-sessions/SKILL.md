@@ -207,6 +207,10 @@ if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then   # pe
 fi
 # relay_req METHOD PATH [JSON-BODY]
 relay_req() {
+  if ! test -S "${relay_socket:-/nonexistent}"; then
+    echo 'No Agent Relay socket found; start Agent Relay (the desktop) and retry.' >&2
+    return 1
+  fi
   if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
     printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
       --socket "$relay_socket" --method "$1" --path "$2"
@@ -214,8 +218,9 @@ relay_req() {
     echo 'A Codex session on macOS needs agent-relay-probe; start Agent Relay and retry.' >&2
     return 1
   elif test -n "${3:-}"; then
-    curl -sS --unix-socket "$relay_socket" -X "$1" \
-      -H 'Content-Type: application/json' -d "$3" "http://relay$2"
+    # body on stdin: curl treats a -d/--data-binary value starting with @ as a filename
+    printf '%s' "$3" | curl -sS --unix-socket "$relay_socket" -X "$1" \
+      -H 'Content-Type: application/json' --data-binary @- "http://relay$2"
   else
     curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi

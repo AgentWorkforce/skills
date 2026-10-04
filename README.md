@@ -12,8 +12,9 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 2.0.0 | **DEPRECATED** - the superseded v1 `@relayflows/core` WorkflowBuilder engine. Use [`writing-relayflows`](skills/writing-relayflows/SKILL.md) for v2; keep this only to maintain an existing v1 workflow. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.1 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [setting-up-agent-relay-desktop](skills/setting-up-agent-relay-desktop/SKILL.md) | 1.1.0 | Install and configure Agent Relay Desktop end-to-end from a Codex or Claude session, including headless Linux, device login, registration, webhooks, integrations, and verification. |
-| [setting-up-agent-relay-sessions](skills/setting-up-agent-relay-sessions/SKILL.md) | 0.2.0 | Set a person up for live agent-to-agent session handoff end-to-end from a Codex or Claude session: reuse `setting-up-agent-relay-desktop` for the desktop leg, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove a live round trip with a teammate (or self-verify the roster + own-session read path when no teammate is online yet). |
-| [subscribing-relay-webhooks-and-writebacks](skills/subscribing-relay-webhooks-and-writebacks/SKILL.md) | 0.1.1 | Subscribe a session to GitHub PR and Slack channel events so they are injected, and write back to providers through a Relayfile mount, with the verified steps and known defects. |
+| [setting-up-agent-relay-sessions](skills/setting-up-agent-relay-sessions/SKILL.md) | 0.2.2 | Set a person up for live agent-to-agent session handoff end-to-end from a Codex or Claude session: reuse `setting-up-agent-relay-desktop` for the desktop leg, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove a live round trip with a teammate (or self-verify the roster + own-session read path when no teammate is online yet). |
+| [subscribing-relay-webhooks-and-writebacks](skills/subscribing-relay-webhooks-and-writebacks/SKILL.md) | 0.1.4 | Subscribe a session to GitHub PR and Slack channel events so they are injected, and write back to providers through a Relayfile mount, with the verified steps and known defects. |
+| [messaging-agents-on-the-relay](skills/messaging-agents-on-the-relay/SKILL.md) | 0.1.0 | Find other agents on Agent Relay and message them from a registered desktop session with no tokens: roster, send, reply, the macOS Codex probe form, and safety rules. |
 | [relay-connect](skills/relay-connect/SKILL.md) | 0.4.0 | Create a temporary Relay Connect with hosted MCP and hand over one `npx -y @agent-relay/connect join <link>` command; join without an account through Agent Relay Desktop injection, with manual probe steps and an MCP fallback. |
 | [writing-relayflows](skills/writing-relayflows/SKILL.md) | 1.6.0 | Author a Relayflows v2 flow (`@relayflows/surface`/`@relayflows/sdk`, the `flows` CLI) in TypeScript or YAML/JSON — including direct `use`/`f.dispatch` child flows, local-run Cloud dashboard mirroring, and the hosted `use` limitation. Not the older `@relayflows/core` WorkflowBuilder engine. |
 | [migrating-persona-to-relayflow](skills/migrating-persona-to-relayflow/SKILL.md) | 1.1.0 | Migrate an existing `defineAgent` persona to run its LLM-heavy work through a Relayflow v1 workflow via `ctx.workflow.run()`: scope decisions, the 4-step durable-workflow shape, colocation, red-first and resume tests, `useSubscription` semantics, and the `agentworkforce` >= 4.1.44 CI-deploy bump. |
@@ -95,7 +96,7 @@ This collection includes:
 
 ### Agent Relay setup skills
 
-`setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions` and `subscribing-relay-webhooks-and-writebacks` build on each other (sessions and subscribing both need a working, signed-in desktop). Install them together so the references resolve.
+`setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions`, `subscribing-relay-webhooks-and-writebacks` and `messaging-agents-on-the-relay` build on each other (the other three all need a working, signed-in desktop). Install them together so the references resolve.
 
 With `prpm`, install the `agent-relay-setup` collection for Claude Code:
 
@@ -108,7 +109,7 @@ For Codex, do **not** use `--as codex` for these skills: the conversion drops ex
 ```bash
 (
   set -e
-  for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks; do
+  for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks messaging-agents-on-the-relay; do
     src="$HOME/.claude/skills/$pkg/SKILL.md"
     test -f "$src" || { echo "missing $src: run the prpm --as claude install first" >&2; exit 1; }
     mkdir -p "$HOME/.codex/skills/$pkg"
@@ -118,16 +119,17 @@ For Codex, do **not** use `--as codex` for these skills: the conversion drops ex
 ) && echo "mirrored to ~/.codex/skills"
 ```
 
-With `skills` (which has no dependency or collection concept, so name all three):
+With `skills` (which has no dependency or collection concept, so name all four):
 
 ```bash
 npx skills add https://github.com/AgentWorkforce/skills \
   --skill setting-up-agent-relay-desktop \
   --skill setting-up-agent-relay-sessions \
-  --skill subscribing-relay-webhooks-and-writebacks
+  --skill subscribing-relay-webhooks-and-writebacks \
+  --skill messaging-agents-on-the-relay
 ```
 
-Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) The sessions and subscribing skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
+Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) The sessions, subscribing and messaging skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
 
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 
