@@ -24,13 +24,16 @@ relayfile 0.10.71. Known defects are linked to their issues in
 
 A signed-in, registered desktop is enough for **subscriptions** (Part 1) and
 **write-backs** (Part 2). That desktop is what `setting-up-agent-relay-desktop`
-provides. If `GET /setup/status` does not already show `sign_in: signed_in` and
-`session.registered: true` and that skill is **not installed**, stop, tell the
-person, and have them install the companions together, then restart the agent:
+provides. Check `GET /setup/status` for `sign_in: signed_in` and
+`session.registered: true`.
 
-- prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
-- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
-- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` (after the prpm `--as claude` install):
+- **Not ready and that skill is installed:** invoke it
+  (`/setting-up-agent-relay-desktop`) to completion, then return here.
+- **Not ready and that skill is not installed:** stop, tell the person, and have
+  them install the companions together, then restart the agent:
+  - prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
+  - skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
+  - Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` (after the prpm `--as claude` install):
 
   ```sh
   (
@@ -94,6 +97,10 @@ if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then   # pe
 fi
 # relay_req METHOD PATH [JSON-BODY]
 relay_req() {
+  if ! test -S "${relay_socket:-/nonexistent}"; then
+    echo 'No Agent Relay socket found; start Agent Relay (the desktop) and retry.' >&2
+    return 1
+  fi
   if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
     printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
       --socket "$relay_socket" --method "$1" --path "$2"
@@ -306,9 +313,13 @@ for i in $(seq 1 60); do                      # poll up to ~3 min for the receip
   sleep 3
 done
 if ! grep -q '"created"' "$draft" 2>/dev/null; then
-  echo 'no receipt after ~3 min: the draft was NOT delivered (still a plain draft)' >&2
+  echo 'no receipt after ~3 min: delivery is UNCONFIRMED (the receipt can land late); do NOT rewrite the draft yet' >&2
   relayfile writeback list --state pending
   relayfile writeback list --state dead
+  if test -n "${chan_dir:-}"; then   # the remote copy is the real evidence of delivery
+    echo "remote draft (look for a \"created\" receipt):" >&2
+    relayfile read "$chan_dir/messages/$(basename "$draft")" 2>&1 | head -c 400 >&2; echo >&2
+  fi
   exit 1
 fi
 cat "$draft"                                  # the receipt

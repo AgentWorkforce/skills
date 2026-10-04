@@ -113,7 +113,7 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
@@ -131,7 +131,7 @@
     },
     {
       "name": "subscribing-relay-webhooks-and-writebacks",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "description": "Subscribe a running Codex or Claude session to inbound provider events (a GitHub PR, a Slack channel) so they are injected into the session, and write back to providers through a Relayfile mount: desktop subscribe endpoint, PR and Slack globs, webhook test, relayfile install and login, single-subtree mount, write-contract discovery, posting a draft, and verification, with known defects linked.",
       "format": "claude",
       "subtype": "skill",
@@ -699,7 +699,7 @@
           "packageId": "@agent-relay/setting-up-agent-relay-desktop",
           "version": "latest",
           "required": true,
-          "reason": "Foundation: verified install, sign-in, registration and agent-led defaults; the other two skills depend on it"
+          "reason": "Foundation: verified install, sign-in, registration and agent-led defaults; the other skills in this collection depend on it"
         },
         {
           "packageId": "@agent-relay/setting-up-agent-relay-sessions",

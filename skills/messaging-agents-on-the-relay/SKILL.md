@@ -12,14 +12,16 @@ its process. Everything here was verified on macOS with Desktop 2026.10.7.
 
 ## Requires
 
-A signed-in, registered desktop (`setting-up-agent-relay-desktop`). If
-`GET /setup/status` does not show `sign_in: signed_in` and
-`session.registered: true` and that skill is **not installed**, stop, tell the
-person, and have them install it, then restart the agent:
+A signed-in, registered desktop, which `setting-up-agent-relay-desktop` provides.
+Check `GET /setup/status` for `sign_in: signed_in` and `session.registered: true`.
 
-- prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
-- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill messaging-agents-on-the-relay`
-- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` (see the README's loop).
+- **Not ready and that skill is installed:** invoke it
+  (`/setting-up-agent-relay-desktop`) to completion, then return here.
+- **Not ready and that skill is not installed:** stop, tell the person, and have
+  them install it, then restart the agent:
+  - prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
+  - skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill messaging-agents-on-the-relay`
+  - Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` (see the README's loop).
 
 ## Socket route vs the `agent-relay` CLI
 
@@ -58,6 +60,10 @@ if test -z "$relay_probe" && test -d "$HOME/.local/lib/agent-relay"; then   # pe
 fi
 # relay_req METHOD PATH [JSON-BODY]
 relay_req() {
+  if ! test -S "${relay_socket:-/nonexistent}"; then
+    echo 'No Agent Relay socket found; start Agent Relay (the desktop) and retry.' >&2
+    return 1
+  fi
   if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
     printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
       --socket "$relay_socket" --method "$1" --path "$2"
