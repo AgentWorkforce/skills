@@ -22,6 +22,16 @@ app and the dashboard. The finished state is:
   own uploaded session reading back cleanly — reported as self-verified, not as a
   proven two-way handoff.
 
+## Requires
+
+This skill builds on `setting-up-agent-relay-desktop` (verified install, sign-in,
+registration, agent-led defaults). If that skill is **not installed** in this
+agent, stop, tell the person, and have them install the companions together,
+then restart the agent. Do not improvise the install or sign-in from memory.
+
+- prpm: `npx prpm install collections/agent-relay-setup --as codex,claude`
+- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill setting-up-agent-relay-sessions`
+
 ## The only human steps
 
 Everything else is automatable; be honest that these are not. **Ask for all of
@@ -50,20 +60,12 @@ session is on-or-off on the relay. Confirm a handoff by activity, not a push.
 
 ## How this composes with `setting-up-agent-relay-desktop`
 
-This skill is a thin layer on top of a working desktop. It **reuses**
-`setting-up-agent-relay-desktop` for everything up to and including a registered,
-signed-in session — verified install (the scriptable macOS DMG and headless
-Linux `.deb`/systemd paths), device sign-in, the agent-led defaults, and
-self-registration — and owns only what is new here: the agent-sessions cloud MCP
-and the live handoff. It does not reimplement the install or the `/setup/*`
-contract.
-
-The composition is a **dependency, not a copy**: section 2 checks whether the
-desktop prerequisite is met and, if not, **invokes** the desktop skill
-(`/setting-up-agent-relay-desktop`) to completion, then returns here. Install
-that skill alongside this one (below) so the invocation resolves. Keep the
-`/setup/*` details in that one skill; if the contract changes, only the desktop
-skill updates and this one still composes.
+This skill is a thin layer on a working desktop. The desktop skill owns install,
+sign-in, defaults and self-registration; this one owns only the agent-sessions
+cloud MCP and the live handoff. Section 2 checks the desktop prerequisite and,
+if it is not met, invokes `/setting-up-agent-relay-desktop` to completion and
+returns here. Keep the `/setup/*` details in that one skill so a contract change
+updates it once.
 
 ## Install this skill (and its dependency) for Codex and Claude Code
 
@@ -80,6 +82,8 @@ for pkg in setting-up-agent-relay-sessions setting-up-agent-relay-desktop; do
   cmp "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md"
 done
 ```
+
+With skills.sh instead, use the command under **Requires**; it installs into each agent's skills folder directly, so the manual Codex mirror below is only for the prpm route.
 
 Do not use prpm's `--as codex` conversion for these packages: it writes under
 `~/.agents/skills`, which Codex does not load as its global skill folder, and it
@@ -175,16 +179,35 @@ test -n "${SSH_CONNECTION:-}" && printf 'transport=ssh\n' || true
 test -n "${TMUX:-}" && printf 'session=tmux\n' || true
 ```
 
-Find the private setup socket without printing private files:
+Define the request helper once per shell. It finds the private setup socket
+without printing private files and uses the desktop's `agent-relay-probe` on
+macOS (the system `curl` hides a Codex session's identity there and is refused
+`not_a_relay_session`), `curl` elsewhere, and stops with a message for a macOS
+Codex session that has no probe:
 
 ```sh
-pointer="$HOME/.agentworkforce/desktop/relay-socket"
-if test -r "$pointer"; then relay_socket=$(sed -n '1p' "$pointer"); fi
-if test -n "${relay_socket:-}" && ! test -S "$relay_socket"; then unset relay_socket; fi
-if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
-  relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
-fi
-test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
+relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
+relay_probe=
+for c in "$HOME/.local/bin/agent-relay-probe" \
+         /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
+         "/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe"; do
+  if test -x "$c"; then relay_probe=$c; break; fi
+done
+# relay_req METHOD PATH [JSON-BODY]
+relay_req() {
+  if test "$(uname -s)" = Darwin && test -n "$relay_probe"; then
+    printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
+      --socket "$relay_socket" --method "$1" --path "$2"
+  elif test "$(uname -s)" = Darwin && test -n "${CODEX_THREAD_ID:-}"; then
+    echo 'A Codex session on macOS needs agent-relay-probe; start Agent Relay and retry.' >&2
+    return 1
+  elif test -n "${3:-}"; then
+    curl -sS --unix-socket "$relay_socket" -X "$1" \
+      -H 'Content-Type: application/json' -d "$3" "http://relay$2"
+  else
+    curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
+  fi
+}
 ```
 
 ## 2. Make sure the desktop is set up first
@@ -192,7 +215,7 @@ test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 Session handoff needs a signed-in, healthy desktop underneath it. If the socket
 is missing, or `/setup/status` returns `404`, or sign-in/uploader/registration
 are not in the finished state below, **invoke the `setting-up-agent-relay-desktop`
-skill** (`/setting-up-agent-relay-desktop`), let it run to completion, and then
+skill** (`/setting-up-agent-relay-desktop`; if it is not installed, see **Requires**), let it run to completion, and then
 return to section 2's verification. Do not re-implement its install, sign-in, or
 `/setup/*` steps here — that skill is the single source of truth for them, and
 this skill resumes once it reports a registered, signed-in session.
@@ -200,7 +223,7 @@ this skill resumes once it reports a registered, signed-in session.
 Verify the desktop state this skill depends on:
 
 ```sh
-curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq '{
+relay_req GET /setup/status | jq '{
   version: .data.version,
   sign_in: .data.sign_in,
   workspace: .data.workspace,
@@ -218,7 +241,7 @@ replies arrive live is the session-level `session.direct_delivery`, not the
 top-level default — require both:
 
 ```sh
-curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq -e '
+relay_req GET /setup/status | jq -e '
   .ok
   and .data.sign_in == "signed_in"
   and (.data.workspace.id | type == "string" and length > 0)

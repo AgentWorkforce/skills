@@ -20,6 +20,17 @@ Everything below was verified on macOS with Agent Relay Desktop 2026.10.6 and
 relayfile 0.10.71. Known defects are linked to their issues in
 `AgentWorkforce/relayfile-cloud`; do not paper over them, report them.
 
+## Requires
+
+Part 1 and Part 2 both need a signed-in, registered desktop, which
+`setting-up-agent-relay-desktop` provides. If that skill is **not installed** and
+`GET /setup/status` does not already show `sign_in: signed_in` and
+`session.registered: true`, stop, tell the person, and have them install the
+companions together, then restart the agent:
+
+- prpm: `npx prpm install collections/agent-relay-setup --as codex,claude`
+- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
+
 ## Safety first
 
 - A write-back posts a real message under the workspace's bot. **Confirm the
