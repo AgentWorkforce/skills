@@ -150,7 +150,7 @@
     },
     {
       "name": "messaging-agents-on-the-relay",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Find other agents on Agent Relay and message them from a registered desktop session with no tokens: the GET /agents roster, POST /send with address or short name and reply_to, the macOS Codex probe form, how injected messages arrive, a briefing pattern, error codes and safety rules. Use when an agent needs to list agents, send a message to a peer, reply to one, or brief another agent.",
       "format": "claude",
       "subtype": "skill",
