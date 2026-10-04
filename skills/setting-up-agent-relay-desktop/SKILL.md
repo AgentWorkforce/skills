@@ -597,14 +597,16 @@ relay_req() {  # METHOD PATH [JSON body]
 pr_url='https://github.com/OWNER/REPO/pull/NUMBER'
 pr_resources() {
   relay_status=$(relay_req GET /setup/status) || return 1
-  printf '%s\n' "$relay_status" | jq -r --arg url "$pr_url" \
+  # -s reads the whole body as one list, so an empty body is an error too.
+  printf '%s\n' "$relay_status" | jq -rs --arg url "$pr_url" \
     --arg short 'OWNER/REPO#NUMBER' \
     --arg pulls '/github/repos/OWNER/REPO/pulls/NUMBER/' \
     --arg issues '/github/repos/OWNER/REPO/issues/NUMBER/' '
-    if .ok == true and (.data.integrations | type) == "array" then
-      [.data.integrations[] | select(.provider == "github") | .resource
-       | select(. == $url or . == $short or startswith($url + "/")
-                or startswith($pulls) or startswith($issues))] | .[]
+    if length == 1 and .[0].ok == true
+       and (.[0].data.integrations | type) == "array" then
+      .[0].data.integrations[] | select(.provider == "github") | .resource
+      | select(. == $url or . == $short or startswith($url + "/")
+               or startswith($pulls) or startswith($issues))
     else
       error("Agent Relay status is unreadable; no subscription was changed.")
     end'
