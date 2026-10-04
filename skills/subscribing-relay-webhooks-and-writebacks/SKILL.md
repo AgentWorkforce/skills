@@ -22,14 +22,20 @@ relayfile 0.10.71. Known defects are linked to their issues in
 
 ## Requires
 
-Part 1 and Part 2 both need a signed-in, registered desktop, which
-`setting-up-agent-relay-desktop` provides. If that skill is **not installed** and
-`GET /setup/status` does not already show `sign_in: signed_in` and
-`session.registered: true`, stop, tell the person, and have them install the
-companions together, then restart the agent:
+A signed-in, registered desktop is enough for **subscriptions** (Part 1) and
+**write-backs** (Part 2). That desktop is what `setting-up-agent-relay-desktop`
+provides. If `GET /setup/status` does not already show `sign_in: signed_in` and
+`session.registered: true` and that skill is **not installed**, stop, tell the
+person, and have them install the companions together, then restart the agent:
 
 - prpm: `npx prpm install collections/agent-relay-setup --as codex,claude`
 - skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
+
+**Creating and testing a webhook** (see "Webhook creation and test" below) also
+needs that skill's section 5, because the procedure lives there and is not
+repeated here. If the skill is absent, do the subscriptions and write-backs the
+person asked for, but do not attempt webhook creation: say it needs the
+companion install above.
 
 ## Safety first
 
@@ -166,9 +172,12 @@ empty "COMMENTED" review wrappers, and `synchronize` for your own pushes. Check
 
 ### Webhook creation and test
 
-Creating a webhook is a persistent external change; do it only when asked.
-Follow `setting-up-agent-relay-desktop` section 5 (one-time secret to a mode-0600
-temp file, unique marker, delete the file, confirm the marker next turn).
+Creating a webhook is a persistent external change; do it only when asked, and
+only if `setting-up-agent-relay-desktop` is installed: the steps (one-time secret
+to a mode-0600 temp file, unique marker, delete the file, confirm the marker next
+turn) are in that skill's section 5 and are not duplicated here. If it is not
+installed, stop and give the install commands under **Requires**; subscriptions
+and write-backs do not depend on it.
 
 ### Undo
 
