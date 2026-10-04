@@ -20,6 +20,37 @@ Everything below was verified on macOS with Agent Relay Desktop 2026.10.6 and
 relayfile 0.10.71. Known defects are linked to their issues in
 `AgentWorkforce/relayfile-cloud`; do not paper over them, report them.
 
+## Requires
+
+A signed-in, registered desktop is enough for **subscriptions** (Part 1) and
+**write-backs** (Part 2). That desktop is what `setting-up-agent-relay-desktop`
+provides. If `GET /setup/status` does not already show `sign_in: signed_in` and
+`session.registered: true` and that skill is **not installed**, stop, tell the
+person, and have them install the companions together, then restart the agent:
+
+- prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
+- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill subscribing-relay-webhooks-and-writebacks`
+- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` (after the prpm `--as claude` install):
+
+  ```sh
+  (
+    set -e
+    for pkg in setting-up-agent-relay-desktop subscribing-relay-webhooks-and-writebacks; do
+      src="$HOME/.claude/skills/$pkg/SKILL.md"
+      test -f "$src" || { echo "missing $src: run the prpm --as claude install first" >&2; exit 1; }
+      mkdir -p "$HOME/.codex/skills/$pkg"
+      install -m 0644 "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+      cmp "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+    done
+  ) && echo "mirrored to ~/.codex/skills"
+  ```
+
+**Creating and testing a webhook** (see "Webhook creation and test" below) also
+needs that skill's section 5, because the procedure lives there and is not
+repeated here. If the skill is absent, do the subscriptions and write-backs the
+person asked for, but do not attempt webhook creation: say it needs the
+companion install above.
+
 ## Safety first
 
 - A write-back posts a real message under the workspace's bot. **Confirm the
@@ -43,7 +74,14 @@ Define these once per shell; every request in this skill goes through
 message for a macOS Codex session that has no probe:
 
 ```sh
-relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket")
+pointer="$HOME/.agentworkforce/desktop/relay-socket"
+if test -r "$pointer"; then relay_socket=$(sed -n '1p' "$pointer"); fi
+if test -n "${relay_socket:-}" && ! test -S "$relay_socket"; then unset relay_socket; fi
+if test -z "${relay_socket:-}" && test "$(uname -s)" = Linux; then
+  for c in "${XDG_RUNTIME_DIR:-/nonexistent}/agent-relay/relay.sock" "/run/user/$(id -u)/agent-relay/relay.sock"; do
+    if test -S "$c"; then relay_socket=$c; break; fi
+  done
+fi
 relay_probe=
 for c in "$HOME/.local/bin/agent-relay-probe" \
          /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe \
@@ -155,9 +193,12 @@ empty "COMMENTED" review wrappers, and `synchronize` for your own pushes. Check
 
 ### Webhook creation and test
 
-Creating a webhook is a persistent external change; do it only when asked.
-Follow `setting-up-agent-relay-desktop` section 5 (one-time secret to a mode-0600
-temp file, unique marker, delete the file, confirm the marker next turn).
+Creating a webhook is a persistent external change; do it only when asked, and
+only if `setting-up-agent-relay-desktop` is installed: the steps (one-time secret
+to a mode-0600 temp file, unique marker, delete the file, confirm the marker next
+turn) are in that skill's section 5 and are not duplicated here. If it is not
+installed, stop and give the install commands under **Requires**; subscriptions
+and write-backs do not depend on it.
 
 ### Undo
 

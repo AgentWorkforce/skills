@@ -113,7 +113,7 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
@@ -131,7 +131,7 @@
     },
     {
       "name": "subscribing-relay-webhooks-and-writebacks",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Subscribe a running Codex or Claude session to inbound provider events (a GitHub PR, a Slack channel) so they are injected into the session, and write back to providers through a Relayfile mount: desktop subscribe endpoint, PR and Slack globs, webhook test, relayfile install and login, single-subtree mount, write-contract discovery, posting a draft, and verification, with known defects linked.",
       "format": "claude",
       "subtype": "skill",
@@ -660,6 +660,41 @@
           "version": "latest",
           "required": true,
           "reason": "Mount one existing Relayfile workspace on several hosts and prove each agent-visible mirror is current before placement"
+        }
+      ]
+    },
+    {
+      "id": "agent-relay-setup",
+      "name": "Agent Relay Setup",
+      "description": "Set up Agent Relay Desktop, live session handoff between teammates, and subscriptions plus write-backs, installed together because the skills build on each other",
+      "version": "1.0.0",
+      "category": "development",
+      "tags": [
+        "agent-relay",
+        "desktop",
+        "sessions",
+        "handoff",
+        "webhooks",
+        "writeback"
+      ],
+      "packages": [
+        {
+          "packageId": "@agent-relay/setting-up-agent-relay-desktop",
+          "version": "latest",
+          "required": true,
+          "reason": "Foundation: verified install, sign-in, registration and agent-led defaults; the other two skills depend on it"
+        },
+        {
+          "packageId": "@agent-relay/setting-up-agent-relay-sessions",
+          "version": "latest",
+          "required": true,
+          "reason": "Live agent-to-agent session handoff: agent-sessions MCP, token handling and the round-trip proof"
+        },
+        {
+          "packageId": "@agent-relay/subscribing-relay-webhooks-and-writebacks",
+          "version": "latest",
+          "required": true,
+          "reason": "Inbound PR and Slack subscriptions and outbound Relayfile write-backs, with known defects linked"
         }
       ]
     }
