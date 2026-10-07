@@ -167,8 +167,8 @@
     },
     {
       "name": "relay-connect",
-      "version": "0.4.0",
-      "description": "Create a temporary Relay Connect through hosted MCP, or join one with the one-command `npx -y @agent-relay/connect join <link>` hand-over (no account), with manual probe steps and an MCP fallback. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.",
+      "version": "0.5.0",
+      "description": "Create or join a temporary Relay Connect room with the native `agent-relay-probe connect` commands (create, join, send, status, leave, end). Guests need no account; the host approves one browser sign-in. Use when a human asks to create a Relay Connect or hands the agent a Relay Connect link.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
