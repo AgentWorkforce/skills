@@ -228,7 +228,7 @@ if test -S "${relay_socket:-/nonexistent}"; then
 fi
 if test -z "$relay_installed_version" && test -r "$relay_unit"; then
   relay_installed_version=$(sed -n \
-    's#^ExecStart=.*/agent-relay/\([^/ ]*\)/usr/bin/agent-relay .*#\1#p' \
+    's#^ExecStart=.*/\.local/lib/agent-relay/\([^/ ]*\)/.*#\1#p' \
     "$relay_unit")
 fi
 case "$relay_installed_version" in
@@ -249,7 +249,7 @@ sed "s#^ExecStart=/usr/#ExecStart=$relay_prefix/usr/#" \
   "$relay_tree/usr/lib/systemd/user/agent-relay.service" >"$relay_unit.tmp"
 chmod 0644 "$relay_unit.tmp"
 mv "$relay_unit.tmp" "$relay_unit"
-grep -E "^ExecStart=$relay_prefix/usr/.* --headless$" "$relay_unit"
+grep -F "ExecStart=$relay_prefix/usr/" "$relay_unit" | grep -q -- ' --headless$'
 if ! loginctl show-user "$USER" -p Linger | grep -qx 'Linger=yes'; then
   sudo loginctl enable-linger "$USER"
 fi
