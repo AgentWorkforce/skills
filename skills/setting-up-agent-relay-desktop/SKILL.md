@@ -149,7 +149,7 @@ systemctl --user is-active agent-relay.service
 loginctl show-user "$USER" -p Linger
 ```
 
-The unit runs `/usr/bin/agent-relay --headless`: no display, X server, or GTK
+The unit runs the bundled core headless: no display, X server, or GTK
 window is needed. This session's own GitHub subscriptions (section 6) go
 through the Desktop and need no CLI. The separate Agent Relay CLI is needed
 only to subscribe a fleet-spawned or named agent; record whether it is present
@@ -245,11 +245,11 @@ relay_prefix="$HOME/.local/lib/agent-relay/$relay_version"
 mkdir -p "$relay_prefix"
 cp -a "$relay_tree/usr" "$relay_prefix/"
 mkdir -p "$(dirname "$relay_unit")"
-sed "s#^ExecStart=/usr/bin/agent-relay#ExecStart=$relay_prefix/usr/bin/agent-relay#" \
+sed "s#^ExecStart=/usr/#ExecStart=$relay_prefix/usr/#" \
   "$relay_tree/usr/lib/systemd/user/agent-relay.service" >"$relay_unit.tmp"
 chmod 0644 "$relay_unit.tmp"
 mv "$relay_unit.tmp" "$relay_unit"
-grep -F "ExecStart=$relay_prefix/usr/bin/agent-relay --headless" "$relay_unit"
+grep -E "^ExecStart=$relay_prefix/usr/.* --headless$" "$relay_unit"
 if ! loginctl show-user "$USER" -p Linger | grep -qx 'Linger=yes'; then
   sudo loginctl enable-linger "$USER"
 fi
@@ -259,7 +259,18 @@ systemctl --user enable agent-relay.service
 systemctl --user restart agent-relay.service
 systemctl --user is-active agent-relay.service
 loginctl show-user "$USER" -p Linger
+# List the app in the desktop's app launcher (no-op on a headless server).
+# Releases before v2026.10.13 lack agent-relay-desktop; the app then adds the
+# entry the first time it is opened.
+if test -x "$relay_prefix/usr/bin/agent-relay-desktop"; then
+  "$relay_prefix/usr/bin/agent-relay-desktop" --install-launcher || true
+fi
 ```
+
+The unit's `ExecStart` names the archive's own path under `/usr/`, either the
+launcher or the bundled `agent-relay-probe`; the rewrite moves whichever it is
+under `$relay_prefix`. The launcher entry runs `agent-relay-desktop` by its
+full path, never the bare `agent-relay`, which is also the CLI's name.
 
 Do not improvise Alpine or RHEL distribution packages. On a compatible
 systemd host without `dpkg`, use only the verified per-user tarball path above;
