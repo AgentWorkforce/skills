@@ -595,7 +595,7 @@ Bindings follow the **recipient identity**, not the OS process.
 
 ### Helper agents: no second writable subscribe
 
-Only the PR owner gets `--to @Owner` on those owner globs. A second
+Only the PR owner gets `--to @Owner` on the owner glob. A second
 `subscribe` to the same `(github, path glob)` **replaces** that route.
 Reviewers, shadows, and one-shot helpers read the PR through git/`gh` or
 channel traffic; they do not get their own writable subscription to the
@@ -610,10 +610,23 @@ IDs are gone:
 agent-relay integration subscribe --list
 agent-relay integration webhook list
 agent-relay integration webhook list-inbound
-agent-relay integration unsubscribe github --resource "/github/repos/<owner>/<repo>/pulls/<n>/**"
+for resource in \
+  "/github/repos/<owner>/<repo>/pulls/<n>/**" \
+  "/github/repos/<owner>/<repo>/pulls/<n>/reviews/**" \
+  "/github/repos/<owner>/<repo>/pulls/<n>/status/**" \
+  "/github/repos/<owner>/<repo>/issues/<n>/comments/**"
+do
+  agent-relay integration unsubscribe github --resource "$resource"
+done
 # confirm each binding, webhookId, and webhookSubscriptionId disappeared
 agent-relay fleet release '<Owner>'
 ```
+
+Only `pulls/<n>/**` is created today. The other three are legacy bindings
+from version 2.4.0 and earlier of this skill, which subscribed four globs.
+Remove each one that `subscribe --list` shows for this PR, so an owner
+subscribed under the old recipe leaves no binding or webhook behind. Skip the
+ones the list does not show.
 
 Unsubscribe does not delete agents or channels. Do not unsubscribe by guessed
 name, and do not delete a webhook another binding still references. A failed
