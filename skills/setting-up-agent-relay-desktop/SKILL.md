@@ -517,8 +517,10 @@ A present key with any value (`hold`, `refuse`) is an explicit choice: keep it,
 report it, and continue setup. Only POST `{"enabled":true}` over it when the
 human asks for direct delivery after being told. A build older than this
 default answers `invalid_enabled`; there the skill reads the settings file
-itself and POSTs `{"enabled":true}` only when the key is absent, so an older
-build keeps an explicit choice too:
+itself and POSTs `{"enabled":true}` only after proving the key is absent (no
+file, or a JSON object without the key), so an older build keeps an explicit
+choice too. A file that exists but cannot be read or parsed proves nothing:
+stop and ask the human rather than writing over it:
 
 ```sh
 # Unset keeps the current mode; set it only to the human's explicit answer.
@@ -532,13 +534,27 @@ case "$relay_sharing_mode" in
      exit 1 ;;
 esac
 claude_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-file_choice=$(jq -r 'if type == "object" and has("crossSessionInbound")
-  then (.crossSessionInbound | if type == "string" then . else tojson end) else empty end' \
-  "$claude_settings" 2>/dev/null)
+# absent: no file, or an object without the key; present: file_choice holds
+# it; unreadable: the file exists but is not a readable JSON object.
+file_choice=''
+if [ ! -e "$claude_settings" ]; then
+  file_state=absent
+elif file_choice=$(jq -er 'if type != "object" then error("not an object")
+    elif has("crossSessionInbound")
+    then (.crossSessionInbound | if type == "string" then . else tojson end)
+    else "" end' "$claude_settings" 2>/dev/null); then
+  if [ -n "$file_choice" ]; then file_state=present; else file_state=absent; fi
+else
+  file_state=unreadable
+fi
 direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"default":true}' http://relay/setup/direct-delivery)
 if printf '%s\n' "$direct_delivery" | jq -e '.error.code == "invalid_enabled"' >/dev/null; then
-  if [ -n "$file_choice" ] && [ "$file_choice" != accept ]; then
+  if [ "$file_state" = unreadable ]; then
+    printf 'Could not read %s, so Claude Code delivery was left unchanged; ask the human.\n' \
+      "$claude_settings" >&2
+    exit 1
+  elif [ "$file_state" = present ] && [ "$file_choice" != accept ]; then
     direct_delivery=$(jq -nc --arg choice "$file_choice" \
       '{ok: true, data: {direct_delivery: false, user_choice: $choice}}')
   else
@@ -580,7 +596,8 @@ printf '%s\n' "$registration_status" | \
 printf '%s\n' "$registration_status" | jq -e --arg kept "$kept_choice" \
   '.ok and (.data.session.id | type == "string" and length > 0) and
    .data.session.registered == true and
-   (.data.session.direct_delivery == true or $kept != "")'
+   (.data.session.direct_delivery == true or
+    (.data.session.direct_delivery == false and $kept != ""))'
 ```
 
 **Codex on macOS.** The system `curl` hides a Codex session's identity from the
@@ -618,7 +635,10 @@ and report the address from `/setup/status` for each session; never reuse one
 session's address for another. `/register` may omit the session id or
 direct-delivery state, so its response alone is not verification. Require the
 status response to show this session's non-empty id, `registered:true`, and
-`session.direct_delivery:true` as above. An app fix is expected to add those
+`session.direct_delivery:true`, or `session.direct_delivery:false` exactly
+when the human kept their own `crossSessionInbound` (a missing field is never
+success), as above. Do not override a kept choice to satisfy this check; only
+POST `{"enabled":true}` when the human says yes after being told. An app fix is expected to add those
 fields to `/register`, but the status check remains authoritative.
 
 ## 5. Create and test the webhook
@@ -931,7 +951,8 @@ fi
 printf '%s\n' "$final_status" | jq '{direct_delivery: .data.direct_delivery, direct_delivery_user_choice: .data.direct_delivery_user_choice}'
 printf '%s\n' "$final_status" | \
   jq -e --arg mode "$relay_sharing_mode" --arg kept "$kept_choice" '.ok and .data.sharing_mode == $mode and
-    .data.auto_activate == true and (.data.direct_delivery == true or $kept != "")'
+    .data.auto_activate == true and
+    (.data.direct_delivery == true or (.data.direct_delivery == false and $kept != ""))'
 ```
 
 Report the exact version, `signed_in`, signed-in workspace id and name, sharing
