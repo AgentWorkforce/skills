@@ -108,10 +108,17 @@ prompt:
 
 ```bash
 # Human only, in a terminal no agent is reading:
-# Works in bash and zsh (the macOS default): the key is not echoed or saved to history.
-printf 'Workspace key: '; stty -echo; IFS= read -r RELAY_KEY; stty echo; printf '\n'
-test -n "$RELAY_KEY" && agent-relay workspace join my-team "$RELAY_KEY"
-unset RELAY_KEY
+# Works in bash and zsh (the macOS default). The subshell keeps the key out of
+# your shell afterwards; the trap restores echo even on Ctrl-C; nothing runs if
+# echo cannot be turned off.
+(
+  trap 'stty echo; printf "\n"' EXIT
+  trap 'exit 130' INT TERM HUP
+  stty -echo || exit 1
+  printf 'Workspace key: '
+  IFS= read -r RELAY_KEY || exit 1
+  test -n "$RELAY_KEY" && agent-relay workspace join my-team "$RELAY_KEY"
+)
 ```
 
 The agent confirms the result with read-only commands that never print the
