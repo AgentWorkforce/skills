@@ -320,7 +320,7 @@ await Promise.all(
 
 const consensus = await f.agent('consensus', {
   task: 'Read review/*.json. Resolve disagreement between lenses. Write review/consensus.json.',
-  cli: 'claude', // TypeScript has no flow-level cli; without it (or a flows.json default) this refuses cli_unresolved
+  cli: 'claude', // TypeScript has no flow-level cli; without it (or a flows.json default), flows run refuses with REFUSED [invalid_spec] and the unresolved CLI in the message
 }).gate({ type: 'subprocess_gate', command: 'test -s review/consensus.json' });
 ```
 
@@ -373,7 +373,7 @@ import { flow } from '@relayflows/surface';
 export default flow('implement', async (f, input: { issue: number }) => {
   // The type is not a runtime check: dispatch input is JSON, so validate it
   // before it reaches a shell command.
-  if (!Number.isSafeInteger(input.issue) || input.issue < 1) throw new Error('issue must be a positive integer');
+  if (!Number.isSafeInteger(input.issue) || input.issue < 1) throw new Error('issue must be a positive safe integer');
   await f.run(`printf '%s' ${input.issue}`);
   f.done('success');
 });
