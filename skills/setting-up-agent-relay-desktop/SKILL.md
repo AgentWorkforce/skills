@@ -118,7 +118,9 @@ interval without it.
 If the socket exists, inspect it before installing anything:
 
 ```sh
-test -S "${relay_socket:-/nonexistent}" || { printf 'relay_socket is not set: run the socket discovery block first.\n' >&2; exit 1; }
+# Checks only that a socket file exists; the curl below is what proves the
+# app answers (a crashed app can leave a stale socket file behind).
+test -S "${relay_socket:-/nonexistent}" || { printf 'relay_socket is unset or names no socket file (%s): run the socket discovery block first.\n' "${relay_socket:-unset}" >&2; exit 1; }
 curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq
 ```
 
