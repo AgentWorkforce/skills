@@ -897,6 +897,25 @@ is set:
 
 ```sh
 pull_glob='/github/repos/OWNER/REPO/pulls/NUMBER/**'
+# Shell variables do not survive between tool calls: when relay_cli is unset
+# here, find the installed CLI again as section 2 does (never the .deb's
+# /usr/bin/agent-relay Desktop launcher), so an installed CLI is not replaced
+# by the npx fallback.
+if test -z "${relay_cli:-}"; then
+  for candidate in \
+    "$HOME/.local/bin/agent-relay" \
+    "$HOME/.npm-global/bin/agent-relay" \
+    "$HOME/.agentworkforce/relay/bin/agent-relay" \
+    $(find -L "$HOME/.local/share/mise/installs/node" "$HOME/.nvm/versions/node" \
+        -mindepth 3 -maxdepth 3 -path '*/bin/agent-relay' -type f -perm -u+x 2>/dev/null) \
+    "$(command -v agent-relay 2>/dev/null)"
+  do
+    if test -n "$candidate" && test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      relay_cli=$candidate
+      break
+    fi
+  done
+fi
 relay_cli_major=
 if test -n "${relay_cli:-}"; then
   relay_cli_major=$("$relay_cli" --version 2>/dev/null | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\..*/\1/p' | sed -n '1p')
@@ -915,7 +934,8 @@ else
 fi
 ```
 
-Use the `relay_cli` found in section 2, never a bare `agent-relay`: on a
+Use the `relay_cli` found in section 2 (re-discovered above when this runs in
+a new shell), never a bare `agent-relay`: on a
 `.deb` host `/usr/bin/agent-relay` is the Desktop launcher, and `PATH` may
 resolve to it or to a different, older CLI than the one whose version was
 checked.
