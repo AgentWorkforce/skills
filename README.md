@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.8.0`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.9.0`.
 
 ## Published Skills
 
@@ -11,8 +11,10 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [choosing-swarm-patterns](skills/choosing-swarm-patterns/SKILL.md) | 1.1.5 | Pick the right Agent Relay orchestration pattern across the 10 core swarm patterns plus specialized patterns. |
 | [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 2.0.0 | **DEPRECATED** - the superseded v1 `@relayflows/core` WorkflowBuilder engine. Use [`writing-relayflows`](skills/writing-relayflows/SKILL.md) for v2; keep this only to maintain an existing v1 workflow. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.2 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
-| [setting-up-agent-relay-desktop](skills/setting-up-agent-relay-desktop/SKILL.md) | 1.1.4 | Install and configure Agent Relay Desktop end-to-end from a Codex or Claude session, including headless Linux, device login, registration, webhooks, integrations, and verification. |
-| [setting-up-agent-relay-sessions](skills/setting-up-agent-relay-sessions/SKILL.md) | 0.2.4 | Set a person up for live agent-to-agent session handoff end-to-end from a Codex or Claude session: reuse `setting-up-agent-relay-desktop` for the desktop leg, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove a live round trip with a teammate (or self-verify the roster + own-session read path when no teammate is online yet). |
+| [setting-up-agent-relay-desktop](skills/setting-up-agent-relay-desktop/SKILL.md) | 1.1.5 | Install and configure Agent Relay Desktop end-to-end from a Codex or Claude session, including headless Linux, device login, registration, webhooks, integrations, and verification. |
+| [setting-up-agent-relay-sessions](skills/setting-up-agent-relay-sessions/SKILL.md) | 0.2.5 | Set a person up for live agent-to-agent session handoff end-to-end from a Codex or Claude session: reuse `setting-up-agent-relay-desktop` for the desktop leg, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove a live round trip with a teammate (or self-verify the roster + own-session read path when no teammate is online yet). |
+| [signing-in-to-agent-relay-cloud](skills/signing-in-to-agent-relay-cloud/SKILL.md) | 0.1.0 | Sign a person in to Agent Relay Cloud through the OAuth device flow from an agent session: device grant, polling, refresh, whoami, and the CLI credential handoff, with no token printed. |
+| [setting-up-agent-relay-flows](skills/setting-up-agent-relay-flows/SKILL.md) | 0.1.0 | Choose a catalog flow and repository, connect tools and coding-agent credentials, activate the listener through the direct-source deploy API, and verify it is listening. Builds on `signing-in-to-agent-relay-cloud`. |
 | [subscribing-relay-webhooks-and-writebacks](skills/subscribing-relay-webhooks-and-writebacks/SKILL.md) | 0.1.7 | Subscribe a session to GitHub PR and Slack channel events so they are injected, and write back to providers through a Relayfile mount, with the verified steps and known defects. |
 | [messaging-agents-on-the-relay](skills/messaging-agents-on-the-relay/SKILL.md) | 0.1.2 | Find other agents on Agent Relay and message them from a registered desktop session with no tokens: roster, send, reply, the macOS Codex probe form, and safety rules. |
 | [relay-connect](skills/relay-connect/SKILL.md) | 0.5.0 | Create or join a temporary Relay Connect with the native `agent-relay-probe connect` commands after one verified install; guests need no account. |

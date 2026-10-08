@@ -18,7 +18,8 @@ The finished state is:
 
 - the current release is installed and running;
 - sign-in is complete;
-- sharing mode is `new` (new sessions upload automatically);
+- sharing mode is `new` (new sessions upload automatically), unless an existing
+  install already uses another mode and the human chose to keep it (section 4);
 - auto-activate is on, with every existing live session and every future session on the relay;
 - Claude Code direct delivery is on (`crossSessionInbound` is `accept`);
 - this Codex or Claude session is registered and accepts direct delivery;
@@ -106,8 +107,17 @@ test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 If the socket exists, inspect it before installing anything:
 
 ```sh
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq
+curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq
 ```
+
+**Slow socket replies are known.** `GET /setup/status` and `GET /agents` can
+take about 30 seconds on a busy Desktop (tracked in
+AgentWorkforce/relay-desktop#333). Give each socket call a 60-second timeout
+(`curl --max-time 60`), and do not treat a slow reply as a failure. The probe's
+`relay socket-request` can give up sooner with "Probe could not finish. Check
+your connection and run setup again"; on these paths that is the same latency,
+not a setup problem. Retry the call once before reporting a blocker, and do not
+start a second install or sign-in because of it.
 
 Preserve a working newer install. When the socket is absent, check for an
 installed-but-stopped copy before downloading: use `dpkg-query -W agent-relay`
@@ -462,12 +472,29 @@ done
 
 ## 4. Apply the agent-led defaults and register this session
 
-Set and verify all three agent-led defaults even when the app's `/setup/*`
+Read the current sharing mode before changing it. `/setup/status` reports it as
+`.data.sharing_mode` (`new`, `all`, or `selected`; `new` when nothing is
+uploading yet). The probe reports the same field, `sharing_mode`, in
+`agent-relay-probe status --account <account-id> --workspace <workspace-id> --json`.
+
+```sh
+curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | \
+  jq -r '.data.sharing_mode'
+```
+
+On a fresh install, or when it already reports `new`, use `new`. When an
+existing install reports `all` (which also uploads past sessions, so it is
+broader than this skill's default) or `selected`, tell the human the current
+mode and ask whether to keep it or change it to `new`. Never change it silently.
+Set `relay_sharing_mode` below to the human's answer.
+
+Then set and verify all three agent-led defaults even when the app's `/setup/*`
 bootstrap already applied them. Sharing mode `new` uploads every new session;
 auto-activation puts every existing live session and every future session on
 the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`:
 
 ```sh
+relay_sharing_mode=new   # or the existing mode the human chose to keep
 direct_delivery=$(curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"enabled":true}' http://relay/setup/direct-delivery)
 printf '%s\n' "$direct_delivery" | jq
@@ -478,7 +505,8 @@ if ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; t
   exit 1
 fi
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{"mode":"new"}' http://relay/setup/sharing | jq
+  -d "$(jq -nc --arg mode "$relay_sharing_mode" '{mode:$mode}')" \
+  http://relay/setup/sharing | jq
 curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"enabled":true}' \
   http://relay/setup/auto-activate | jq
@@ -499,7 +527,7 @@ Direct delivery is checked first so a managed-policy refusal stops setup
 before auto-activation or upload settings are changed. Report that refusal
 clearly; never claim the three-default setup completed.
 
-Sharing mode `new` and auto-activate are different settings: the former
+Sharing mode and auto-activate are different settings: the former
 controls upload eligibility and the latter controls Relay registration. The
 setup flow requires both.
 
@@ -794,11 +822,11 @@ Require all three defaults before declaring setup complete:
 
 ```sh
 curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | \
-  jq -e '.ok and .data.sharing_mode == "new" and .data.auto_activate == true and .data.direct_delivery == true'
+  jq -e --arg mode "${relay_sharing_mode:-new}" '.ok and .data.sharing_mode == $mode and .data.auto_activate == true and .data.direct_delivery == true'
 ```
 
 Report the exact version, `signed_in`, signed-in workspace id and name, sharing
-mode `new`, auto-activate `true`, direct-delivery `true`,
+mode (`new`, or the existing mode the human kept), auto-activate `true`, direct-delivery `true`,
 uploader health, session address, direct-delivery state, webhook test marker,
 subscriptions, real GitHub event evidence, and polling-coexistence result.
 Separate verified facts from steps that still require a human or external
@@ -808,7 +836,9 @@ event.
 
 - **Socket missing or slow:** check `systemctl --user status agent-relay.service`
   on Linux or `open -a "Agent Relay"` on macOS. Confirm the pointer names a
-  socket. Never delete a live socket; restart the owning service/app.
+  socket. Never delete a live socket; restart the owning service/app. A reply
+  that takes up to about 30 seconds is the known latency in section 1
+  (relay-desktop#333), not a fault: allow 60 seconds and retry once.
 - **`not_a_relay_session`:** the command is not a descendant of a supported
   live Codex/Claude session, or the session id/process start no longer matches.
   Run it through this agent's shell tool. In tmux, confirm the agent process and

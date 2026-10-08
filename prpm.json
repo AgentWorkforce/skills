@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -95,7 +95,7 @@
     },
     {
       "name": "setting-up-agent-relay-desktop",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "description": "Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification.",
       "format": "claude",
       "subtype": "skill",
@@ -113,7 +113,7 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
@@ -127,6 +127,40 @@
       ],
       "files": [
         "skills/setting-up-agent-relay-sessions/SKILL.md"
+      ]
+    },
+    {
+      "name": "signing-in-to-agent-relay-cloud",
+      "version": "0.1.0",
+      "description": "Sign a person in to Agent Relay Cloud from a running agent session through the OAuth device flow: start the grant, let the human approve it, poll for tokens, refresh them, read the account and workspace from whoami, and hand the session to the official CLI without printing a token.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "cloud",
+        "oauth",
+        "device-flow",
+        "agent-setup"
+      ],
+      "files": [
+        "skills/signing-in-to-agent-relay-cloud/SKILL.md"
+      ]
+    },
+    {
+      "name": "setting-up-agent-relay-flows",
+      "version": "0.1.0",
+      "description": "Set up and activate an Agent Relay Flow end-to-end through the Cloud APIs: choose a catalog flow and repository, connect trigger tools and coding-agent credentials, activate the listener through the direct-source deploy API, and verify it is listening.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "flows",
+        "relayflows",
+        "agent-setup",
+        "github"
+      ],
+      "files": [
+        "skills/setting-up-agent-relay-flows/SKILL.md"
       ]
     },
     {
