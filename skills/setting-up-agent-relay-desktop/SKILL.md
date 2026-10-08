@@ -107,9 +107,18 @@ fi
 test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 ```
 
+Shell variables do not survive between separate tool calls. Every later block
+uses `relay_socket`, and some use variables set earlier in the same section (the
+sign-in poll uses `sign_in`, the sign-in request's response). Run a section's
+blocks in one shell. In a new shell, re-establish every variable the next block
+reads first: re-run this discovery block for `relay_socket`, and never re-send a
+sign-in request just to restore `sign_in`; the poll falls back to a 5-second
+interval without it.
+
 If the socket exists, inspect it before installing anything:
 
 ```sh
+test -S "${relay_socket:-/nonexistent}" || { printf 'relay_socket is not set: run the socket discovery block first.\n' >&2; exit 1; }
 curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq
 ```
 
@@ -455,7 +464,12 @@ while :; do
         '{sign_in: .data.sign_in, workspace: .data.workspace}'
       break
       ;;
-    preparing|pending_approval) ;;
+    preparing|pending_approval) relay_unknown=0 ;;
+    signed_out|not_signed_in)
+      # signed_out: the attempt ended or was cancelled; not_signed_in: the error code.
+      printf 'Sign-in is not in progress; send the sign-in request again (see Recovery).\n' >&2
+      exit 1
+      ;;
     denied|expired|error)
       msg=$(printf '%s' "$state" | jq -r '.data.sign_in_message // .error.message // "no message reported"')
       printf 'Sign-in %s: %s\n' "$phase" "$msg" >&2
@@ -468,8 +482,18 @@ while :; do
       esac
       exit 1
       ;;
+    *)
+      # A failed or empty status read: allow three in a row, then stop and report.
+      relay_unknown=$(( ${relay_unknown:-0} + 1 ))
+      printf 'Unexpected sign-in state: %s (attempt %s of 3)\n' "${phase:-none}" "$relay_unknown" >&2
+      if test "$relay_unknown" -ge 3; then
+        printf 'Agent Relay status is unreadable; check that the app is running, then retry sign-in.\n' >&2
+        exit 1
+      fi
+      ;;
   esac
-  sleep "$(printf '%s' "$sign_in" | jq -r '.data.interval // 5')"
+  relay_interval=$(printf '%s' "${sign_in:-}" | jq -r '.data.interval // empty' 2>/dev/null)
+  sleep "${relay_interval:-5}"
 done
 ```
 
