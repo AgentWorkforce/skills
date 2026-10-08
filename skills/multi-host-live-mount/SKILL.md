@@ -99,7 +99,9 @@ relayfile workspace current --verbose
 If the target workspace is already tracked here, select it with
 `relayfile workspace use <name>` and skip the join, unless this host must write
 to providers and you cannot confirm it joined with `--write`. Then rerun the
-join below with `--write`.
+join below with `--write`. If it is not tracked here, get its `rw_<8hex>` id
+from a host that already mounts it (`relayfile workspace current --verbose`
+there) or from the human before joining; never guess it.
 
 `relayfile setup` **creates** a workspace. On host two through host N you must
 not run it — you will end up with two workspaces and a mystery about why the

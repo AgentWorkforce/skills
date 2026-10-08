@@ -70,7 +70,9 @@ agent-relay status             # workspace, cloud login and local broker
 
 Reuse what exists. If the human already has a Relayfile workspace, select it
 with `relayfile workspace use <name>` (or, on a machine that does not track it
-yet, `relayfile workspace join <rw_id>`; see `multi-host-live-mount`) and add providers to it with `integration connect`
+yet, `relayfile workspace join <rw_id>`, adding `--write` when this host must
+write back, since without it the host is read-only; see
+`multi-host-live-mount`) and add providers to it with `integration connect`
 instead of running `setup` under a new name. `setup --workspace <name>` reuses
 only a workspace already tracked here under that exact name; any other name
 creates a new one. Create a new workspace only when the human explicitly asks

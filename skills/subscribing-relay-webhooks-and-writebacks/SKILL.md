@@ -283,7 +283,7 @@ Before connecting anything, check which workspace this machine uses. These
 commands only read state (`relay_req` is the helper from Part 1):
 
 ```sh
-relay_req GET /setup/status | jq '.data.workspace'   # the desktop's signed-in workspace
+relay_req GET /setup/status | jq -e '.data.workspace'   # the desktop's signed-in workspace; fails if none
 relayfile workspace list                             # Relayfile workspaces tracked here
 relayfile workspace current --verbose
 ```
