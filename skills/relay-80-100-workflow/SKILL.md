@@ -11,7 +11,7 @@ Most agent workflows get a feature to ~80%: code written, types check, maybe a b
 
 Everything here is written for **Relayflows v2** — `@relayflows/surface` / `@relayflows/sdk`, CLI `flows`. For the authoring surface itself (the ladder, gates, `cli`/`model` resolution, `flows.json`, refusal shapes) see `writing-relayflows`. This skill is only about the validation shape you build on top of it.
 
-> Migrating from the old `@relayflows/core` `WorkflowBuilder`? v2 has no `failOnError`, no `captureOutput`, no `{{steps.X.output}}` templating and no `.onError()`. Every deterministic step is gated on exit code with no opt-out. **The evidence recorder** below is what replaces all four. See `writing-agent-relay-workflows` for the old engine.
+> Migrating from the old `@relayflows/core` `WorkflowBuilder`? v2 has no `failOnError`, no `captureOutput`, no `{{steps.X.output}}` templating and no `.onError()`. Every deterministic step is gated on exit code with no opt-out. **The evidence recorder** below is what replaces all four. Do not route new work back to the legacy engine.
 
 ## When to use
 

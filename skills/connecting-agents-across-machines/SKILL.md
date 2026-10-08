@@ -106,6 +106,13 @@ On **machine B**, and on any further machines, the agent may install the CLI
 terminal, from the same project directory, pasting the key at the hidden
 prompt:
 
+> **Process-list limitation:** Agent Relay CLI 13.x accepts the workspace key
+> only as a positional argument. The hidden prompt below keeps it out of shell
+> history and the transcript, but the spawned CLI process still exposes the key
+> briefly to local process-list readers. Explain that limitation before the
+> human proceeds. Use this route only on a trusted single-user machine with the
+> human's explicit approval; otherwise stop. Do not run it from an agent tool.
+
 ```bash
 # Human only, in a terminal no agent is reading:
 # Works in bash and zsh (the macOS default). The subshell keeps the key out of
