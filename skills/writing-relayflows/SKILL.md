@@ -320,6 +320,7 @@ await Promise.all(
 
 const consensus = await f.agent('consensus', {
   task: 'Read review/*.json. Resolve disagreement between lenses. Write review/consensus.json.',
+  cli: 'claude', // TypeScript has no flow-level cli; without it (or a flows.json default) this refuses cli_unresolved
 }).gate({ type: 'subprocess_gate', command: 'test -s review/consensus.json' });
 ```
 
@@ -370,10 +371,15 @@ export default flow('release', { use: ['./implement.flow.ts'] }, async (f) => {
 import { flow } from '@relayflows/surface';
 
 export default flow('implement', async (f, input: { issue: number }) => {
+  // The type is not a runtime check: dispatch input is JSON, so validate it
+  // before it reaches a shell command.
+  if (!Number.isSafeInteger(input.issue) || input.issue < 1) throw new Error('issue must be a positive integer');
   await f.run(`printf '%s' ${input.issue}`);
   f.done('success');
 });
 ```
+
+Interpolating step input into `f.run` is shell code: validate it (or quote it) first, because the TypeScript type of `input` is not checked at runtime.
 
 `use` resolves relative `.flow.ts` files before a body runs. Missing or repeated files, duplicate direct-child names, cycles, and undeclared or transitive-only dispatch targets are refused. The child's steps receive qualified IDs such as `dispatch-2--run-1`; the dispatch receipt joins child leaves back to the parent's next step. Parent and child share one root budget and worker-capacity pool, and resume reuses journaled identities rather than repeating completed effects. A successful dispatch returns `{ name, completionReason: 'success', completionDetail? }`; any other child verdict fails the dispatch.
 
