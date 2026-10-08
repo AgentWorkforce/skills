@@ -346,13 +346,18 @@ curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq -e '.ok a
 ## 3. Sign in by device approval
 
 Before choosing a workspace, check what the human already has. These commands
-only read state:
+only read state. The CLI checks run only when section 2 found a `relay_cli`;
+never call the `.deb`'s `/usr/bin/agent-relay` launcher for them:
 
 ```sh
-agent-relay cloud whoami       # signed in, and as whom
-agent-relay workspace active   # the active Cloud workspace (keys stay masked)
-agent-relay cloud workspaces   # every workspace this login can use, with ids
-agent-relay status             # workspace, cloud login and local broker
+curl -sS --unix-socket "$relay_socket" http://relay/setup/status | \
+  jq '{sign_in: .data.sign_in, workspace: .data.workspace}'
+if test -n "${relay_cli:-}"; then
+  "$relay_cli" cloud whoami       # signed in, and as whom
+  "$relay_cli" workspace active   # the active Cloud workspace (keys stay masked)
+  "$relay_cli" cloud workspaces   # every workspace this login can use, with ids
+  "$relay_cli" status             # workspace, cloud login and local broker
+fi
 ```
 
 Sign in to the workspace they already use. Pick a different or new workspace

@@ -54,18 +54,23 @@ Run these before any step that creates or selects a workspace. They only read
 state:
 
 ```bash
+relayfile workspace list               # Relayfile workspaces tracked here; '*' marks the active one
+relayfile workspace current --verbose
+```
+
+If the Agent Relay CLI is also installed (`agent-relay --version` prints 13.x),
+check the human's Cloud account and workspaces too:
+
+```bash
 agent-relay cloud whoami       # signed in, and as whom
 agent-relay workspace active   # the active Cloud workspace (keys stay masked)
 agent-relay cloud workspaces   # every workspace this login can use, with ids
 agent-relay status             # workspace, cloud login and local broker
-agent-relay file workspace list            # Relayfile workspaces tracked here; '*' marks the active one
-agent-relay file workspace current --verbose
 ```
 
 Reuse what exists. If the human already has a Relayfile workspace, select it
-with `agent-relay file workspace use <name>` (or, on a machine that does not
-track it yet, `agent-relay file workspace join <rw_id>`; see
-`multi-host-live-mount`) and add providers to it with `integration connect`
+with `relayfile workspace use <name>` (or, on a machine that does not track it
+yet, `relayfile workspace join <rw_id>`; see `multi-host-live-mount`) and add providers to it with `integration connect`
 instead of running `setup` under a new name. `setup --workspace <name>` reuses
 only a workspace already tracked here under that exact name; any other name
 creates a new one. Create a new workspace only when the human explicitly asks

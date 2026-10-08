@@ -92,16 +92,14 @@ diverge from the design.
 First check what this host already has. These commands only read state:
 
 ```bash
-agent-relay cloud whoami       # signed in, and as whom
-agent-relay workspace active   # the active Cloud workspace (keys stay masked)
-agent-relay cloud workspaces   # every workspace this login can use, with ids
-agent-relay status             # workspace, cloud login and local broker
-agent-relay file workspace list            # Relayfile workspaces tracked here
-agent-relay file workspace current --verbose
+relayfile workspace list               # Relayfile workspaces tracked here
+relayfile workspace current --verbose
 ```
 
 If the target workspace is already tracked here, select it with
-`relayfile workspace use <name>` and skip the join.
+`relayfile workspace use <name>` and skip the join, unless this host must write
+to providers and you cannot confirm it joined with `--write`. Then rerun the
+join below with `--write`.
 
 `relayfile setup` **creates** a workspace. On host two through host N you must
 not run it — you will end up with two workspaces and a mystery about why the

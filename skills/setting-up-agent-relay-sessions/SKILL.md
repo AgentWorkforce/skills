@@ -157,8 +157,11 @@ Before section 1, tell the person what they need and ask for it in one message:
    into this chat);
 3. the **teammate's relay address** for the round trip, if one will be online.
 
-Before sending that message, check what this machine already has. These
-commands only read state:
+Before sending that message, check what this machine already has. If an Agent
+Relay CLI 13.x is installed (a user-level npm, mise or nvm `agent-relay`, not
+the `.deb`'s `/usr/bin/agent-relay` Desktop launcher), run these read-only
+checks. Without one, section 2 reads the signed-in workspace from
+`/setup/status` instead.
 
 ```sh
 agent-relay cloud whoami       # signed in, and as whom

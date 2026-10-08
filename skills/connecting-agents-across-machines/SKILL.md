@@ -43,7 +43,8 @@ Run every command from the **same project directory** on each machine.
 
 ### 0. Check what each machine already has
 
-Run these first on every machine. They only read state:
+Run these first on every machine. If `agent-relay --version` fails, install the
+CLI first with `npm install -g agent-relay`. The checks only read state:
 
 ```bash
 agent-relay cloud whoami       # signed in, and as whom
@@ -54,7 +55,8 @@ agent-relay workspace list     # workspaces stored on this machine
 ```
 
 If the human already has a shared workspace, skip step 1 and join it on each
-machine that is not on it yet (step 2). Create a workspace only when the human
+machine that is not on it yet (step 2). The join needs that workspace's key:
+ask the human to have its owner send it over a secure channel, as in step 1. Create a workspace only when the human
 explicitly wants a new one.
 
 ### 1. Create the workspace on one machine

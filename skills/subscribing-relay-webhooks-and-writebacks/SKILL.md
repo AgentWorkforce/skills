@@ -280,15 +280,17 @@ If a mount reports `delegated relayfile credentials are required`, run
 `relayfile login` once; it creates `~/.relayfile/delegated/*`.
 
 Before connecting anything, check which workspace this machine uses. These
-commands only read state:
+commands only read state (`relay_req` is the helper from Part 1):
 
 ```sh
-agent-relay cloud whoami       # signed in, and as whom
-agent-relay workspace active   # the active Cloud workspace (keys stay masked)
-agent-relay cloud workspaces   # every workspace this login can use, with ids
-agent-relay status             # workspace, cloud login and local broker
-agent-relay file workspace current --verbose
+relay_req GET /setup/status | jq '.data.workspace'   # the desktop's signed-in workspace
+relayfile workspace list                             # Relayfile workspaces tracked here
+relayfile workspace current --verbose
 ```
+
+If the Agent Relay CLI 13.x is installed, `agent-relay cloud whoami`,
+`agent-relay workspace active` and `agent-relay cloud workspaces` show the same
+account and workspaces from the Cloud side.
 
 Write back into that existing workspace; never create a new one for this.
 A provider that is not yet connected to the workspace is connected with
