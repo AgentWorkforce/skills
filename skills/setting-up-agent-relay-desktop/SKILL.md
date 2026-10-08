@@ -592,7 +592,12 @@ reviews, review comments, conversation comments and check runs to that glob by
 the PR they reference, so no other glob is needed: nothing is written under
 `pulls/NUMBER/reviews/**`, `pulls/NUMBER/status/**` or
 `issues/NUMBER/comments/**`, and subscriptions on those never deliver. This
-works on every released Desktop and is the path to use today.
+works on every released Desktop and is the path to use today. If a review or
+comment then never arrives, read it back in relayfile at its own path (the
+table in `subscribing-relay-webhooks-and-writebacks`): a 404 means the event
+never reached relayfile
+([relayfile-cloud#317](https://github.com/AgentWorkforce/relayfile-cloud/issues/317)),
+not that the subscription is wrong.
 
 First find the Desktop's `agent-relay-probe`. macOS needs it for Codex sessions
 (below) and it is the client for the one-command form once that ships:
