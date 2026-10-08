@@ -161,13 +161,20 @@ Before sending that message, check what this machine already has. If an Agent
 Relay CLI 13.x is installed (a user-level npm, mise or nvm `agent-relay`, not
 the `.deb`'s `/usr/bin/agent-relay` Desktop launcher), run these read-only
 checks. Without one, section 2 reads the signed-in workspace from
-`/setup/status` instead.
+`/setup/status` instead. The CLI is optional for this skill: detect it as
+below, which skips the Desktop launcher that `command -v agent-relay` finds on
+a `.deb` install, and do not install or upgrade it just for these checks.
 
 ```sh
-agent-relay cloud whoami       # signed in, and as whom
-agent-relay workspace active   # the active Cloud workspace (keys stay masked)
-agent-relay cloud workspaces   # every workspace this login can use, with ids
-agent-relay status             # workspace, cloud login and local broker
+relay_cli=$(command -v agent-relay || true)
+case "$relay_cli" in ''|/usr/bin/agent-relay) relay_cli= ;; esac
+if test -n "$relay_cli"; then
+  "$relay_cli" --version
+  "$relay_cli" cloud whoami       # signed in, and as whom
+  "$relay_cli" workspace active   # the active Cloud workspace (keys stay masked)
+  "$relay_cli" cloud workspaces   # every workspace this login can use, with ids
+  "$relay_cli" status             # workspace, cloud login and local broker
+fi
 ```
 
 If the active workspace is already the shared one, confirm it with the person
@@ -247,13 +254,22 @@ relay_req() {
     return 1
   elif test -n "${3:-}"; then
     # body on stdin: curl treats a -d/--data-binary value starting with @ as a filename
-    printf '%s' "$3" | curl -sS --unix-socket "$relay_socket" -X "$1" \
+    printf '%s' "$3" | curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" \
       -H 'Content-Type: application/json' --data-binary @- "http://relay$2"
   else
-    curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
+    curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi
 }
 ```
+
+**Slow socket replies are known.** `GET /setup/status` and `GET /agents` can
+take about 30 seconds on a busy Desktop (tracked in
+AgentWorkforce/relay-desktop#333). Allow 60 seconds per call (add
+`--max-time 60` to the `curl` lines above), and do not treat a slow reply as a
+failure. The probe's `relay socket-request` can give up sooner with "Probe
+could not finish. Check your connection and run setup again"; on these paths
+that is the same latency, not a setup problem. Retry once before reporting a
+blocker, and do not rerun desktop setup because of it.
 
 ## 2. Make sure the desktop is set up first
 
@@ -272,6 +288,7 @@ relay_req GET /setup/status | jq '{
   version: .data.version,
   sign_in: .data.sign_in,
   workspace: .data.workspace,
+  sharing_mode: .data.sharing_mode,
   uploader: .data.uploader,
   direct_delivery: .data.direct_delivery,
   session: .data.session,
@@ -303,6 +320,17 @@ read **this** person's session, this machine must have uploaded it. If
 `uploader.healthy` is false (paused, or a failed cycle), fix it before promising
 anyone can read this session — this is the single most common reason a live
 handoff silently fails.
+
+`sharing_mode` decides which sessions upload at all, and a healthy uploader
+does not prove that **this** session is among them. `all` includes it. `new`
+includes sessions that started after `new` was enabled, so a session that was
+already running when the desktop was set up may not be uploaded. Under
+`selected`, only the sessions the person chose upload. Unless the mode is
+`all`, tell the person that this session may not be shared yet, and ask them to
+select it in the app or to continue from a new session; do not change the
+sharing mode or select sessions on their behalf. Section 5's round trip is the
+proof: if the teammate cannot read this session there, this is the first
+thing to check.
 
 ## 3. Install the agent-sessions cloud MCP (before the session uses it)
 
@@ -413,6 +441,7 @@ without a second person:
    citation link) — the uploader→read path works.
 3. Record that the two-party round trip still needs the teammate online, and
    name it as the remaining step rather than claiming the handoff is proven.
+   Setup is not complete until the full round trip succeeds.
 
 Never paste the Bearer token or any session token into a `send_relay_message`
 body or any artifact.

@@ -18,7 +18,8 @@ The finished state is:
 
 - the current release is installed and running;
 - sign-in is complete;
-- sharing mode is `new` (new sessions upload automatically);
+- sharing mode is `new` (new sessions upload automatically), unless an existing
+  install already uses another mode and the human chose to keep it (section 4);
 - auto-activate is on, with every existing live session and every future session on the relay;
 - Claude Code direct delivery is on (`crossSessionInbound` is `accept`);
 - this Codex or Claude session is registered and accepts direct delivery;
@@ -106,8 +107,17 @@ test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 If the socket exists, inspect it before installing anything:
 
 ```sh
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status | jq
+curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq
 ```
+
+**Slow socket replies are known.** `GET /setup/status` and `GET /agents` can
+take about 30 seconds on a busy Desktop (tracked in
+AgentWorkforce/relay-desktop#333). Give each socket call a 60-second timeout
+(`curl --max-time 60`), and do not treat a slow reply as a failure. The probe's
+`relay socket-request` can give up sooner with "Probe could not finish. Check
+your connection and run setup again"; on these paths that is the same latency,
+not a setup problem. Retry the call once before reporting a blocker, and do not
+start a second install or sign-in because of it.
 
 Preserve a working newer install. When the socket is absent, check for an
 installed-but-stopped copy before downloading: use `dpkg-query -W agent-relay`
@@ -228,7 +238,7 @@ esac
 relay_unit="$HOME/.config/systemd/user/agent-relay.service"
 relay_installed_version=
 if test -S "${relay_socket:-/nonexistent}"; then
-  relay_installed_version=$(curl -fsS --unix-socket "$relay_socket" \
+  relay_installed_version=$(curl -fsS --max-time 60 --unix-socket "$relay_socket" \
     http://relay/setup/status 2>/dev/null | jq -r '.data.version // empty' || true)
 fi
 if test -z "$relay_installed_version" && test -r "$relay_unit"; then
@@ -340,7 +350,7 @@ if ! test -S "$relay_socket" && test "$(uname -s)" = Linux; then
   relay_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock"
 fi
 test -S "$relay_socket"
-curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq -e '.ok and (.data.version | length > 0)'
+curl -fsS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq -e '.ok and (.data.version | length > 0)'
 ```
 
 ## 3. Sign in by device approval
@@ -350,7 +360,7 @@ only read state. The CLI checks run only when section 2 found a `relay_cli`;
 never call the `.deb`'s `/usr/bin/agent-relay` launcher for them:
 
 ```sh
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status | \
+curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | \
   jq '{sign_in: .data.sign_in, workspace: .data.workspace}'
 if test -n "${relay_cli:-}"; then
   "$relay_cli" cloud whoami       # signed in, and as whom
@@ -372,7 +382,7 @@ human has confirmed that the reusable login's current workspace is intended.
 ```sh
 relay_workspace_uuid='HUMAN-PROVIDED-WORKSPACE-UUID'
 sign_in_payload=$(jq -nc --arg workspace "$relay_workspace_uuid" '{workspace:$workspace}')
-sign_in=$(curl -sS --unix-socket "$relay_socket" \
+sign_in=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   -H 'Content-Type: application/json' \
   -d "$sign_in_payload" http://relay/setup/sign-in)
 printf '%s\n' "$sign_in" | jq \
@@ -391,7 +401,7 @@ acknowledgement added; never use it merely to suppress the error:
 ```sh
 sign_in_payload=$(printf '%s\n' "$sign_in_payload" | \
   jq '. + {acknowledge_uninspected_schedules:true}')
-sign_in=$(curl -sS --unix-socket "$relay_socket" \
+sign_in=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   -H 'Content-Type: application/json' \
   -d "$sign_in_payload" http://relay/setup/sign-in)
 printf '%s\n' "$sign_in" | jq \
@@ -434,7 +444,7 @@ print it, and map the known messages to their fix instead of dumping raw state:
 
 ```sh
 while :; do
-  state=$(curl -sS --unix-socket "$relay_socket" http://relay/setup/status)
+  state=$(curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status)
   phase=$(printf '%s' "$state" | jq -r '.data.sign_in // .error.code')
   case "$phase" in
     signed_in)
@@ -462,13 +472,52 @@ done
 
 ## 4. Apply the agent-led defaults and register this session
 
-Set and verify all three agent-led defaults even when the app's `/setup/*`
+Read the current sharing mode before changing it. `/setup/status` reports it as
+`.data.sharing_mode` (`new`, `all`, or `selected`; `new` when nothing is
+uploading yet). The probe reports the same field, `sharing_mode`, in
+`agent-relay-probe status --account <account-id> --workspace <workspace-id> --json`.
+
+```sh
+relay_prior_mode=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
+  http://relay/setup/status | jq -r '.data.sharing_mode // empty')
+case "$relay_prior_mode" in
+  new|all|selected) printf 'sharing_mode=%s\n' "$relay_prior_mode" ;;
+  *) printf 'Could not read the sharing mode; ask the human before changing sharing.\n' >&2
+     exit 1 ;;
+esac
+```
+
+Continue only with a verified `new`, `all`, or `selected`. If the status read
+fails or reports no mode, retry once; if it is still unknown, stop and ask the
+human how to proceed rather than sending any sharing request.
+
+On a fresh install, or when it already reports `new`, keep `new`. When an
+existing install reports `all` (which also uploads past sessions, so it is
+broader than this skill's default) or `selected`, tell the human the current
+mode and ask whether to keep it or change it to `new`. Never change it silently.
+Only when the human explicitly chooses a different mode, set
+`relay_sharing_mode` to that answer at the top of the next block; left unset,
+the block keeps the mode the app reports, so nothing changes without an answer.
+Remember the chosen mode: section 8 checks it again, and shell variables do not
+survive between separate tool calls.
+
+Then set and verify all three agent-led defaults even when the app's `/setup/*`
 bootstrap already applied them. Sharing mode `new` uploads every new session;
 auto-activation puts every existing live session and every future session on
 the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`:
 
 ```sh
-direct_delivery=$(curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+# Unset keeps the current mode; set it only to the human's explicit answer.
+if test -z "${relay_sharing_mode:-}"; then
+  relay_sharing_mode=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
+    http://relay/setup/status | jq -r '.data.sharing_mode // empty')
+fi
+case "$relay_sharing_mode" in
+  new|all|selected) ;;
+  *) printf 'Sharing mode unknown; ask the human before changing sharing.\n' >&2
+     exit 1 ;;
+esac
+direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"enabled":true}' http://relay/setup/direct-delivery)
 printf '%s\n' "$direct_delivery" | jq
 if ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; then
@@ -477,16 +526,17 @@ if ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; t
   fi
   exit 1
 fi
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{"mode":"new"}' http://relay/setup/sharing | jq
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg mode "$relay_sharing_mode" '{mode:$mode}')" \
+  http://relay/setup/sharing | jq
+curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"enabled":true}' \
   http://relay/setup/auto-activate | jq
-register=$(curl -sS --unix-socket "$relay_socket" \
+register=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   -H 'Content-Type: application/json' \
   -d '{}' http://relay/register)
 printf '%s\n' "$register" | jq
-registration_status=$(curl -sS --unix-socket "$relay_socket" \
+registration_status=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   http://relay/setup/status)
 printf '%s\n' "$registration_status" | \
   jq '{session: .data.session, direct_delivery: .data.direct_delivery, error}'
@@ -495,11 +545,26 @@ printf '%s\n' "$registration_status" | jq -e \
    .data.session.registered == true and .data.session.direct_delivery == true'
 ```
 
+**Codex on macOS.** The system `curl` hides a Codex session's identity from the
+socket there, so `/register` is refused `not_a_relay_session` (section 6 says
+the same for subscriptions). In a Codex session on macOS, find `relay_probe`
+with section 6's first block and send the registration through it instead of
+the `curl` line above, then read `/setup/status` as above:
+
+```sh
+register=$(printf '{}' | "$relay_probe" relay socket-request \
+  --socket "$relay_socket" --method POST --path /register)
+```
+
+If `/setup/sign-in` is refused the same way, send its payload through the probe
+the same way. Without a probe, stop and report it rather than registering
+another process.
+
 Direct delivery is checked first so a managed-policy refusal stops setup
 before auto-activation or upload settings are changed. Report that refusal
 clearly; never claim the three-default setup completed.
 
-Sharing mode `new` and auto-activate are different settings: the former
+Sharing mode and auto-activate are different settings: the former
 controls upload eligibility and the latter controls Relay registration. The
 setup flow requires both.
 
@@ -525,7 +590,7 @@ Capture the one-time secret without echoing it:
 ```sh
 umask 077
 hook_file=$(mktemp)
-curl -sS --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{}' http://relay/webhooks >"$hook_file"
 jq '{ok, created: .data.created, webhook_id: .data.webhook_id, url: .data.url, error}' "$hook_file"
 ```
@@ -636,10 +701,10 @@ relay_req() {  # METHOD PATH [JSON body]
     printf 'A Codex session on macOS needs agent-relay-probe; start Agent Relay and retry.\n' >&2
     return 1
   elif test -n "${3:-}"; then
-    curl -sS --unix-socket "$relay_socket" -X "$1" \
+    curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" \
       -H 'Content-Type: application/json' -d "$3" "http://relay$2"
   else
-    curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
+    curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi
 }
 
@@ -786,19 +851,22 @@ agent acted only once.
 Read status again:
 
 ```sh
-curl -sS --unix-socket "$relay_socket" http://relay/setup/status | \
+curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | \
   jq '{version: .data.version, sign_in: .data.sign_in, workspace: .data.workspace, sharing_mode: .data.sharing_mode, auto_activate: .data.auto_activate, direct_delivery: .data.direct_delivery, defaults_error: .data.defaults_error, uploader: .data.uploader, session: .data.session, webhook: .data.webhook, integrations: .data.integrations}'
 ```
 
-Require all three defaults before declaring setup complete:
+Require all three defaults before declaring setup complete. Set
+`relay_sharing_mode` again to the mode chosen in section 4 (`new`, or the
+existing mode the human kept); the check refuses to guess it:
 
 ```sh
-curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | \
-  jq -e '.ok and .data.sharing_mode == "new" and .data.auto_activate == true and .data.direct_delivery == true'
+: "${relay_sharing_mode:?set relay_sharing_mode to the mode chosen in section 4}"
+curl -fsS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | \
+  jq -e --arg mode "$relay_sharing_mode" '.ok and .data.sharing_mode == $mode and .data.auto_activate == true and .data.direct_delivery == true'
 ```
 
 Report the exact version, `signed_in`, signed-in workspace id and name, sharing
-mode `new`, auto-activate `true`, direct-delivery `true`,
+mode (`new`, or the existing mode the human kept), auto-activate `true`, direct-delivery `true`,
 uploader health, session address, direct-delivery state, webhook test marker,
 subscriptions, real GitHub event evidence, and polling-coexistence result.
 Separate verified facts from steps that still require a human or external
@@ -808,7 +876,9 @@ event.
 
 - **Socket missing or slow:** check `systemctl --user status agent-relay.service`
   on Linux or `open -a "Agent Relay"` on macOS. Confirm the pointer names a
-  socket. Never delete a live socket; restart the owning service/app.
+  socket. Never delete a live socket; restart the owning service/app. A reply
+  that takes up to about 30 seconds is the known latency in section 1
+  (relay-desktop#333), not a fault: allow 60 seconds and retry once.
 - **`not_a_relay_session`:** the command is not a descendant of a supported
   live Codex/Claude session, or the session id/process start no longer matches.
   Run it through this agent's shell tool. In tmux, confirm the agent process and
@@ -866,7 +936,7 @@ event.
 - **Managed Claude policy:** if direct delivery reports `managed_policy`, the
   organization controls `crossSessionInbound`; report the policy block rather
   than modifying managed settings.
-- **Undo registration:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
+- **Undo registration:** `curl -sS --max-time 60 --unix-socket "$relay_socket" -X DELETE http://relay/register | jq`.
 - **Undo an integration:** with section 6's `relay_probe`, `relay_socket`,
   `relay_req`, and `pr_resources` defined, remove every subscription the
   session holds for the pull request, in whichever form it was made. On macOS
@@ -884,7 +954,7 @@ event.
   ```
 
   Require the final list to hold none of that pull request's resources.
-- **Undo a webhook:** `curl -sS --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
+- **Undo a webhook:** `curl -sS --max-time 60 --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
   `/setup/direct-delivery`. On Claude this restores the local opt-out; managed
   organization policy still wins.
