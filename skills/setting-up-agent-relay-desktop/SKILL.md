@@ -518,9 +518,11 @@ report it, and continue setup. Only POST `{"enabled":true}` over it when the
 human asks for direct delivery after being told. A build older than this
 default answers `invalid_enabled`; there the skill reads the settings file
 itself and POSTs `{"enabled":true}` only after proving the key is absent (no
-file, or a JSON object without the key), so an older build keeps an explicit
-choice too. A file that exists but cannot be read or parsed proves nothing:
-stop and ask the human rather than writing over it:
+file, or exactly one JSON object without the key), so an older build keeps an
+explicit choice too. A file that exists but cannot be read or parsed (blank,
+broken, not one object) proves nothing, and neither does a value other than
+`hold`, `refuse` or `accept` (even `""`): stop and ask the human rather than
+writing over it. Only `hold` and `refuse` are kept choices this skill acts on:
 
 ```sh
 # Unset keeps the current mode; set it only to the human's explicit answer.
@@ -533,44 +535,48 @@ case "$relay_sharing_mode" in
   *) printf 'Sharing mode unknown; ask the human before changing sharing.\n' >&2
      exit 1 ;;
 esac
-claude_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-# absent: no file, or an object without the key; present: file_choice holds
-# it; unreadable: the file exists but is not a readable JSON object.
-file_choice=''
-if [ ! -e "$claude_settings" ]; then
-  file_state=absent
-elif file_choice=$(jq -er 'if type != "object" then error("not an object")
-    elif has("crossSessionInbound")
-    then (.crossSessionInbound | if type == "string" then . else tojson end)
-    else "" end' "$claude_settings" 2>/dev/null); then
-  if [ -n "$file_choice" ]; then file_state=present; else file_state=absent; fi
-else
-  file_state=unreadable
-fi
+# absent, unreadable, or present:<value> for crossSessionInbound in the
+# user's Claude settings. Only a file holding exactly one JSON object is
+# readable; key presence is tracked apart from its value ("" included).
+claude_inbound_choice() {
+  settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+  if [ ! -e "$settings_file" ]; then echo absent; return; fi
+  jq -rse 'if length == 1 and (.[0] | type) == "object"
+    then (.[0] | if has("crossSessionInbound")
+      then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
+      else "absent" end)
+    else error("not one JSON object") end' "$settings_file" 2>/dev/null || echo unreadable
+}
+file_choice=$(claude_inbound_choice)
 direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
   -d '{"default":true}' http://relay/setup/direct-delivery)
 if printf '%s\n' "$direct_delivery" | jq -e '.error.code == "invalid_enabled"' >/dev/null; then
-  if [ "$file_state" = unreadable ]; then
-    printf 'Could not read %s, so Claude Code delivery was left unchanged; ask the human.\n' \
-      "$claude_settings" >&2
-    exit 1
-  elif [ "$file_state" = present ] && [ "$file_choice" != accept ]; then
-    direct_delivery=$(jq -nc --arg choice "$file_choice" \
-      '{ok: true, data: {direct_delivery: false, user_choice: $choice}}')
-  else
-    direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-      -d '{"enabled":true}' http://relay/setup/direct-delivery)
-  fi
+  case "$file_choice" in
+    absent|present:accept)
+      direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+        -d '{"enabled":true}' http://relay/setup/direct-delivery) ;;
+    present:hold|present:refuse)
+      direct_delivery=$(jq -nc --arg choice "${file_choice#present:}" \
+        '{ok: true, data: {direct_delivery: false, user_choice: $choice}}') ;;
+    *)
+      printf 'Claude Code settings are unreadable or name crossSessionInbound as something other than hold, refuse or accept (%s), so delivery was left unchanged; ask the human.\n' \
+        "$file_choice" >&2
+      exit 1 ;;
+  esac
 fi
 printf '%s\n' "$direct_delivery" | jq
 kept_choice=$(printf '%s\n' "$direct_delivery" | \
-  jq -r 'select(.ok and (.data.direct_delivery | not)) | .data.user_choice // empty |
-    select(. != "accept")')
+  jq -r 'select(.ok and .data.direct_delivery == false) | .data.user_choice // empty |
+    select(. == "hold" or . == "refuse")')
+if printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery == false and
+    .data.user_choice != null and (.data.user_choice | IN("hold", "refuse", "accept") | not)' >/dev/null; then
+  printf 'Your crossSessionInbound is set to an unrecognized value, so delivery was left unchanged; ask the human.\n' >&2
+  exit 1
+fi
 if [ -n "$kept_choice" ]; then
   case "$kept_choice" in
     hold) effect='relayed messages to Claude Code wait for your approval' ;;
     refuse) effect='relayed messages to Claude Code are dropped' ;;
-    *) effect='relayed messages to Claude Code are not delivered directly' ;;
   esac
   printf 'Kept your own crossSessionInbound value "%s": %s.\n' "$kept_choice" "$effect" >&2
 elif ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; then
@@ -938,15 +944,29 @@ than that field:
 
 ```sh
 : "${relay_sharing_mode:?set relay_sharing_mode to the mode chosen in section 4}"
+# absent, unreadable, or present:<value> for crossSessionInbound in the
+# user's Claude settings. Only a file holding exactly one JSON object is
+# readable; key presence is tracked apart from its value ("" included).
+claude_inbound_choice() {
+  settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+  if [ ! -e "$settings_file" ]; then echo absent; return; fi
+  jq -rse 'if length == 1 and (.[0] | type) == "object"
+    then (.[0] | if has("crossSessionInbound")
+      then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
+      else "absent" end)
+    else error("not one JSON object") end' "$settings_file" 2>/dev/null || echo unreadable
+}
 final_status=$(curl -fsS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status)
-claude_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 kept_choice=$(printf '%s\n' "$final_status" | \
   jq -r 'select(.data.direct_delivery == false) | .data.direct_delivery_user_choice // empty |
-    select(. != "accept")')
-if [ -z "$kept_choice" ] && printf '%s\n' "$final_status" | jq -e '.data.direct_delivery == false' >/dev/null; then
-  kept_choice=$(jq -r 'if type == "object" and has("crossSessionInbound")
-    then (.crossSessionInbound | if type == "string" then . else tojson end) else empty end' \
-    "$claude_settings" 2>/dev/null | grep -vx accept)
+    select(. == "hold" or . == "refuse")')
+# A build older than direct_delivery_user_choice: read the settings file.
+if [ -z "$kept_choice" ] && printf '%s\n' "$final_status" | \
+    jq -e '.data.direct_delivery == false and (.data | has("direct_delivery_user_choice") | not)' >/dev/null; then
+  case "$(claude_inbound_choice)" in
+    present:hold) kept_choice=hold ;;
+    present:refuse) kept_choice=refuse ;;
+  esac
 fi
 printf '%s\n' "$final_status" | jq '{direct_delivery: .data.direct_delivery, direct_delivery_user_choice: .data.direct_delivery_user_choice}'
 printf '%s\n' "$final_status" | \

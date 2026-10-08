@@ -305,14 +305,35 @@ replies arrive live is the session-level `session.direct_delivery`, not the
 top-level default. Direct delivery is on by default, but the desktop keeps a
 `crossSessionInbound` value the person set themselves (`hold` or `refuse`), and
 so does this skill: such a kept choice is reported in
-`direct_delivery_user_choice` and is accepted here only when the delivery flags
-are explicitly `false` (a missing field is never success):
+`direct_delivery_user_choice` (read from the settings file on a desktop build
+older than that field) and is accepted here only when the top-level flag is
+explicitly `false` (a missing field is never success). Any other value is not
+a kept choice this skill acts on:
 
 ```sh
+# absent, unreadable, or present:<value> for crossSessionInbound in the
+# user's Claude settings. Only a file holding exactly one JSON object is
+# readable; key presence is tracked apart from its value ("" included).
+claude_inbound_choice() {
+  settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+  if [ ! -e "$settings_file" ]; then echo absent; return; fi
+  jq -rse 'if length == 1 and (.[0] | type) == "object"
+    then (.[0] | if has("crossSessionInbound")
+      then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
+      else "absent" end)
+    else error("not one JSON object") end' "$settings_file" 2>/dev/null || echo unreadable
+}
 setup_status=$(relay_req GET /setup/status)
 kept_choice=$(printf '%s\n' "$setup_status" | \
   jq -r 'select(.data.direct_delivery == false) | .data.direct_delivery_user_choice // empty |
-    select(. != "accept")')
+    select(. == "hold" or . == "refuse")')
+if [ -z "$kept_choice" ] && printf '%s\n' "$setup_status" | \
+    jq -e '.data.direct_delivery == false and (.data | has("direct_delivery_user_choice") | not)' >/dev/null; then
+  case "$(claude_inbound_choice)" in
+    present:hold) kept_choice=hold ;;
+    present:refuse) kept_choice=refuse ;;
+  esac
+fi
 printf '%s\n' "$setup_status" | jq -e --arg kept "$kept_choice" '
   .ok
   and .data.sign_in == "signed_in"
@@ -327,8 +348,11 @@ printf '%s\n' "$setup_status" | jq -e --arg kept "$kept_choice" '
 
 **When the person kept their own choice** (`kept_choice` is set): do not
 change it, and do not re-run desktop setup to "fix" it, since that keeps it
-too. Tell them what it means for handoff on this Claude Code session (a Codex
-session still reports `session.direct_delivery:true` and is unaffected):
+too. `crossSessionInbound` is Claude Code's setting: when this session reports
+`session.direct_delivery:true` (a Codex session), report the kept value and
+continue normally; the round trip completes as usual. When it reports
+`session.direct_delivery:false` (this Claude Code session), tell them what it
+means for the handoff:
 
 - `hold`: relayed messages, including the teammate's handoff reply, arrive as
   held messages they must approve in Claude Code before this agent sees them.
@@ -460,11 +484,12 @@ teammate's relay address (e.g. `@manav`), then:
    injects an inbound message only when the session is idle between turns, **end
    the turn** after sending and confirm the reply on the next turn; do not sleep
    or poll inside one turn.
-6. With a kept `hold` on this Claude Code session, the reply arrives as a held
-   message: ask the person to approve it, then confirm it on the next turn.
-   With a kept `refuse` and no yes to the opt-in, the reply is dropped: report
-   setup as **blocked on the person's choice**, naming the opt-in, not as
-   complete, and not as failed.
+6. Only when this session reports `session.direct_delivery:false` (a Claude
+   Code session with a kept choice): with `hold`, the reply arrives as a held
+   message; ask the person to approve it, then confirm it on the next turn.
+   With `refuse` and no yes to the opt-in, the reply is dropped: report setup
+   as **blocked on the person's choice**, naming the opt-in, not as complete,
+   and not as failed. A session reporting `true` follows steps 1–5 unchanged.
 
 **No teammate online yet (self-verify the read path).** Prove the machinery
 without a second person:
