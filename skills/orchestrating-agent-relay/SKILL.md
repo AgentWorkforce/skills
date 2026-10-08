@@ -607,7 +607,8 @@ Unsubscribe **owned** resources before releasing the owner, then verify the
 IDs are gone:
 
 ```bash
-agent-relay integration subscribe --list
+bindings=$(agent-relay integration subscribe --list)
+printf '%s\n' "$bindings"
 agent-relay integration webhook list
 agent-relay integration webhook list-inbound
 for resource in \
@@ -616,6 +617,8 @@ for resource in \
   "/github/repos/<owner>/<repo>/pulls/<n>/status/**" \
   "/github/repos/<owner>/<repo>/issues/<n>/comments/**"
 do
+  # Only what the binding list shows for this PR; skip the rest.
+  printf '%s\n' "$bindings" | grep -Fq -- "$resource" || continue
   agent-relay integration unsubscribe github --resource "$resource"
 done
 # confirm each binding, webhookId, and webhookSubscriptionId disappeared
@@ -624,9 +627,9 @@ agent-relay fleet release '<Owner>'
 
 Only `pulls/<n>/**` is created today. The other three are legacy bindings
 from version 2.4.0 and earlier of this skill, which subscribed four globs.
-Remove each one that `subscribe --list` shows for this PR, so an owner
-subscribed under the old recipe leaves no binding or webhook behind. Skip the
-ones the list does not show.
+The loop removes each one that `subscribe --list` shows for this PR and skips
+the rest, so an owner subscribed under the old recipe leaves no binding or
+webhook behind.
 
 Unsubscribe does not delete agents or channels. Do not unsubscribe by guessed
 name, and do not delete a webhook another binding still references. A failed
