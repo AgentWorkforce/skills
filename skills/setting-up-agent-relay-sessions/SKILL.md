@@ -17,7 +17,9 @@ each step. Fetch its instructions with
 The finished state is:
 
 - the desktop app is installed, signed in to the **intended workspace**, the
-  uploader is healthy, and this session is registered with direct delivery on;
+  uploader is healthy, and this session is registered with direct delivery on,
+  or with the person's own `crossSessionInbound` (`hold` or `refuse`) kept and
+  reported (see section 2; delivery is never turned on without their yes);
 - the **agent-sessions cloud MCP** is installed in this project and loaded by
   this session, so the handoff tools (`list_relay_agents`, `send_relay_message`,
   `read_relay_conversation`, `check_relay_inbox`, `get_shared_session`,
@@ -300,19 +302,73 @@ Require all of these before continuing, and stop with a clear message if any
 fails. `/setup/status` reports sign-in as the string `sign_in` (match the desktop
 skill), and the flag that actually governs whether **this** session's handoff
 replies arrive live is the session-level `session.direct_delivery`, not the
-top-level default — require both:
+top-level default. Direct delivery is on by default, but the desktop keeps a
+`crossSessionInbound` value the person set themselves (`hold` or `refuse`), and
+so does this skill: such a kept choice is reported in
+`direct_delivery_user_choice` (read from the settings file on a desktop build
+older than that field) and is accepted here only when the top-level flag is
+explicitly `false` (a missing field is never success). Any other value is not
+a kept choice this skill acts on:
 
 ```sh
-relay_req GET /setup/status | jq -e '
+# absent, unreadable, or present:<value> for crossSessionInbound in the
+# user's Claude settings. Only a regular file holding exactly one JSON object
+# is readable (a dangling symlink or a directory is not); key presence is
+# tracked apart from its value ("" included). Mirrors
+# setting-up-agent-relay-desktop sections 4 and 8; change them together.
+claude_inbound_choice() {
+  settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+  if [ ! -e "$settings_file" ] && [ ! -L "$settings_file" ]; then echo absent; return; fi
+  if [ ! -f "$settings_file" ]; then echo unreadable; return; fi
+  jq -rse 'if length == 1 and (.[0] | type) == "object"
+    then (.[0] | if has("crossSessionInbound")
+      then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
+      else "absent" end)
+    else error("not one JSON object") end' "$settings_file" 2>/dev/null || echo unreadable
+}
+setup_status=$(relay_req GET /setup/status)
+kept_choice=$(printf '%s\n' "$setup_status" | \
+  jq -r 'select(.data.direct_delivery == false) | .data.direct_delivery_user_choice // empty |
+    select(. == "hold" or . == "refuse")')
+if [ -z "$kept_choice" ] && printf '%s\n' "$setup_status" | \
+    jq -e '.data.direct_delivery == false and (.data | has("direct_delivery_user_choice") | not)' >/dev/null; then
+  case "$(claude_inbound_choice)" in
+    present:hold) kept_choice=hold ;;
+    present:refuse) kept_choice=refuse ;;
+  esac
+fi
+printf '%s\n' "$setup_status" | jq -e --arg kept "$kept_choice" '
   .ok
   and .data.sign_in == "signed_in"
   and (.data.workspace.id | type == "string" and length > 0)
   and .data.uploader.healthy == true
-  and .data.direct_delivery == true
   and (.data.session.id | type == "string" and length > 0)
   and .data.session.registered == true
-  and .data.session.direct_delivery == true'
+  and ((.data.direct_delivery == true and .data.session.direct_delivery == true)
+       or (.data.direct_delivery == false and $kept != ""
+           and (.data.session.direct_delivery | type == "boolean")))'
 ```
+
+**When the person kept their own choice** (`kept_choice` is set): do not
+change it, and do not re-run desktop setup to "fix" it, since that keeps it
+too. `crossSessionInbound` is Claude Code's setting: when this session reports
+`session.direct_delivery:true` (a Codex session), report the kept value and
+continue normally; the round trip completes as usual. When it reports
+`session.direct_delivery:false` (this Claude Code session), tell them what it
+means for the handoff:
+
+- `hold`: relayed messages, including the teammate's handoff reply, arrive as
+  held messages they must approve in Claude Code before this agent sees them.
+  Setup continues; section 5's round trip completes once they approve the held
+  reply.
+- `refuse`: relayed messages to this session are dropped, so the round trip
+  cannot complete here. Setup continues through section 4, then stops at
+  section 5 as **blocked on the person's choice**.
+
+Either way, offer the opt-in once: "Turn on direct delivery for Claude Code?
+It sets `crossSessionInbound` to `accept` in your Claude Code settings." Only
+on an explicit yes, POST `{"enabled":true}` to `/setup/direct-delivery` and
+re-run this check; on no, keep their value and continue as above.
 
 Confirm `workspace.id` is the **shared** workspace both sides agreed on. A
 healthy uploader is the one non-obvious prerequisite: for a teammate's agent to
@@ -431,6 +487,12 @@ teammate's relay address (e.g. `@manav`), then:
    injects an inbound message only when the session is idle between turns, **end
    the turn** after sending and confirm the reply on the next turn; do not sleep
    or poll inside one turn.
+6. Only when this session reports `session.direct_delivery:false` (a Claude
+   Code session with a kept choice): with `hold`, the reply arrives as a held
+   message; ask the person to approve it, then confirm it on the next turn.
+   With `refuse` and no yes to the opt-in, the reply is dropped: report setup
+   as **blocked on the person's choice**, naming the opt-in, not as complete,
+   and not as failed. A session reporting `true` follows steps 1–5 unchanged.
 
 **No teammate online yet (self-verify the read path).** Prove the machinery
 without a second person:
@@ -451,7 +513,9 @@ body or any artifact.
 Separate verified facts from what still needs a human or a second machine:
 
 - app version, `signed_in`, the signed-in **workspace id and name**;
-- uploader `healthy`, this session's `agent@machine` address, direct delivery on;
+- uploader `healthy`, this session's `agent@machine` address, and direct
+  delivery on, or the person's kept `crossSessionInbound` value and what it
+  does (held for approval, or dropped), with the opt-in they were offered;
 - agent-sessions MCP installed and its tools confirmed loaded in this session;
 - `list_relay_agents` roster seen; and either the full round-trip evidence (the
   teammate's real content + reply) or the self-verified read path plus the named
@@ -484,10 +548,15 @@ count a roster listing as a proven handoff.
 - **Can't read the teammate's session:** their **uploader** is not healthy
   (paused or a failed cycle). Have them check `/setup/status` shows
   `uploader.healthy == true`, not "Sync paused/offline".
-- **Message arrives held, not live:** direct delivery is off for the recipient —
-  POST `{"enabled":true}` to `/setup/direct-delivery` on their machine (Codex
-  delivers directly by default). A managed Claude policy can block this; report
-  it rather than editing managed settings.
+- **Message arrives held, not live:** direct delivery is off for the recipient
+  (Codex delivers directly by default). If their `/setup/status` shows a
+  `direct_delivery_user_choice`, they chose it: tell them, and POST
+  `{"enabled":true}` to `/setup/direct-delivery` on their machine only when
+  they say yes. Otherwise apply the default the way
+  `setting-up-agent-relay-desktop` section 4 does: `{"default":true}`, which
+  never overrides a choice, and on an older build that answers
+  `invalid_enabled`, its settings-file check before any `{"enabled":true}`. A managed Claude policy can block this; report it
+  rather than editing managed settings.
 - **Remove the MCP:** `claude mcp remove agent-relay-sessions` /
   `codex mcp remove agent-relay-sessions`. This removes only the handoff tools;
   it does not sign the desktop out or stop uploads.
