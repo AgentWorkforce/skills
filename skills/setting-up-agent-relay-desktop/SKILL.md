@@ -545,6 +545,21 @@ printf '%s\n' "$registration_status" | jq -e \
    .data.session.registered == true and .data.session.direct_delivery == true'
 ```
 
+**Codex on macOS.** The system `curl` hides a Codex session's identity from the
+socket there, so `/register` is refused `not_a_relay_session` (section 6 says
+the same for subscriptions). In a Codex session on macOS, find `relay_probe`
+with section 6's first block and send the registration through it instead of
+the `curl` line above, then read `/setup/status` as above:
+
+```sh
+register=$(printf '{}' | "$relay_probe" relay socket-request \
+  --socket "$relay_socket" --method POST --path /register)
+```
+
+If `/setup/sign-in` is refused the same way, send its payload through the probe
+the same way. Without a probe, stop and report it rather than registering
+another process.
+
 Direct delivery is checked first so a managed-policy refusal stops setup
 before auto-activation or upload settings are changed. Report that refusal
 clearly; never claim the three-default setup completed.

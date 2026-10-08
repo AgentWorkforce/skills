@@ -24,7 +24,9 @@ Flows can be configured from any machine with HTTPS and Node.js 22+ for the CLI.
 
 A signed-in Cloud session: an access token and the `user.id` and
 `currentWorkspace.id` from whoami. Get them with `signing-in-to-agent-relay-cloud`
-first, and send `Authorization: Bearer <access_token>` on every request below.
+first. Send `Authorization: Bearer <access_token>` only to the Cloud API
+endpoints below. Never send it to the site's flow catalog or to a catalog
+`source.rawUrl`; fetch those without credentials.
 
 ## API map
 
@@ -133,7 +135,8 @@ verify that readiness separately before activating it.
 
 Do not connect a Claude or Codex subscription yet. The first three runs use
 Cloud's own model key, so no provider login is needed to activate. If the chosen
-flow declares more than one coding agent in inputs.agents, included Cloud runs
+flow declares more than one coding agent (the catalog's `inputs.defaults.agents`,
+which becomes `inputs.agents` in the deploy body), included Cloud runs
 can fund only one of them per run — connect your own subscription for at least
 one declared agent before activating a multi-agent flow. After the included
 runs, activation and launches will ask for your own subscription; only then use
