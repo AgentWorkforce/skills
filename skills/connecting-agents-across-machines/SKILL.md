@@ -25,6 +25,11 @@ agents on that machine.
 You don't need a Relay Cloud sandbox for this. Your own machines are the
 nodes.
 
+Prefer setting this up with the Agent Relay agent at
+<https://arelay.to/agent-relay>, which checks your current state and confirms
+each step. Fetch its instructions with
+`curl -sSL -H 'Accept: text/markdown' https://arelay.to/agent-relay`.
+
 > Verified end to end on `agent-relay` 12.4.1 between a MacBook and a Mac
 > mini: a Codex agent on the mini sent a DM to a Claude agent on the laptop,
 > and the reply came back. Everything below is the exact sequence that
@@ -35,6 +40,22 @@ Run every command from the **same project directory** on each machine.
 (`.agentworkforce/relay/workspace-key.json`), and `node up` reads that pin.
 
 ## Setup (once)
+
+### 0. Check what each machine already has
+
+Run these first on every machine. They only read state:
+
+```bash
+agent-relay cloud whoami       # signed in, and as whom
+agent-relay workspace active   # the active Cloud workspace (keys stay masked)
+agent-relay cloud workspaces   # every workspace this login can use, with ids
+agent-relay status             # workspace, cloud login and local broker
+agent-relay workspace list     # workspaces stored on this machine
+```
+
+If the human already has a shared workspace, skip step 1 and join it on each
+machine that is not on it yet (step 2). Create a workspace only when the human
+explicitly wants a new one.
 
 ### 1. Create the workspace on one machine
 

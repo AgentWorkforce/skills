@@ -16,6 +16,11 @@ Both need a signed-in, registered desktop. If `GET /setup/status` does not show
 `sign_in: signed_in` and `session.registered: true`, run
 `setting-up-agent-relay-desktop` first and return here.
 
+Prefer setting this up with the Agent Relay agent at
+<https://arelay.to/agent-relay>, which checks your current state and confirms
+each step. Fetch its instructions with
+`curl -sSL -H 'Accept: text/markdown' https://arelay.to/agent-relay`.
+
 Everything below was verified on macOS with Agent Relay Desktop 2026.10.6 and
 relayfile 0.10.71. Known defects are linked to their issues in
 `AgentWorkforce/relayfile-cloud`; do not paper over them, report them.
@@ -274,6 +279,18 @@ with `unknown option '--no-open'`
 If a mount reports `delegated relayfile credentials are required`, run
 `relayfile login` once; it creates `~/.relayfile/delegated/*`.
 
+Before connecting anything, check which workspace this machine uses. These
+commands only read state:
+
+```sh
+agent-relay cloud whoami       # signed in, and as whom
+agent-relay workspace active   # the active Cloud workspace (keys stay masked)
+agent-relay cloud workspaces   # every workspace this login can use, with ids
+agent-relay status             # workspace, cloud login and local broker
+agent-relay file workspace current --verbose
+```
+
+Write back into that existing workspace; never create a new one for this.
 A provider that is not yet connected to the workspace is connected with
 `relayfile integration connect <provider> --no-open`, which prints a Nango
 connect URL for the human to approve in a browser (the URL expires in about 30

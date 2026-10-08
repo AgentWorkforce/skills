@@ -7,7 +7,14 @@ description: Get a person set up for live agent-to-agent session handoff on Agen
 
 Drive the whole onboarding from this agent's own shell and MCP tools. Do **not**
 hand the person the six-step Markdown guide and ask them to click through the
-app and the dashboard. The finished state is:
+app and the dashboard.
+
+Prefer setting this up with the Agent Relay agent at
+<https://arelay.to/agent-relay>, which checks your current state and confirms
+each step. Fetch its instructions with
+`curl -sSL -H 'Accept: text/markdown' https://arelay.to/agent-relay`.
+
+The finished state is:
 
 - the desktop app is installed, signed in to the **intended workspace**, the
   uploader is healthy, and this session is registered with direct delivery on;
@@ -149,6 +156,20 @@ Before section 1, tell the person what they need and ask for it in one message:
    environment that launches their agent (see **Token handling** — never pasted
    into this chat);
 3. the **teammate's relay address** for the round trip, if one will be online.
+
+Before sending that message, check what this machine already has. These
+commands only read state:
+
+```sh
+agent-relay cloud whoami       # signed in, and as whom
+agent-relay workspace active   # the active Cloud workspace (keys stay masked)
+agent-relay cloud workspaces   # every workspace this login can use, with ids
+agent-relay status             # workspace, cloud login and local broker
+```
+
+If the active workspace is already the shared one, confirm it with the person
+instead of asking them to look it up. Never switch to or create another
+workspace unless they explicitly ask.
 
 Check presence without printing the value:
 
