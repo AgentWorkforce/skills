@@ -587,9 +587,17 @@ delivery test could not be repeated.
 ## 6. Subscribe requested integrations
 
 Require the provider and repository from the human. A GitHub pull request needs
-four resource globs: its pull data, reviews, checks/status, and GitHub's
-separate issue-comment path. This works on every released Desktop and is the
-path to use today.
+one resource glob, its number (`pulls/NUMBER/**`). Relayfile matches the PR's
+reviews, review comments, conversation comments and check runs to that glob by
+the PR they reference, so no other glob is needed: nothing is written under
+`pulls/NUMBER/reviews/**`, `pulls/NUMBER/status/**` or
+`issues/NUMBER/comments/**`, and subscriptions on those never deliver. This
+works on every released Desktop and is the path to use today. If a review or
+comment then never arrives, read it back in relayfile at its own path (the
+table in `subscribing-relay-webhooks-and-writebacks`): a 404 means the event
+never reached relayfile
+([relayfile-cloud#317](https://github.com/AgentWorkforce/relayfile-cloud/issues/317)),
+not that the subscription is wrong.
 
 First find the Desktop's `agent-relay-probe`. macOS needs it for Codex sessions
 (below) and it is the client for the one-command form once that ships:
@@ -665,22 +673,21 @@ elif test -z "$held" && test -n "${relay_probe:-}" && \
   # only when the installed probe has it.
   "$relay_probe" relay subscribe "$pr_url" | jq
 else
-  for resource in \
-    '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
-    '/github/repos/OWNER/REPO/pulls/NUMBER/reviews/**' \
-    '/github/repos/OWNER/REPO/pulls/NUMBER/status/**' \
-    '/github/repos/OWNER/REPO/issues/NUMBER/comments/**'
-  do
-    relay_req POST /integrations/subscribe \
-      "$(jq -nc --arg resource "$resource" '{provider:"github",resource:$resource}')" | jq
-  done
+  relay_req POST /integrations/subscribe \
+    "$(jq -nc --arg resource '/github/repos/OWNER/REPO/pulls/NUMBER/**' \
+      '{provider:"github",resource:$resource}')" | jq
 fi
 relay_req GET /setup/status | jq -c '.data.integrations'
 ```
 
-Require `.ok` and `.data.subscribed` to be `true` for each answer, and every
-entry in the status list to be `ready: true`. A repeated request returns HTTP 409
-`conflict` ("already subscribed"); treat that one code as success. Verified on
+Require `.ok` and `.data.subscribed` to be `true`, and the entry in the status
+list to be `ready: true`. A repeated request returns HTTP 409
+`conflict` ("already subscribed"). That is success only for a binding made on
+or after 2026-09-19. Earlier bindings predate PR-identity matching
+(relayfile-cloud#237, relaycast#447), match paths literally and miss reviews
+and comments. If the binding may be older, or you cannot tell, recreate it
+once: `relay_req DELETE /integrations/subscribe` with the same body, then
+subscribe again. Verified on
 Desktop 2026.10.6 with both the probe client and `curl`.
 
 **One-command form (not yet released).** `relay-desktop#216` adds
@@ -691,15 +698,15 @@ absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
 'subscribe'`, so do not lead with it. Use it only when the installed probe
 advertises it. The block above makes that choice, and first checks the
 session's existing subscriptions. A pull request already subscribed with the
-one-command form is left alone. A pull request with any of the four globs
-(from an earlier or interrupted run, or from before an upgrade) stays on the
-four globs: the loop runs again, the globs it already holds answer 409
-`conflict`, and the missing ones are added. So repeating the block after
-`busy` or `refused` completes a partial subscription.
+one-command form is left alone. A pull request already holding
+the number glob answers 409 `conflict` on a repeat; recreate that binding once
+if it may predate 2026-09-19 (see above). Extra `reviews`, `status` or
+`issues/NUMBER/comments` globs from an earlier version of this skill never
+deliver; unsubscribe them.
 
 Once released, re-test it before relying on its details; the behavior described
 in that PR (a repeat answering `"already_subscribed":true`, `--remove` to end it,
-and a numeric subscription covering all four paths) has not been verified here.
+and a numeric subscription covering reviews, comments and checks) has not been verified here.
 
 Refusals and what they mean:
 
@@ -743,10 +750,8 @@ Use the `relay_cli` found in section 2, never a bare `agent-relay`: on a
 resolve to it or to a different, older CLI than the one whose version was
 checked.
 
-The CLI path follows `orchestrating-agent-relay`, which also subscribes
-`pulls/NUMBER/reviews/**`, `pulls/NUMBER/status/**`, and
-`issues/NUMBER/comments/**`; repeat the command for those globs there. Never
-put the workspace key in argv.
+The CLI path follows `orchestrating-agent-relay`, which subscribes the same
+single `pulls/NUMBER/**` glob. Never put the workspace key in argv.
 
 Make the subscribe step a required post-create step in the agent's PR
 workflow: whenever it authors a PR, it subscribes its own live session

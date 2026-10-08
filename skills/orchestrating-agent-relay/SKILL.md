@@ -67,7 +67,7 @@ reference is the **`using-agent-relay`** skill.
 | Give a human a follow-along link  | `agent-relay observer`                                          |
 | Inspect a worker's TTY            | `agent-relay node agent attach Worker1 --mode view`             |
 | Fleet-wide agent inventory        | `agent-relay fleet agent list`                                   |
-| Subscribe PR-owner to GitHub PR   | `agent-relay integration subscribe github --resource '/github/repos/<o>/<r>/pulls/<n>/**' --to @Owner` (also `pulls/<n>/reviews/**`, `pulls/<n>/status/**`, `issues/<n>/comments/**`) |
+| Subscribe PR-owner to GitHub PR   | `agent-relay integration subscribe github --resource '/github/repos/<o>/<r>/pulls/<n>/**' --to @Owner` (one glob covers reviews, comments and checks) |
 | List integration bindings         | `agent-relay integration subscribe --list`                       |
 | Unsubscribe a provider resource   | `agent-relay integration unsubscribe github --resource '...'`    |
 | Failed deliveries                 | `agent-relay node deadletters`                                   |
@@ -443,9 +443,8 @@ Quick Reference. Then enforce this protocol:
   (cross-node) for worker liveness; set a wall-clock fallback so a
   silently-dead worker can't hang the loop
 - The moment a worker opens or owns a GitHub PR, subscribe **that live
-  PR-owner identity** to the PR glob **and** `pulls/<n>/reviews/**`,
-  `pulls/<n>/status/**`, and `issues/<n>/comments/**` (same `--to @<owner>`).
-  Do not subscribe helpers to those globs. After respawn under a new
+  PR-owner identity** to the PR glob `pulls/<n>/**` (`--to @<owner>`).
+  Do not subscribe helpers to it. After respawn under a new
   name, rebind. Verify a real GitHub event arrives in `check_inbox`, not
   just that `--list` shows a binding. Unsubscribe owned resources before
   release
@@ -529,25 +528,15 @@ reviews, review comments, pushes, and check changes can then wake the owner.
 Binding creation alone does not establish end-to-end delivery; keep a bounded
 GitHub polling fallback until the event types and harness wake are verified.
 
-The default recipe is four owner bindings. Each `--resource` is a distinct
-binding key, so these do not replace each other. Paths match the GitHub
-adapter layout used by `writing-agent-relay-workflows` (`pulls/<n>/reviews/**`,
-`pulls/<n>/status/**`) plus GitHub's issue-comment path for PR conversation
-comments. Replace every angle-bracket placeholder in these shell examples
-with the actual owner handle, repository, and PR number before execution:
+The default recipe is one owner binding, on the PR's number. Replace every
+angle-bracket placeholder in these shell examples with the actual owner
+handle, repository, and PR number before execution:
 
 ```bash
 OWNER='@<PR-owner-agent>'
 REPO='/github/repos/<owner>/<repo>'
 N='<PR_NUMBER>'
-for resource in \
-  "$REPO/pulls/$N/**" \
-  "$REPO/pulls/$N/reviews/**" \
-  "$REPO/pulls/$N/status/**" \
-  "$REPO/issues/$N/comments/**"
-do
-  agent-relay integration subscribe github --resource "$resource" --to "$OWNER"
-done
+agent-relay integration subscribe github --resource "$REPO/pulls/$N/**" --to "$OWNER"
 ```
 
 `--to` is `@agent` or `#channel`. Point it at the owner handle. `--spawn <cli>`
@@ -563,15 +552,21 @@ already-live owner. `--events` defaults to Relay `message.created,thread.reply`.
 3. A Relayfile binding keyed by `(provider, resolved path glob)`
 
 `--resource` is a Relayfile VFS glob. `owner/repo` resolves to repository
-scope; provider URLs are not accepted. Matching also uses the event's
-`resource_ref` (for example `/github/repos/<owner>__<repo>/pulls/by-id/<n>.json`),
-not only the inventory file path — so a review whose file is
-`/github/repos/<o>/<r>/reviews/<id>.json` can still wake a `/pulls/<n>/**`
-binding when `resource_ref` names that PR. Do **not** rely on that alone for
-conversation comments or checks: GitHub conversation comments on a PR are
-inventoried under `/issues/<n>/comments/**`, and status/check records under
-`/pulls/<n>/status/**`. Subscribe those globs in the default recipe above.
-Do not give any of them to a helper; they are still writable owner routes.
+scope; provider URLs are not accepted. A PR number glob matches the PR by
+identity, not only by path, which is why one binding is enough:
+
+- PR events are written to `/github/repos/<o>/<r>/pulls/<n>__<title-slug>/meta.json`;
+  `pulls/<n>/**` matches the `<n>__` directory.
+- Reviews (`/reviews/<id>.json`), inline review comments (`/comments/<id>.json`),
+  PR conversation comments (`/issues/<n>__<slug>/comments/<id>/meta.json`) and
+  check runs (`/checks/<id>.json`) are written at the repo level and carry a
+  `resource_ref` of `/github/repos/<owner>__<repo>/pulls/by-id/<n>.json`, which
+  the number glob matches.
+
+Nothing is written under `pulls/<n>/reviews/**`, `pulls/<n>/status/**` or
+`issues/<n>/comments/**`; bindings on those answer `ok` and never deliver, so
+do not add them. Do not give the PR glob to a helper; it is a writable owner
+route.
 One `(github, glob)` binding per resource.
 
 List bindings with `agent-relay integration subscribe --list`. This is
@@ -600,7 +595,7 @@ Bindings follow the **recipient identity**, not the OS process.
 
 ### Helper agents: no second writable subscribe
 
-Only the PR owner gets `--to @Owner` on those owner globs. A second
+Only the PR owner gets `--to @Owner` on the owner glob. A second
 `subscribe` to the same `(github, path glob)` **replaces** that route.
 Reviewers, shadows, and one-shot helpers read the PR through git/`gh` or
 channel traffic; they do not get their own writable subscription to the
@@ -612,7 +607,8 @@ Unsubscribe **owned** resources before releasing the owner, then verify the
 IDs are gone:
 
 ```bash
-agent-relay integration subscribe --list
+bindings=$(agent-relay integration subscribe --list)
+printf '%s\n' "$bindings"
 agent-relay integration webhook list
 agent-relay integration webhook list-inbound
 for resource in \
@@ -621,11 +617,19 @@ for resource in \
   "/github/repos/<owner>/<repo>/pulls/<n>/status/**" \
   "/github/repos/<owner>/<repo>/issues/<n>/comments/**"
 do
+  # Only what the binding list shows for this PR; skip the rest.
+  printf '%s\n' "$bindings" | grep -Fq -- "$resource" || continue
   agent-relay integration unsubscribe github --resource "$resource"
 done
 # confirm each binding, webhookId, and webhookSubscriptionId disappeared
 agent-relay fleet release '<Owner>'
 ```
+
+Only `pulls/<n>/**` is created today. The other three are legacy bindings
+from version 2.4.0 and earlier of this skill, which subscribed four globs.
+The loop removes each one that `subscribe --list` shows for this PR and skips
+the rest, so an owner subscribed under the old recipe leaves no binding or
+webhook behind.
 
 Unsubscribe does not delete agents or channels. Do not unsubscribe by guessed
 name, and do not delete a webhook another binding still references. A failed
@@ -902,7 +906,7 @@ this whole workaround once `relay#1446` lands rather than letting it outlive the
 | Worker self-removed; can't send review fixes             | Instruct workers not to self-remove until told. If already gone, spawn a fresh worker and re-inject branch + commit SHA + full verdict; rebind any GitHub PR subscription to the new live identity (see [Subscribe the live PR owner](#subscribe-the-live-pr-owner)) |
 | Told the user to open an observer URL built from the workspace key | That is an admin credential in a query string, and the realtime endpoint rejects it. Run `agent-relay observer` (or `get_observer_url`) and share the `ot_live_` URL it returns |
 | Worker died silently; loop hangs                         | Inbox polling fires on messages only. Poll `agent-relay node agent list` / `fleet agent list` for liveness and set a wall-clock fallback (~30 min ScheduleWakeup) |
-| Opened a PR but did not subscribe the live owner         | Review comments, pushes, and checks will not wake anyone. Immediately subscribe `@Owner` to `/pulls/<n>/**`, `/pulls/<n>/reviews/**`, `/pulls/<n>/status/**`, and `/issues/<n>/comments/**` |
+| Opened a PR but did not subscribe the live owner         | Review comments, pushes, and checks will not wake anyone. Immediately subscribe `@Owner` to `/pulls/<n>/**`; that one glob carries reviews, comments and checks |
 | Subscribed a helper/reviewer to the same PR glob         | Binding key is `(provider, resolved path)` — the second subscribe **replaces** the owner's writable route. Only the PR-owner identity gets `--to @Owner` |
 | Treated `--list` / webhook create as delivery proof      | Binding creation is not a wake. Confirm a real GitHub event arrives as a Relay message from `github` with a Relayfile path under that glob (`check_inbox` / `list_messages`); check `node deadletters` if it does not |
 | Respawned the owner under a new name and left the old binding | New identities do not inherit subscriptions. Re-subscribe `--to @NewOwner` on the same `--resource`; confirm the prior webhook/subscription IDs retired |
