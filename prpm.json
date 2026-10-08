@@ -95,7 +95,7 @@
     },
     {
       "name": "setting-up-agent-relay-desktop",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "description": "Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification.",
       "format": "claude",
       "subtype": "skill",
@@ -684,7 +684,7 @@
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
       "description": "Set up Agent Relay Desktop, live session handoff between teammates, subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "category": "development",
       "tags": [
         "agent-relay",
