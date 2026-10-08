@@ -104,9 +104,15 @@ fi
 test -S "${relay_socket:-/nonexistent}" && printf 'socket=%s\n' "$relay_socket"
 ```
 
+Shell variables do not survive between separate tool calls. Every later block
+uses `relay_socket` (and some use variables set earlier in the same section), so
+run a section's blocks in one shell, or re-run this discovery block first in a
+new one.
+
 If the socket exists, inspect it before installing anything:
 
 ```sh
+test -S "${relay_socket:-/nonexistent}" || { printf 'relay_socket is not set: run the socket discovery block first.\n' >&2; exit 1; }
 curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq
 ```
 
@@ -464,6 +470,15 @@ while :; do
         *) printf '%s\n' "$state" | jq '.data' >&2 ;;
       esac
       exit 1
+      ;;
+    *)
+      # A failed or empty status read: retry a few times, then stop and report.
+      relay_unknown=$(( ${relay_unknown:-0} + 1 ))
+      printf 'Unexpected sign-in state: %s (attempt %s of 3)\n' "${phase:-none}" "$relay_unknown" >&2
+      if test "$relay_unknown" -ge 3; then
+        printf 'Agent Relay status is unreadable; check that the app is running, then retry sign-in.\n' >&2
+        exit 1
+      fi
       ;;
   esac
   sleep "$(printf '%s' "$sign_in" | jq -r '.data.interval // 5')"
