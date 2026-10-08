@@ -89,9 +89,8 @@ as a prebuilt one; only where the source comes from differs.
 
 1. Author the flow with `writing-relayflows` (the Relayflows v2 engine,
    `@relayflows/surface` / `@relayflows/sdk`, CLI `flows`). Defer to that
-   skill for the flow's shape and checks; never use the deprecated v1
-   `writing-agent-relay-workflows` builder. Cloud's prompt generator is an
-   optional shortcut: use it only when
+   skill for the flow's shape and checks; Flows are always v2. Cloud's
+   prompt generator is an optional shortcut: use it only when
    `GET /api/v1/flows/prompt/generate` returns `available: true`. If it
    reports unavailable, refuses your session (403 `session_required`), or
    fails, author with `writing-relayflows` instead; do not retry into it.
@@ -171,13 +170,13 @@ does not accept a flowId/repositories-only catalog activation request or fetch
 the source for you. For multiple repositories, submit one deployment per
 repository with a distinct name and handoffId.
 
-For the catalog's Software Garden entry, construct this body, substituting the
+For the catalog's Software Garden entry (id `software-factory`), construct this body, substituting the
 workspace, verified source, repository, GitHub approver and a new UUID:
 
 ```json
 {
   "workspaceId": "<currentWorkspace.id>",
-  "name": "Platform Garden",
+  "name": "Software Garden",
   "workflow": "software-factory",
   "source": "<verified TypeScript source text>",
   "handoffId": "<one UUID generated for this setup>",
