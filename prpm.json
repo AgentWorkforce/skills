@@ -95,7 +95,7 @@
     },
     {
       "name": "setting-up-agent-relay-desktop",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "description": "Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification.",
       "format": "claude",
       "subtype": "skill",
@@ -218,8 +218,8 @@
     },
     {
       "name": "writing-relayflows",
-      "version": "1.6.1",
-      "description": "Use when authoring a Relayflows v2 flow with the `flows` CLI in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, direct child flows via use/dispatch, Cloud dashboard mirroring, verification gates, cli/model resolution, flows.json, and check/run refusal shapes. Not for the older @relayflows/core WorkflowBuilder — see writing-agent-relay-workflows or migrating-persona-to-relayflow.",
+      "version": "1.6.2",
+      "description": "Use when authoring a Relayflows v2 flow with the `flows` CLI in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, direct child flows via use/dispatch, Cloud dashboard mirroring, verification gates, cli/model resolution, flows.json, and check/run refusal shapes. Do not use the older @relayflows/core WorkflowBuilder for new work.",
       "format": "claude",
       "subtype": "skill",
       "languages": [
@@ -277,7 +277,7 @@
     },
     {
       "name": "relay-80-100-workflow",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "description": "Use when writing a Relayflows v2 flow (@relayflows/surface / @relayflows/sdk, CLI `flows`) that must fully validate a feature end-to-end before it is sealed or merged - the 80-to-100 gap. Covers the evidence-recorder pattern that replaces v1's failOnError/captureOutput, repairable gates on the critical path, edit and hazard gates, gate cross-checking, fresh-eyes review rounds, and what a wall of green gates still misses.",
       "format": "claude",
       "subtype": "skill",
@@ -365,7 +365,7 @@
     },
     {
       "name": "connecting-agents-across-machines",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "Use when agents running on two or more machines (laptops, desktops, Mac minis, servers) need to talk to each other or when you want to spawn an agent onto another machine with Agent Relay. Covers putting every machine on one shared workspace, starting a node per machine, messaging across machines, targeted spawns, and verifying the link agent-to-agent. No Relay Cloud sandbox required. Verified on agent-relay 12.4.1.",
       "format": "claude",
       "subtype": "skill",

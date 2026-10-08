@@ -1,6 +1,6 @@
 ---
 name: writing-relayflows
-description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, direct child flows with use/dispatch, verification gates, cli/model selection, flows.json, parallel agents, Cloud dashboard mirroring, and `flows check`/`run`/`deploy`/`schedule` refusal shapes. Not for the older, unrelated `@relayflows/core` WorkflowBuilder engine (`.pattern('dag')`/.agent()/.step() chains) covered by `writing-agent-relay-workflows` and `migrating-persona-to-relayflow`.
+description: Use when authoring a Relayflows flow (@relayflows/surface / @relayflows/sdk, the journal-based v2 engine — the CLI is `flows`, package versions 2.0.x) in TypeScript or YAML/JSON. Covers the run/llm/agent ladder, direct child flows with use/dispatch, verification gates, cli/model selection, flows.json, parallel agents, Cloud dashboard mirroring, and `flows check`/`run`/`deploy`/`schedule` refusal shapes. Do not use the older, unrelated `@relayflows/core` WorkflowBuilder engine for new work.
 ---
 
 # Writing Relayflows
@@ -9,7 +9,7 @@ description: Use when authoring a Relayflows flow (@relayflows/surface / @relayf
 
 Relayflows turns a coding-agent task into steps a journal can inspect, verify, and resume. A flow is data (YAML/JSON) or code (TypeScript) that compiles to the same journal-backed kernel spec. Every effect is journaled before it's treated as real — a journal write that fails fails the step, with no silent fallback.
 
-**Name collision warning.** This repo also has skills for an older, unrelated engine that is *also* casually called "Relayflow" (singular) — `@relayflows/core`'s `WorkflowBuilder`, a chained builder (`workflow('name').pattern('dag').agent(...).step(...).run()`). That's `writing-agent-relay-workflows` and `migrating-persona-to-relayflow`'s territory. This skill is the **v2** engine: `@relayflows/surface`'s `flow()` function and the YAML/JSON dialect compiled by `@relayflows/sdk`. If you see `.pattern(`, `.agent(` as a chained builder call, or `ctx.workflow.run()`, you're in the other engine — stop and use one of those skills instead.
+**Name collision warning.** An older, unrelated engine is also casually called "Relayflow" (singular): `@relayflows/core`'s `WorkflowBuilder`, a chained builder (`workflow('name').pattern('dag').agent(...).step(...).run()`). This skill is the **v2** engine: `@relayflows/surface`'s `flow()` function and the YAML/JSON dialect compiled by `@relayflows/sdk`. If you see `.pattern(`, `.agent(` as a chained builder call, or `ctx.workflow.run()`, you are looking at legacy code. Do not use that syntax for new work; keep v2 guidance inside this skill.
 
 ## When to use this skill
 
@@ -506,7 +506,7 @@ Both are real, both are exit 2 — the same underlying problem can print a diffe
 - **Named-agent map equivalent in TypeScript beyond `use:`** — `use` composes complete child flows, not named agent configurations.
 - **YAML-only agent step fields with no TypeScript equivalent**: `recoveryMode`, `surfaces`, `output`, the `agent:` named-agent selector, and enforced `workspace` (TypeScript's `workspace` string is accepted by the type but rejected by the local-agent worker — see **Human approval and direct child flows**). `permissions` is **not** on this list — it is a TypeScript option too (see **The real `Ctx` contract**).
 - **Hosted multi-file child-flow execution** — `flows run --cloud` refuses `use` dependencies even with `--sync-code`; `--cloud-mirror` is the supported route for a local child-flow tree on the Cloud dashboard.
-- The **older `@relayflows/core` `WorkflowBuilder`** engine — see `writing-agent-relay-workflows` and `migrating-persona-to-relayflow` in this repo.
+- The **older `@relayflows/core` `WorkflowBuilder`** engine. Do not use it for new work; this skill intentionally provides no legacy authoring route.
 
 ## Quick reference
 
