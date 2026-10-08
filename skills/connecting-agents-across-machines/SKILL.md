@@ -55,33 +55,63 @@ agent-relay workspace list     # workspaces stored on this machine
 ```
 
 If the human already has a shared workspace, skip step 1 and join it on each
-machine that is not on it yet (step 2). The join needs that workspace's key:
-ask the human to have its owner send it over a secure channel, as in step 1. Create a workspace only when the human
+machine that is not on it yet (step 2). Create a workspace only when the human
 explicitly wants a new one.
+
+### The workspace key never enters an agent session
+
+Joining a machine to a workspace needs its key, and agent-relay 13.x has no
+keyless join: Cloud sign-in and `cloud enroll` do not hand a workspace key to
+the local broker. So the **human** moves the key, entirely outside any agent
+transcript:
+
+- The agent never runs `--reveal-secrets` (`workspace create`, `workspace key`,
+  `workspace active --json`) and never runs `workspace join` with a real key.
+- The agent never asks for the key in chat and never reads it from a file.
+  If someone pastes a key into the conversation anyway, tell the human to treat
+  it as leaked and to create a fresh workspace.
+- The human reveals the key and enters it only in their own terminal, one no
+  agent or recorder is watching, and moves it between machines over a secure
+  channel such as a password manager.
 
 ### 1. Create the workspace on one machine
 
-On **machine A**:
+On **machine A** (the agent may run this; the key stays masked in the output
+and is stored on this machine):
 
 ```bash
 npm install -g agent-relay
-agent-relay workspace create my-team --reveal-secrets
+agent-relay workspace create my-team
 ```
 
-The output includes a `workspaceKey`. Treat it like a password. Send it to
-machine B over a secure channel such as a password manager or an encrypted
-DM, not a public chat, ticket or repo.
+Then ask the human to copy the key **in their own terminal** on machine A, not
+through the agent:
+
+```bash
+# Human only, in a terminal no agent is reading:
+agent-relay workspace key my-team --reveal-secrets
+```
+
+They save it to a password manager (or another encrypted channel) for machine
+B. Never put it in a chat, ticket, repo, or a message to an agent.
 
 ### 2. Join the same workspace on every other machine
 
-On **machine B**, and on any further machines:
+On **machine B**, and on any further machines, the agent may install the CLI
+(`npm install -g agent-relay`). The **human** then runs the join in their own
+terminal, from the same project directory, pasting the key at the hidden
+prompt:
 
 ```bash
-npm install -g agent-relay
-read -r -s -p 'Workspace key: ' RELAY_KEY; printf '\n'   # paste; not echoed or saved to history
+# Human only, in a terminal no agent is reading:
+read -r -s -p 'Workspace key: ' RELAY_KEY; printf '\n'   # not echoed or saved to history
 agent-relay workspace join my-team "$RELAY_KEY"
 unset RELAY_KEY
 ```
+
+The agent confirms the result with read-only commands that never print the
+key: `agent-relay workspace list` should show `my-team` as active, and
+`agent-relay workspace active` its workspace IDs.
 
 > **Do not skip this step.** If `node up` runs on a machine with no workspace
 > configured, it can silently create a **new** workspace. Both nodes then look
@@ -90,7 +120,8 @@ unset RELAY_KEY
 
 ### 3. Start a node on each machine
 
-Give each machine a distinct, stable name:
+Give each machine a distinct, stable name. Use agent-relay 11.3.1 or later:
+11.3.0 and earlier print the workspace key from `node up` and `node status`.
 
 ```bash
 # machine A
@@ -172,7 +203,7 @@ with `send_dm` / `post_message` whichever machine they run on.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Nodes are up but can't see each other's agents | The machines are on different workspaces, often because `node up` ran before `workspace join` | Run `agent-relay workspace list` on both machines. Run `workspace join` with the same key, then `node down` and `node up` |
+| Nodes are up but can't see each other's agents | The machines are on different workspaces, often because `node up` ran before `workspace join` | Run `agent-relay workspace list` on both machines. Have the human run the step 2 join on the odd machine out, in their own terminal, then `node down` and `node up` |
 | `fleet nodes` doesn't list a machine | The node is on another workspace, or isn't running | Check `workspace list` and `node status` on that machine. `fleet nodes --all` also shows hidden or offline records |
 | Spawn reports `spawn_failed` / `spawn_unconfirmed` | The launch confirmation didn't arrive, but the agent often did start | Run `agent-relay node agent list` on the target machine before retrying |
 | Agent starts but never acts or replies | Its CLI isn't logged in on that machine (e.g. `401 OAuth access token has been revoked`) | Log in to that CLI on the target machine (`claude /login`, `codex login`), or spawn a different CLI |
