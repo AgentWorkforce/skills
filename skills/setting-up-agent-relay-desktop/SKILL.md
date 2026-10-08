@@ -518,8 +518,8 @@ report it, and continue setup. Only POST `{"enabled":true}` over it when the
 human asks for direct delivery after being told. A build older than this
 default answers `invalid_enabled`; there the skill reads the settings file
 itself and POSTs `{"enabled":true}` only after proving the key is absent (no
-file, or exactly one JSON object without the key), so an older build keeps an
-explicit choice too. A file that exists but cannot be read or parsed (blank,
+file, or exactly one JSON object without the key) or already `accept`, so an
+older build keeps an explicit choice too. A file that exists but cannot be read or parsed (blank,
 broken, not one object) proves nothing, and neither does a value other than
 `hold`, `refuse` or `accept` (even `""`): stop and ask the human rather than
 writing over it. Only `hold` and `refuse` are kept choices this skill acts on:
@@ -536,11 +536,14 @@ case "$relay_sharing_mode" in
      exit 1 ;;
 esac
 # absent, unreadable, or present:<value> for crossSessionInbound in the
-# user's Claude settings. Only a file holding exactly one JSON object is
-# readable; key presence is tracked apart from its value ("" included).
+# user's Claude settings. Only a regular file holding exactly one JSON object
+# is readable (a dangling symlink or a directory is not); key presence is
+# tracked apart from its value ("" included). setting-up-agent-relay-sessions
+# section 2 mirrors this helper; change both together.
 claude_inbound_choice() {
   settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-  if [ ! -e "$settings_file" ]; then echo absent; return; fi
+  if [ ! -e "$settings_file" ] && [ ! -L "$settings_file" ]; then echo absent; return; fi
+  if [ ! -f "$settings_file" ]; then echo unreadable; return; fi
   jq -rse 'if length == 1 and (.[0] | type) == "object"
     then (.[0] | if has("crossSessionInbound")
       then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
@@ -945,11 +948,14 @@ than that field:
 ```sh
 : "${relay_sharing_mode:?set relay_sharing_mode to the mode chosen in section 4}"
 # absent, unreadable, or present:<value> for crossSessionInbound in the
-# user's Claude settings. Only a file holding exactly one JSON object is
-# readable; key presence is tracked apart from its value ("" included).
+# user's Claude settings. Only a regular file holding exactly one JSON object
+# is readable (a dangling symlink or a directory is not); key presence is
+# tracked apart from its value ("" included). setting-up-agent-relay-sessions
+# section 2 mirrors this helper; change both together.
 claude_inbound_choice() {
   settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-  if [ ! -e "$settings_file" ]; then echo absent; return; fi
+  if [ ! -e "$settings_file" ] && [ ! -L "$settings_file" ]; then echo absent; return; fi
+  if [ ! -f "$settings_file" ]; then echo unreadable; return; fi
   jq -rse 'if length == 1 and (.[0] | type) == "object"
     then (.[0] | if has("crossSessionInbound")
       then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
@@ -963,9 +969,12 @@ kept_choice=$(printf '%s\n' "$final_status" | \
 # A build older than direct_delivery_user_choice: read the settings file.
 if [ -z "$kept_choice" ] && printf '%s\n' "$final_status" | \
     jq -e '.data.direct_delivery == false and (.data | has("direct_delivery_user_choice") | not)' >/dev/null; then
-  case "$(claude_inbound_choice)" in
+  final_choice=$(claude_inbound_choice)
+  case "$final_choice" in
     present:hold) kept_choice=hold ;;
     present:refuse) kept_choice=refuse ;;
+    *) printf 'Direct delivery is off and no kept hold or refuse could be confirmed (%s); do not enable it here, ask the human.\n' \
+         "$final_choice" >&2 ;;
   esac
 fi
 printf '%s\n' "$final_status" | jq '{direct_delivery: .data.direct_delivery, direct_delivery_user_choice: .data.direct_delivery_user_choice}'

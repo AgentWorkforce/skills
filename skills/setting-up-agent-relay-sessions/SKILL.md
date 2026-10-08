@@ -312,11 +312,14 @@ a kept choice this skill acts on:
 
 ```sh
 # absent, unreadable, or present:<value> for crossSessionInbound in the
-# user's Claude settings. Only a file holding exactly one JSON object is
-# readable; key presence is tracked apart from its value ("" included).
+# user's Claude settings. Only a regular file holding exactly one JSON object
+# is readable (a dangling symlink or a directory is not); key presence is
+# tracked apart from its value ("" included). Mirrors
+# setting-up-agent-relay-desktop sections 4 and 8; change them together.
 claude_inbound_choice() {
   settings_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-  if [ ! -e "$settings_file" ]; then echo absent; return; fi
+  if [ ! -e "$settings_file" ] && [ ! -L "$settings_file" ]; then echo absent; return; fi
+  if [ ! -f "$settings_file" ]; then echo unreadable; return; fi
   jq -rse 'if length == 1 and (.[0] | type) == "object"
     then (.[0] | if has("crossSessionInbound")
       then "present:" + (.crossSessionInbound | if type == "string" then . else tojson end)
@@ -363,7 +366,7 @@ means for the handoff:
   section 5 as **blocked on the person's choice**.
 
 Either way, offer the opt-in once: "Turn on direct delivery for Claude Code?
-It sets `crossSessionInbound` to `accept` in `~/.claude/settings.json`." Only
+It sets `crossSessionInbound` to `accept` in your Claude Code settings." Only
 on an explicit yes, POST `{"enabled":true}` to `/setup/direct-delivery` and
 re-run this check; on no, keep their value and continue as above.
 
@@ -549,8 +552,10 @@ count a roster listing as a proven handoff.
   (Codex delivers directly by default). If their `/setup/status` shows a
   `direct_delivery_user_choice`, they chose it: tell them, and POST
   `{"enabled":true}` to `/setup/direct-delivery` on their machine only when
-  they say yes. Otherwise apply the default with `{"default":true}`, which
-  never overrides a choice. A managed Claude policy can block this; report it
+  they say yes. Otherwise apply the default the way
+  `setting-up-agent-relay-desktop` section 4 does: `{"default":true}`, which
+  never overrides a choice, and on an older build that answers
+  `invalid_enabled`, its settings-file check before any `{"enabled":true}`. A managed Claude policy can block this; report it
   rather than editing managed settings.
 - **Remove the MCP:** `claude mcp remove agent-relay-sessions` /
   `codex mcp remove agent-relay-sessions`. This removes only the handoff tools;
