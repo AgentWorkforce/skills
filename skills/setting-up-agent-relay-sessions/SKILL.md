@@ -161,15 +161,20 @@ Before sending that message, check what this machine already has. If an Agent
 Relay CLI 13.x is installed (a user-level npm, mise or nvm `agent-relay`, not
 the `.deb`'s `/usr/bin/agent-relay` Desktop launcher), run these read-only
 checks. Without one, section 2 reads the signed-in workspace from
-`/setup/status` instead. The CLI is optional for this skill: check with
-`command -v agent-relay` and `agent-relay --version`, and do not install or
-upgrade it just for these checks.
+`/setup/status` instead. The CLI is optional for this skill: detect it as
+below, which skips the Desktop launcher that `command -v agent-relay` finds on
+a `.deb` install, and do not install or upgrade it just for these checks.
 
 ```sh
-agent-relay cloud whoami       # signed in, and as whom
-agent-relay workspace active   # the active Cloud workspace (keys stay masked)
-agent-relay cloud workspaces   # every workspace this login can use, with ids
-agent-relay status             # workspace, cloud login and local broker
+relay_cli=$(command -v agent-relay || true)
+case "$relay_cli" in ''|/usr/bin/agent-relay) relay_cli= ;; esac
+if test -n "$relay_cli"; then
+  "$relay_cli" --version
+  "$relay_cli" cloud whoami       # signed in, and as whom
+  "$relay_cli" workspace active   # the active Cloud workspace (keys stay masked)
+  "$relay_cli" cloud workspaces   # every workspace this login can use, with ids
+  "$relay_cli" status             # workspace, cloud login and local broker
+fi
 ```
 
 If the active workspace is already the shared one, confirm it with the person
@@ -249,10 +254,10 @@ relay_req() {
     return 1
   elif test -n "${3:-}"; then
     # body on stdin: curl treats a -d/--data-binary value starting with @ as a filename
-    printf '%s' "$3" | curl -sS --unix-socket "$relay_socket" -X "$1" \
+    printf '%s' "$3" | curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" \
       -H 'Content-Type: application/json' --data-binary @- "http://relay$2"
   else
-    curl -sS --unix-socket "$relay_socket" -X "$1" "http://relay$2"
+    curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi
 }
 ```
@@ -316,10 +321,16 @@ read **this** person's session, this machine must have uploaded it. If
 anyone can read this session — this is the single most common reason a live
 handoff silently fails.
 
-`sharing_mode` decides which sessions upload at all. `new` and `all` include
-this session. Under `selected`, only the sessions the person chose upload, so a
-teammate cannot read this one until the person selects it. Tell them that and
-ask; do not change the sharing mode or select sessions on their behalf.
+`sharing_mode` decides which sessions upload at all, and a healthy uploader
+does not prove that **this** session is among them. `all` includes it. `new`
+includes sessions that started after `new` was enabled, so a session that was
+already running when the desktop was set up may not be uploaded. Under
+`selected`, only the sessions the person chose upload. Unless the mode is
+`all`, tell the person that this session may not be shared yet, and ask them to
+select it in the app or to continue from a new session; do not change the
+sharing mode or select sessions on their behalf. Section 5's round trip is the
+proof: if the teammate cannot read this session there, this is the first
+thing to check.
 
 ## 3. Install the agent-sessions cloud MCP (before the session uses it)
 

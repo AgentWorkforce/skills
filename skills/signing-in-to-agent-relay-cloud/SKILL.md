@@ -45,11 +45,13 @@ lets them sign in with Google, review the requesting device, and Approve or
 Deny. A signup marker in the returned URL creates the right account type;
 preserve it through sign-in. Do not call `/auth/device/approve` yourself.
 
-For a fresh signup, you can open
-`https://agentrelay.com/cloud/api/auth/google/start?next=<encoded-return-path>`
-first, where `encoded-return-path` is the URL-encoded pathname plus query of
+For a fresh signup, you can open `/api/auth/google/start?next=<encoded-return-path>`
+on the same Cloud base first (in production,
+`https://agentrelay.com/cloud/api/auth/google/start?next=<encoded-return-path>`), where `encoded-return-path` is the URL-encoded pathname plus query of
 `verification_uri_complete`. This opens Google immediately and returns to the
-same device approval with its code and signup marker intact.
+same device approval with its code and signup marker intact. Never open the
+production URL for a non-production base: that would sign the human in to
+production instead.
 
 ## 2. Poll for tokens
 
@@ -102,7 +104,7 @@ When running a child process, pass these through its environment from your
 private session object (never interpolate their values into logged commands):
 
 ```text
-CLOUD_API_URL=https://agentrelay.com/cloud
+CLOUD_API_URL=<the Cloud base above; https://agentrelay.com/cloud in production>
 CLOUD_API_ACCESS_TOKEN=<access_token>
 CLOUD_API_REFRESH_TOKEN=<refresh_token>
 CLOUD_API_ACCESS_TOKEN_EXPIRES_AT=<access_token_expires_at>

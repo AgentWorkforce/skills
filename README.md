@@ -133,6 +133,25 @@ npx skills add https://github.com/AgentWorkforce/skills \
 
 Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) The sessions, subscribing and messaging skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
 
+### Agent Relay Cloud and Flows setup skills
+
+`signing-in-to-agent-relay-cloud` and `setting-up-agent-relay-flows` are standalone packages, not members of `agent-relay-setup`, because Flows needs no desktop. `setting-up-agent-relay-flows` builds on `signing-in-to-agent-relay-cloud`, and its custom-flow path on `writing-relayflows`, so install the three together:
+
+```bash
+npx prpm install @agent-relay/signing-in-to-agent-relay-cloud --as claude --global -y
+npx prpm install @agent-relay/setting-up-agent-relay-flows --as claude --global -y
+npx prpm install @agent-relay/writing-relayflows --as claude --global -y
+```
+
+```bash
+npx skills add https://github.com/AgentWorkforce/skills \
+  --skill signing-in-to-agent-relay-cloud \
+  --skill setting-up-agent-relay-flows \
+  --skill writing-relayflows
+```
+
+The agentrelay.com agent signup guides (`/signup/agent/teams` and `/signup/agent/flows`) include these skills verbatim from a pinned commit, so an agent following a signup link needs no install.
+
 See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) for collection installs and CLI target options.
 
 ## Repository Layout

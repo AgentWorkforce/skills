@@ -12,9 +12,12 @@ those links with the OS URL opener (or give them the link), then verify by
 polling the API, never by inspecting the browser.
 
 Paths below are relative to the Cloud API base, `https://agentrelay.com/cloud`,
-including its `/cloud` prefix; the site is `https://agentrelay.com`. When a
+including its `/cloud` prefix; the site is `https://agentrelay.com`. The flow
+catalog is the one exception: it is a site API, served from the site origin
+without `/cloud` (`https://agentrelay.com/api/v1/flows/catalog`). When a
 guide names a different site and Cloud base (for example a local development
-stack), use those exact origins throughout and never fall back to production.
+stack), use those exact origins throughout, including for the catalog, the
+CLI's `--api-url` and the dashboard links, and never fall back to production.
 Flows can be configured from any machine with HTTPS and Node.js 22+ for the CLI.
 
 ## Requires
@@ -25,7 +28,8 @@ first, and send `Authorization: Bearer <access_token>` on every request below.
 
 ## API map
 
-- Flow catalog: `GET https://agentrelay.com/api/v1/flows/catalog` and `/<id>`.
+- Flow catalog (site origin, not under `/cloud`):
+  `GET https://agentrelay.com/api/v1/flows/catalog` and `/<id>`.
 - Tool consent links: `POST /api/v1/integrations/connect-link`; poll
   `GET /api/v1/workspaces/<workspaceId>/integrations/<provider>/status`.
 - Coding-agent credentials: the official CLI's `cloud connect` (section 3);
@@ -102,8 +106,8 @@ as a prebuilt one; only where the source comes from differs.
 
 The human-only steps are the same for both paths: Google sign-in and device
 approval, GitHub and trigger-app OAuth including the repository grants,
-model-provider login, and confirming the repository and trigger before
-activation. Do every other step yourself through the APIs.
+model-provider login when section 3 calls for one (not for an ordinary first
+activation), and confirming the repository and trigger before activation. Do every other step yourself through the APIs.
 
 ## 3. Connect the required tools and coding agents
 
@@ -146,7 +150,7 @@ verify the proxy, promotion flag, provider readiness, and enrollment. Never
 copy a house key into the agent environment or expose it in this guide.
 
 ```sh
-npx --yes agent-relay@latest cloud connect anthropic --api-url 'https://agentrelay.com/cloud'
+npx --yes agent-relay@13 cloud connect anthropic --api-url 'https://agentrelay.com/cloud'
 ```
 
 Use anthropic for Claude or openai for Codex, according to the selected flow.
