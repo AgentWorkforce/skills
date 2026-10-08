@@ -60,7 +60,7 @@ task, exactly as the human worded it, to `<dir>/task.txt` using your
 file-editing tool (not the shell). Then:
 
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat <dir>/task.txt)"
+~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat "<dir>/task.txt")"
 ```
 
 The shell never parses a file's contents, so any task text is safe. Never put
@@ -84,7 +84,7 @@ when someone joins or the room ends. To reply, write the message to
 then send it on stdin; omit `--to` to send to everyone:
 
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json < <dir>/message.txt
+~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json < "<dir>/message.txt"
 ~/.local/lib/agent-relay/connect/agent-relay-probe connect status --json
 ```
 
@@ -119,7 +119,7 @@ Its saved state keeps the same room. A failed end does not mean the room
 closed.
 
 Once `end` or `leave` succeeds, delete your scratch directory with
-`rm -rf <dir>` (the exact path `mktemp -d` printed) so no task or message text
+`rm -rf "<dir>"` (the exact path `mktemp -d` printed) so no task or message text
 stays on disk.
 
 ## Safety
