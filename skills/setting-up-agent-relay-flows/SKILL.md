@@ -28,12 +28,27 @@ first, and send `Authorization: Bearer <access_token>` on every request below.
 - Flow catalog: `GET https://agentrelay.com/api/v1/flows/catalog` and `/<id>`.
 - Tool consent links: `POST /api/v1/integrations/connect-link`; poll
   `GET /api/v1/workspaces/<workspaceId>/integrations/<provider>/status`.
-- Coding-agent credentials: the official CLI's `cloud connect` (section 2);
+- Coding-agent credentials: the official CLI's `cloud connect` (section 3);
   `GET /api/v1/cloud-agents` inspects existing connections.
-- Activation: `POST /api/v1/flows/deploy` with the body in section 3.
+- Activation: `POST /api/v1/flows/deploy` with the body in section 4.
+- Custom-flow prompt generator (optional): `GET /api/v1/flows/prompt/generate`
+  reports whether it is available.
 - Verification: `GET /api/v1/flows/listeners/<agentId>`.
 
-## 1. Choose the flow and repository
+## 1. Prebuilt or custom?
+
+Ask the human first, unless their request already says: a **prebuilt** flow
+from the Agent Relay catalogue (https://agentrelay.com/flows), or a **custom**
+flow of their own? In an agent-driven signup, ask through that guide's
+web-input protocol on the signup page, not in chat.
+
+- Prebuilt: continue with section 2.
+- Custom: follow **Custom flow: deploy journey** below. A custom flow is
+  activated by the same `POST /api/v1/flows/deploy` API as a prebuilt one and
+  as the deploy builder at https://agentrelay.com/cloud/flows/deploy; there is
+  no separate custom API.
+
+## 2. Choose the flow and repository
 
 Ask the human for missing product choices: repository, desired
 workflow/trigger, and approver. In an agent-driven signup, ask through that
@@ -63,10 +78,35 @@ default is wrong (for example {"claude": "claude-sonnet-4"}); omit it to fund
 the house default for each declared agent. Download source.rawUrl, verify its bytes against
 source.sha256, and use that source text unchanged for a recommended flow.
 The source is TypeScript, not the source URL. Do not guess a template or hash.
-For custom flows use https://agentrelay.com/docs/relayflows/markdown/build.md and
-https://agentrelay.com/docs/relayflows/markdown/cloud.md for the authoring contract.
 
-## 2. Connect the required tools and coding agents
+## Custom flow: deploy journey
+
+There is no journey API. A `journey_id` (for example in a
+`next=/flows/deploy?journey_id=...` link) is only an analytics tag: pass it
+through unchanged where you received it, and never call an endpoint with it or
+wait on it. A custom flow is activated by the same `POST /api/v1/flows/deploy`
+as a prebuilt one; only where the source comes from differs.
+
+1. Author the flow with `writing-relayflows` (the Relayflows v2 engine,
+   `@relayflows/surface` / `@relayflows/sdk`, CLI `flows`). Defer to that
+   skill for the flow's shape and checks; never use the deprecated v1
+   `writing-agent-relay-workflows` builder. Cloud's prompt generator is an
+   optional shortcut: use it only when
+   `GET /api/v1/flows/prompt/generate` returns `available: true`. If it
+   reports unavailable, refuses your session (403 `session_required`), or
+   fails, author with `writing-relayflows` instead; do not retry into it.
+2. Choose its repository, trigger and approver as in section 2.
+3. Continue with sections 3 to 5 unchanged. In section 4, `source` is the
+   custom TypeScript text, `workflow` is its label, and `promptSpec` is sent
+   only when the prompt generator produced one. `base` and `extensions` are
+   optional and only for a flow that names them.
+
+The human-only steps are the same for both paths: Google sign-in and device
+approval, GitHub and trigger-app OAuth including the repository grants,
+model-provider login, and confirming the repository and trigger before
+activation. Do every other step yourself through the APIs.
+
+## 3. Connect the required tools and coding agents
 
 Use bearer-authenticated POST /api/v1/integrations/connect-link:
 
@@ -118,10 +158,12 @@ may require their own consent. Never fabricate credentials or claim consent
 happened. GET /api/v1/cloud-agents lets you inspect the account's credential
 state without reconnecting.
 
-## 3. Activate through the same API as web onboarding
+## 4. Activate through the same API as web onboarding
 
 POST /api/v1/flows/deploy with Content-Type: application/json and the bearer
-session. This is the direct-source listener API used by flows deploy, not the
+session. The token must be the device-flow session from
+`signing-in-to-agent-relay-cloud` (scope `cli:auth`) or a token with
+`flows:listeners:write`, and `workspaceId` must be that token's workspace. This is the direct-source listener API used by flows deploy, not the
 browser onboarding handoff: source is TypeScript text, repository is singular,
 and sources contains provider/settings objects. The catalog supplies the source
 reference and defaults; it is not itself a deploy request. The current endpoint
@@ -168,7 +210,7 @@ preflight failures, fix the indicated connection before retrying. If the user
 wants to save incomplete work, use mode: draft explicitly and report that it
 is inactive. Never mask activation failures by silently falling back to draft.
 
-## 4. Verify
+## 5. Verify
 
 GET /api/v1/flows/listeners/<agentId>. Require listener.status: listening and
 verify its repository and sources match the request. Open
