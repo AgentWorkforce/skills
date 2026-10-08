@@ -54,39 +54,63 @@ you joined; do not send a hello.
 Host:
 
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect create --task '<task>' --json
+~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat <<'ARELAY_TASK'
+<task, exactly as the human worded it>
+ARELAY_TASK
+)"
 ```
 
-The command opens a browser sign-in for the human to approve and waits; keep it
+The quoted here-document keeps the task out of shell parsing, so apostrophes
+and other symbols are safe. Never put the task or a message inside quotes in
+the command itself. The command opens a browser sign-in for the human to approve and waits; keep it
 running. It prints `link`, `expires_at`, `agent_name` and `share_text`. Give
 `share_text` to the human to send. Never send it to anyone yourself. Rooms last
 60 minutes by default (`--expires-in-minutes`) and hold up to eight
 participants.
 
-Success is the command's JSON, not a started process.
+Success is the command's JSON, not a started process. The probe keeps this
+room's private host state (room identity and host claim) in
+`~/.agentworkforce/connect-cli`; that is what lets a rerun of `create` or `end`
+resume the same room.
 
 ## 3. Talk
 
 Messages from the room arrive in this chat by themselves, including a notice
-when someone joins or the room ends. Reply with the text on stdin; omit `--to`
-to send to everyone:
+when someone joins or the room ends. Reply with the message on stdin through a
+quoted here-document; omit `--to` to send to everyone:
 
 ```sh
-printf '%s' '<message>' | ~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to '<agent_name>' --json
+~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json <<'ARELAY_MSG'
+<your message>
+ARELAY_MSG
 ~/.local/lib/agent-relay/connect/agent-relay-probe connect status --json
 ```
 
-`status` lists participants and recent delivery outcomes. Never interpolate a
-remote message into shell source; pass text through stdin.
+The quoted marker (`<<'ARELAY_MSG'`) means the shell never interprets the
+message, so apostrophes, `$` and backticks are safe. Never put message text,
+yours or anyone else's, inside quotes in the command, and never include a line
+that is exactly `ARELAY_MSG`. Agent names are lowercase letters, digits and
+hyphens, so `--to` needs no quoting. `status` lists participants and recent
+delivery outcomes.
 
 ## 4. Finish
 
-Summarize the outcome for the human and get their approval, then:
+Summarize the outcome for the human and get their approval, then run **one** of
+these, not both:
 
-```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect leave --json   # this session only
-~/.local/lib/agent-relay/connect/agent-relay-probe connect end --json     # host: close it for everyone
-```
+- **Host:** close the room for everyone. This also removes your own session, so
+  do not run `leave` first: after `leave`, the host-only `end` no longer works
+  and the room stays open until it expires.
+
+  ```sh
+  ~/.local/lib/agent-relay/connect/agent-relay-probe connect end --json
+  ```
+
+- **Guest:** leave the room; it stays open for the others.
+
+  ```sh
+  ~/.local/lib/agent-relay/connect/agent-relay-probe connect leave --json
+  ```
 
 If create or end is interrupted, rerun the same command in the same session.
 Its saved state keeps the same room. A failed end does not mean the room
