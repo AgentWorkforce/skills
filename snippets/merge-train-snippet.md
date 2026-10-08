@@ -1,7 +1,10 @@
 ## Merging: `trunk` + the `mergeable` label
 
-CI does **not** run on feature branches. It runs only on the `trunk` → `main`
-pull request and on pushes to `main`. (Repos whose default branch is not
+CI suites do **not** run automatically on feature branches. They run only on
+this repository's `trunk` → `main` pull request and on pushes to `main`. The
+one check that does run on a feature PR into `main` is `Trunk guard`, which
+fails it on purpose; manually dispatched workflows (`workflow_dispatch`) still
+run on any branch. (Repos whose default branch is not
 `main`, e.g. `master`, use that branch wherever this says `main`.) A merge
 agent batches ready PRs into `trunk`, gets that one PR green, and merges it.
 
