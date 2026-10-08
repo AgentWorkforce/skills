@@ -21,8 +21,11 @@ The finished state is:
 - sharing mode is `new` (new sessions upload automatically), unless an existing
   install already uses another mode and the human chose to keep it (section 4);
 - auto-activate is on, with every existing live session and every future session on the relay;
-- Claude Code direct delivery is on (`crossSessionInbound` is `accept`);
-- this Codex or Claude session is registered and accepts direct delivery;
+- Claude Code direct delivery is on (`crossSessionInbound` is `accept`),
+  unless the human already set `crossSessionInbound` themselves (for example
+  `hold`), which is kept and reported;
+- this Codex or Claude session is registered, and accepts direct delivery
+  unless that kept choice holds or refuses Claude Code's relayed messages;
 - the requested webhook and integration subscriptions work;
 - the human receives the session's `agent@machine` address and verification evidence.
 
@@ -504,7 +507,18 @@ survive between separate tool calls.
 Then set and verify all three agent-led defaults even when the app's `/setup/*`
 bootstrap already applied them. Sharing mode `new` uploads every new session;
 auto-activation puts every existing live session and every future session on
-the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`:
+the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`
+by default, the same default the app's first-run setup applies.
+
+The default never overrides a value the human set: `{"default":true}` writes
+`accept` only when `~/.claude/settings.json` does not contain the
+`crossSessionInbound` key, and answers the human's own value as `user_choice`.
+A present key with any value (`hold`, `refuse`) is an explicit choice: keep it,
+report it, and continue setup. Only POST `{"enabled":true}` over it when the
+human asks for direct delivery after being told. A build older than this
+default answers `invalid_enabled`; there the skill reads the settings file
+itself and POSTs `{"enabled":true}` only when the key is absent, so an older
+build keeps an explicit choice too:
 
 ```sh
 # Unset keeps the current mode; set it only to the human's explicit answer.
@@ -517,10 +531,33 @@ case "$relay_sharing_mode" in
   *) printf 'Sharing mode unknown; ask the human before changing sharing.\n' >&2
      exit 1 ;;
 esac
+claude_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+file_choice=$(jq -r 'if type == "object" and has("crossSessionInbound")
+  then (.crossSessionInbound | if type == "string" then . else tojson end) else empty end' \
+  "$claude_settings" 2>/dev/null)
 direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
-  -d '{"enabled":true}' http://relay/setup/direct-delivery)
+  -d '{"default":true}' http://relay/setup/direct-delivery)
+if printf '%s\n' "$direct_delivery" | jq -e '.error.code == "invalid_enabled"' >/dev/null; then
+  if [ -n "$file_choice" ] && [ "$file_choice" != accept ]; then
+    direct_delivery=$(jq -nc --arg choice "$file_choice" \
+      '{ok: true, data: {direct_delivery: false, user_choice: $choice}}')
+  else
+    direct_delivery=$(curl -sS --max-time 60 --unix-socket "$relay_socket" -H 'Content-Type: application/json' \
+      -d '{"enabled":true}' http://relay/setup/direct-delivery)
+  fi
+fi
 printf '%s\n' "$direct_delivery" | jq
-if ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; then
+kept_choice=$(printf '%s\n' "$direct_delivery" | \
+  jq -r 'select(.ok and (.data.direct_delivery | not)) | .data.user_choice // empty |
+    select(. != "accept")')
+if [ -n "$kept_choice" ]; then
+  case "$kept_choice" in
+    hold) effect='relayed messages to Claude Code wait for your approval' ;;
+    refuse) effect='relayed messages to Claude Code are dropped' ;;
+    *) effect='relayed messages to Claude Code are not delivered directly' ;;
+  esac
+  printf 'Kept your own crossSessionInbound value "%s": %s.\n' "$kept_choice" "$effect" >&2
+elif ! printf '%s\n' "$direct_delivery" | jq -e '.ok and .data.direct_delivery'; then
   if printf '%s\n' "$direct_delivery" | jq -e '.error.code == "managed_policy"' >/dev/null; then
     printf 'Organization-managed Claude settings forbid direct delivery.\n' >&2
   fi
@@ -540,9 +577,10 @@ registration_status=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   http://relay/setup/status)
 printf '%s\n' "$registration_status" | \
   jq '{session: .data.session, direct_delivery: .data.direct_delivery, error}'
-printf '%s\n' "$registration_status" | jq -e \
+printf '%s\n' "$registration_status" | jq -e --arg kept "$kept_choice" \
   '.ok and (.data.session.id | type == "string" and length > 0) and
-   .data.session.registered == true and .data.session.direct_delivery == true'
+   .data.session.registered == true and
+   (.data.session.direct_delivery == true or $kept != "")'
 ```
 
 **Codex on macOS.** The system `curl` hides a Codex session's identity from the
@@ -562,7 +600,11 @@ another process.
 
 Direct delivery is checked first so a managed-policy refusal stops setup
 before auto-activation or upload settings are changed. Report that refusal
-clearly; never claim the three-default setup completed.
+clearly; never claim the three-default setup completed. A kept explicit
+choice is not a refusal: report it as "direct delivery kept off at your
+`crossSessionInbound` value" (with `hold`, relayed messages wait for the
+human's approval; with `refuse`, they are dropped) and finish the rest of
+setup.
 
 Sharing mode and auto-activate are different settings: the former
 controls upload eligibility and the latter controls Relay registration. The
@@ -580,6 +622,16 @@ status response to show this session's non-empty id, `registered:true`, and
 fields to `/register`, but the status check remains authoritative.
 
 ## 5. Create and test the webhook
+
+**When a kept choice holds this session's messages.** If `/setup/status`
+shows `session.direct_delivery:false` because the human kept their own
+`crossSessionInbound` (a Claude Code session; Codex is unaffected), the
+injection checks in sections 5–7 cannot complete by themselves. With `hold`,
+the test message arrives as a held message: ask the human to approve it, then
+confirm the marker and message id as below. With `refuse`, it is dropped:
+create the webhook or subscription if asked, but report its injection test as
+unverified because of the kept choice, rather than waiting for a marker that
+cannot arrive.
 
 Perform this section only when the human requested a webhook (or explicitly
 asked for the full end-to-end setup). Otherwise skip it; webhook creation is a
@@ -830,7 +882,8 @@ review). After causing the event, do not wait or poll within the active turn:
 end the turn saying which event marker is expected. Confirm the injected event
 and record its full message id on the next turn after Relay has delivered it.
 Do not create a comment, review, or rerun without authorization. A successful
-subscribe response alone does not prove end-to-end delivery.
+subscribe response alone does not prove end-to-end delivery. With a kept
+`hold` or `refuse`, follow the note at the start of section 5.
 
 ## 7. Coexist with a REST-polling MCP
 
@@ -852,21 +905,38 @@ Read status again:
 
 ```sh
 curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | \
-  jq '{version: .data.version, sign_in: .data.sign_in, workspace: .data.workspace, sharing_mode: .data.sharing_mode, auto_activate: .data.auto_activate, direct_delivery: .data.direct_delivery, defaults_error: .data.defaults_error, uploader: .data.uploader, session: .data.session, webhook: .data.webhook, integrations: .data.integrations}'
+  jq '{version: .data.version, sign_in: .data.sign_in, workspace: .data.workspace, sharing_mode: .data.sharing_mode, auto_activate: .data.auto_activate, direct_delivery: .data.direct_delivery, direct_delivery_user_choice: .data.direct_delivery_user_choice, defaults_error: .data.defaults_error, uploader: .data.uploader, session: .data.session, webhook: .data.webhook, integrations: .data.integrations}'
 ```
 
 Require all three defaults before declaring setup complete. Set
 `relay_sharing_mode` again to the mode chosen in section 4 (`new`, or the
-existing mode the human kept); the check refuses to guess it:
+existing mode the human kept); the check refuses to guess it. This block runs
+in a fresh shell after the turns of sections 5–7, so it also derives the
+kept direct-delivery choice again: from status's
+`direct_delivery_user_choice`, or from the settings file on a build older
+than that field:
 
 ```sh
 : "${relay_sharing_mode:?set relay_sharing_mode to the mode chosen in section 4}"
-curl -fsS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | \
-  jq -e --arg mode "$relay_sharing_mode" '.ok and .data.sharing_mode == $mode and .data.auto_activate == true and .data.direct_delivery == true'
+final_status=$(curl -fsS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status)
+claude_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+kept_choice=$(printf '%s\n' "$final_status" | \
+  jq -r 'select(.data.direct_delivery == false) | .data.direct_delivery_user_choice // empty |
+    select(. != "accept")')
+if [ -z "$kept_choice" ] && printf '%s\n' "$final_status" | jq -e '.data.direct_delivery == false' >/dev/null; then
+  kept_choice=$(jq -r 'if type == "object" and has("crossSessionInbound")
+    then (.crossSessionInbound | if type == "string" then . else tojson end) else empty end' \
+    "$claude_settings" 2>/dev/null | grep -vx accept)
+fi
+printf '%s\n' "$final_status" | jq '{direct_delivery: .data.direct_delivery, direct_delivery_user_choice: .data.direct_delivery_user_choice}'
+printf '%s\n' "$final_status" | \
+  jq -e --arg mode "$relay_sharing_mode" --arg kept "$kept_choice" '.ok and .data.sharing_mode == $mode and
+    .data.auto_activate == true and (.data.direct_delivery == true or $kept != "")'
 ```
 
 Report the exact version, `signed_in`, signed-in workspace id and name, sharing
-mode (`new`, or the existing mode the human kept), auto-activate `true`, direct-delivery `true`,
+mode (`new`, or the existing mode the human kept), auto-activate `true`,
+direct-delivery `true` (or the human's kept `crossSessionInbound` value),
 uploader health, session address, direct-delivery state, webhook test marker,
 subscriptions, real GitHub event evidence, and polling-coexistence result.
 Separate verified facts from steps that still require a human or external
@@ -956,8 +1026,11 @@ event.
   Require the final list to hold none of that pull request's resources.
 - **Undo a webhook:** `curl -sS --max-time 60 --unix-socket "$relay_socket" -X DELETE http://relay/webhooks | jq`.
 - **Undo direct delivery:** POST `{"enabled":false}` to
-  `/setup/direct-delivery`. On Claude this restores the local opt-out; managed
-  organization policy still wins.
+  `/setup/direct-delivery`. On Claude this writes `"crossSessionInbound":
+  "hold"` (Claude Code's own default) on current builds, an explicit choice
+  that no later default turns back on; older builds removed the key instead,
+  so there set `"hold"` by hand to keep it off. Managed organization policy
+  still wins.
 - **Undo sharing:** POST the human's prior mode (`selected`, `new`, or `all`) to
   `/setup/sharing`. Ask before changing it when the earlier value is unknown.
 - **Auto-activate accidentally enabled:** POST `{"enabled":false}` to
