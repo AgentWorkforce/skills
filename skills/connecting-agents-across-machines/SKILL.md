@@ -108,8 +108,9 @@ prompt:
 
 ```bash
 # Human only, in a terminal no agent is reading:
-read -r -s -p 'Workspace key: ' RELAY_KEY; printf '\n'   # not echoed or saved to history
-agent-relay workspace join my-team "$RELAY_KEY"
+# Works in bash and zsh (the macOS default): the key is not echoed or saved to history.
+printf 'Workspace key: '; stty -echo; IFS= read -r RELAY_KEY; stty echo; printf '\n'
+test -n "$RELAY_KEY" && agent-relay workspace join my-team "$RELAY_KEY"
 unset RELAY_KEY
 ```
 
