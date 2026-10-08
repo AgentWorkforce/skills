@@ -677,7 +677,12 @@ relay_req GET /setup/status | jq -c '.data.integrations'
 
 Require `.ok` and `.data.subscribed` to be `true`, and the entry in the status
 list to be `ready: true`. A repeated request returns HTTP 409
-`conflict` ("already subscribed"); treat that one code as success. Verified on
+`conflict` ("already subscribed"). That is success only for a binding made on
+or after 2026-09-19. Earlier bindings predate PR-identity matching
+(relayfile-cloud#237, relaycast#447), match paths literally and miss reviews
+and comments. If the binding may be older, or you cannot tell, recreate it
+once: `relay_req DELETE /integrations/subscribe` with the same body, then
+subscribe again. Verified on
 Desktop 2026.10.6 with both the probe client and `curl`.
 
 **One-command form (not yet released).** `relay-desktop#216` adds
@@ -689,9 +694,10 @@ absent from Desktop 2026.10.6, where it fails with `unrecognized subcommand
 advertises it. The block above makes that choice, and first checks the
 session's existing subscriptions. A pull request already subscribed with the
 one-command form is left alone. A pull request already holding
-the number glob answers 409 `conflict` on a repeat. Extra `reviews`, `status`
-or `issues/NUMBER/comments` globs from an earlier version of this skill are
-harmless but never deliver; unsubscribe them when convenient.
+the number glob answers 409 `conflict` on a repeat; recreate that binding once
+if it may predate 2026-09-19 (see above). Extra `reviews`, `status` or
+`issues/NUMBER/comments` globs from an earlier version of this skill never
+deliver; unsubscribe them.
 
 Once released, re-test it before relying on its details; the behavior described
 in that PR (a repeat answering `"already_subscribed":true`, `--remove` to end it,

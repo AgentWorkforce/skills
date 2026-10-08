@@ -165,7 +165,16 @@ relay_req GET /setup/status | jq -c '.data.integrations'
 
 Require `ok: true` and `subscribed: true`, and the entry `ready: true` in the
 status list. A repeat answers HTTP 409, shown as `code: conflict` ("already
-subscribed"); treat that one code as success.
+subscribed"). That is success only for a binding made on or after 2026-09-19.
+A binding made before then predates PR-identity matching
+([relayfile-cloud#237](https://github.com/AgentWorkforce/relayfile-cloud/pull/237),
+relaycast#447), so it matches paths literally and misses reviews and comments.
+If the binding may be older, or you cannot tell, recreate it once:
+
+```sh
+integration unsubscribe github "/github/repos/$R/pulls/$N/**"
+integration subscribe github "/github/repos/$R/pulls/$N/**"
+```
 
 That one glob carries the whole PR, because relayfile matches a PR's events by
 its identity, not only by path:
@@ -186,11 +195,20 @@ PR's own `meta.json`, not its reviews or comments.
 
 Make this a required step right after the agent opens a PR, so review feedback
 arrives without anyone naming the PR. A subscribe response alone does not prove
-delivery: if no review or comment arrives after one is posted, check
-`relayfile read /github/repos/$R/reviews/<review-id>.json`. A 404 means the
-event never reached relayfile (see
+delivery. If a posted event does not arrive, read it back at the path for its
+type, using the id GitHub shows for it:
+
+| Missing event | Read back |
+|---|---|
+| Review | `/github/repos/$R/reviews/<review-id>.json` |
+| Inline review comment | `/github/repos/$R/comments/<comment-id>.json` |
+| PR conversation comment | `/github/repos/$R/issues/$N__<slug>/comments/<comment-id>/meta.json` |
+| Check run | `/github/repos/$R/checks/<check-run-id>.json` |
+
+A 404 there means the event never reached relayfile (see
 [relayfile-cloud#317](https://github.com/AgentWorkforce/relayfile-cloud/issues/317)),
-not that the glob is wrong.
+not that the glob is wrong. A file that exists but was not delivered points at
+the binding (recreate it as above).
 
 ### Subscribe to a plain GitHub issue
 
