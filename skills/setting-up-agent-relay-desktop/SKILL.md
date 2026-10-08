@@ -465,7 +465,8 @@ while :; do
       break
       ;;
     preparing|pending_approval) relay_unknown=0 ;;
-    not_signed_in)
+    signed_out|not_signed_in)
+      # signed_out: the attempt ended or was cancelled; not_signed_in: the error code.
       printf 'Sign-in is not in progress; send the sign-in request again (see Recovery).\n' >&2
       exit 1
       ;;
