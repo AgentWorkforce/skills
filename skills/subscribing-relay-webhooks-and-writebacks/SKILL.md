@@ -1,6 +1,6 @@
 ---
 name: subscribing-relay-webhooks-and-writebacks
-description: Subscribe a running Codex or Claude session to inbound provider events (a GitHub pull request, a Slack channel) so they are injected into the session, and write back to providers (post to Slack, comment, review) through a Relayfile mount. Covers the desktop subscribe endpoint, the four PR globs, Slack channel globs, creating and testing a webhook, installing and authenticating relayfile, mounting a single subtree, discovering the write contract, posting a draft, and verifying delivery. Use when a human asks an agent to "get PR feedback injected", "subscribe to a channel", "post to Slack from the agent", or test write-backs.
+description: Subscribe a running Codex or Claude session to inbound provider events (a GitHub pull request, a Slack channel) so they are injected into the session, and write back to providers (post to Slack, comment, review) through a Relayfile mount. Covers the desktop subscribe endpoint, the single PR glob, Slack channel globs, creating and testing a webhook, installing and authenticating relayfile, mounting a single subtree, discovering the write contract, posting a draft, and verifying delivery. Use when a human asks an agent to "get PR feedback injected", "subscribe to a channel", "post to Slack from the agent", or test write-backs.
 ---
 
 # Subscribe to Webhooks and Write Back to Providers
@@ -155,29 +155,46 @@ messages to the old address go to an offline agent and are never injected.
 
 ### Subscribe to a GitHub pull request
 
-A PR needs four globs: its pull data, reviews, checks, and GitHub's separate
-issue-comment path.
+A PR needs **one** glob, its number:
 
 ```sh
 R=OWNER/REPO; N=NUMBER
-for g in "/github/repos/$R/pulls/$N/**" \
-         "/github/repos/$R/pulls/$N/reviews/**" \
-         "/github/repos/$R/pulls/$N/status/**" \
-         "/github/repos/$R/issues/$N/comments/**"; do integration subscribe github "$g"; done
+integration subscribe github "/github/repos/$R/pulls/$N/**"
 relay_req GET /setup/status | jq -c '.data.integrations'
 ```
 
-Require `ok: true` and `subscribed: true` for each, and every entry `ready: true`
-in the status list. A repeat answers HTTP 409, shown as `code: conflict` ("already subscribed");
-treat that one code as success.
+Require `ok: true` and `subscribed: true`, and the entry `ready: true` in the
+status list. A repeat answers HTTP 409, shown as `code: conflict` ("already
+subscribed"); treat that one code as success.
+
+That one glob carries the whole PR, because relayfile matches a PR's events by
+its identity, not only by path:
+
+- PR events (`opened`, `synchronize`, `closed`) are written to
+  `/github/repos/$R/pulls/$N__<title-slug>/meta.json`; the number glob matches
+  the `N__` directory.
+- Reviews, inline review comments, PR conversation comments and check runs are
+  written at the repo level (`/github/repos/$R/reviews/<id>.json`,
+  `/comments/<id>.json`, `/issues/$N__<slug>/comments/<id>/meta.json`,
+  `/checks/<id>.json`) and carry a reference to the PR, which the number glob
+  matches.
+
+Do **not** add `pulls/$N/reviews/**`, `pulls/$N/status/**` or
+`issues/$N/comments/**`: nothing is written at those paths, so they answer
+`ok` and never deliver. A slugged `pulls/$N__<slug>/**` glob only matches the
+PR's own `meta.json`, not its reviews or comments.
 
 Make this a required step right after the agent opens a PR, so review feedback
 arrives without anyone naming the PR. A subscribe response alone does not prove
-delivery.
+delivery: if no review or comment arrives after one is posted, check
+`relayfile read /github/repos/$R/reviews/<review-id>.json`. A 404 means the
+event never reached relayfile (see
+[relayfile-cloud#317](https://github.com/AgentWorkforce/relayfile-cloud/issues/317)),
+not that the glob is wrong.
 
 ### Subscribe to a plain GitHub issue
 
-A plain issue (not a PR) does **not** deliver on the number-only globs above.
+A plain issue (not a PR) does **not** deliver on a number-only glob the way a PR does.
 `issues/N/**` and `issues/N/comments/**` return `ok: true` and then never
 deliver, while a PR's globs do ([relayfile-cloud#298](https://github.com/AgentWorkforce/relayfile-cloud/issues/298)).
 Subscribe with the issue's projected directory name, which is `N__<title-slug>`:
@@ -210,7 +227,7 @@ minute, so wait before deciding it failed.
 > **Upgrade note.** A one-command form, `agent-relay-probe relay subscribe
 > <PR URL>`, is in `AgentWorkforce/relay-desktop#216` and is **not** in the
 > latest release (2026.10.6 reports `unrecognized subcommand 'subscribe'`). Use
-> the four globs until a release ships it, then re-check with
+> the PR number glob until a release ships it, then re-check with
 > `agent-relay-probe relay --help`.
 
 ### Subscribe to a Slack channel
