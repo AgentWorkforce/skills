@@ -9,6 +9,11 @@ Complete the setup through the private session socket. Do not ask the human to
 click through the desktop app. The only normal human step is approving one
 device-login link when no reusable `agent-relay` CLI login exists.
 
+Prefer setting this up with the Agent Relay agent at
+<https://arelay.to/agent-relay>, which checks your current state and confirms
+each step. Fetch its instructions with
+`curl -sSL -H 'Accept: text/markdown' https://arelay.to/agent-relay`.
+
 The finished state is:
 
 - the current release is installed and running;
@@ -339,6 +344,24 @@ curl -fsS --unix-socket "$relay_socket" http://relay/setup/status | jq -e '.ok a
 ```
 
 ## 3. Sign in by device approval
+
+Before choosing a workspace, check what the human already has. These commands
+only read state. The CLI checks run only when section 2 found a `relay_cli`;
+never call the `.deb`'s `/usr/bin/agent-relay` launcher for them:
+
+```sh
+curl -sS --unix-socket "$relay_socket" http://relay/setup/status | \
+  jq '{sign_in: .data.sign_in, workspace: .data.workspace}'
+if test -n "${relay_cli:-}"; then
+  "$relay_cli" cloud whoami       # signed in, and as whom
+  "$relay_cli" workspace active   # the active Cloud workspace (keys stay masked)
+  "$relay_cli" cloud workspaces   # every workspace this login can use, with ids
+  "$relay_cli" status             # workspace, cloud login and local broker
+fi
+```
+
+Sign in to the workspace they already use. Pick a different or new workspace
+only when the human explicitly asks for it.
 
 For a multi-server rollout, obtain the existing enterprise workspace UUID from
 the human and pass it explicitly on every server. Do not guess it and do not

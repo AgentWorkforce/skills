@@ -9,6 +9,11 @@ description: Use when an agent or human needs to set up relayfile end-to-end so 
 
 Relayfile mounts a provider (Notion, Linear, Slack, GitHub, and other adapter-backed integrations) as ordinary files on disk so an agent can read and write through the filesystem instead of calling APIs. This skill is the canonical setup recipe. Follow it top-to-bottom for first-time setup; jump to **Recovering from breakage** if a working mount has gone wrong.
 
+Prefer setting this up with the Agent Relay agent at
+<https://arelay.to/agent-relay>, which checks your current state and confirms
+each step. Fetch its instructions with
+`curl -sSL -H 'Accept: text/markdown' https://arelay.to/agent-relay`.
+
 ## When to use this skill
 
 - An agent needs read access to a provider (e.g., "summarize this Notion database").
@@ -42,6 +47,36 @@ Current mounts are also self-describing. Start with `<local-dir>/LAYOUT.md`, the
 - Recent `relayfile` CLI on `$PATH`. Verify: `relayfile --help` should list `setup`, `integration`, `writeback`, and the `integration available` / `integration search` / `integration set-metadata` subcommands.
 - A modern macOS or Linux shell with `jq` for JSON inspection. AWS CLI access is optional and only needed for internal cloud log diagnostics.
 - Network access to `agentrelay.com/cloud` (cloud control plane), `api.relayfile.dev` (relayfile API), `connect.nango.dev` (Nango OAuth), and Composio connect endpoints when using `--backend composio`.
+
+## Step 0 — Check what already exists (read-only)
+
+Run these before any step that creates or selects a workspace. They only read
+state:
+
+```bash
+relayfile workspace list               # Relayfile workspaces tracked here; '*' marks the active one
+relayfile workspace current --verbose
+```
+
+If the Agent Relay CLI is also installed (`agent-relay --version` prints 13.x),
+check the human's Cloud account and workspaces too:
+
+```bash
+agent-relay cloud whoami       # signed in, and as whom
+agent-relay workspace active   # the active Cloud workspace (keys stay masked)
+agent-relay cloud workspaces   # every workspace this login can use, with ids
+agent-relay status             # workspace, cloud login and local broker
+```
+
+Reuse what exists. If the human already has a Relayfile workspace, select it
+with `relayfile workspace use <name>` (or, on a machine that does not track it
+yet, `relayfile workspace join <rw_id>`, adding `--write` when this host must
+write back, since without it the host is read-only; see
+`multi-host-live-mount`) and add providers to it with `integration connect`
+instead of running `setup` under a new name. `setup --workspace <name>` reuses
+only a workspace already tracked here under that exact name; any other name
+creates a new one. Create a new workspace only when the human explicitly asks
+for one, and use the name they chose, not the `my-agent` placeholder below.
 
 ## Step 1 — Run setup (interactive happy path)
 
