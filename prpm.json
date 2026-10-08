@@ -613,6 +613,28 @@
       "files": [
         "skills/openclaw-orchestrator/SKILL.md"
       ]
+    },
+    {
+      "name": "merge-train-snippet",
+      "version": "1.0.0",
+      "description": "AGENTS.md snippet: feature PRs target trunk, verify locally (no feature-branch CI), and add the `mergeable` label when ready; the merge agent sweeps them into trunk and promotes trunk to the default branch.",
+      "format": "generic",
+      "subtype": "snippet",
+      "snippet": {
+        "target": "AGENTS.md",
+        "position": "append",
+        "header": "Merging: trunk + the mergeable label"
+      },
+      "tags": [
+        "merge-train",
+        "trunk",
+        "ci",
+        "pull-requests",
+        "agent-relay-internal"
+      ],
+      "files": [
+        "snippets/merge-train-snippet.md"
+      ]
     }
   ],
   "collections": [
