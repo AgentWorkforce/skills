@@ -332,7 +332,7 @@
     {
       "name": "writeback-as-files",
       "version": "1.0.0",
-      "description": "Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path → provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/.",
+      "description": "Use when an agent needs to write back to a provider through a relayfile mount (Linear comments, GitHub issues, Slack messages, Notion pages, etc.). Covers the file-creation writeback contract (drop JSON at the canonical path \u2192 provider mutation), discovering paths and schemas via .schema.json siblings, idempotency keys, writeback status with relayfile writeback list and relayfile status, and recovering from dead-lettered writes under .relay/dead-letter/.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -616,7 +616,7 @@
     },
     {
       "name": "merge-train-snippet",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "AGENTS.md snippet: feature PRs target trunk, verify locally (no feature-branch CI), and add the `mergeable` label when ready; the merge agent sweeps them into trunk and promotes trunk to the default branch.",
       "format": "generic",
       "subtype": "snippet",
