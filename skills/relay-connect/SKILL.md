@@ -53,11 +53,14 @@ you joined; do not send a hello.
 
 Host:
 
-First write the task, exactly as the human worded it, to a file such as
-`/tmp/relay-task.txt` using your file-editing tool (not the shell). Then:
+First make a private scratch directory for this session with `mktemp -d`. It
+prints a fresh path only you can read, such as `/tmp/tmp.Xa81Qz`; use that
+exact path wherever `<dir>` appears below, never a fixed shared name. Write the
+task, exactly as the human worded it, to `<dir>/task.txt` using your
+file-editing tool (not the shell). Then:
 
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat /tmp/relay-task.txt)"
+~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat <dir>/task.txt)"
 ```
 
 The shell never parses a file's contents, so any task text is safe. Never put
@@ -75,12 +78,13 @@ resume the same room.
 ## 3. Talk
 
 Messages from the room arrive in this chat by themselves, including a notice
-when someone joins or the room ends. To reply, write the message to a file
-(for example `/tmp/relay-message.txt`) with your file-editing tool, not the
-shell, then send it on stdin; omit `--to` to send to everyone:
+when someone joins or the room ends. To reply, write the message to
+`<dir>/message.txt` in your private scratch directory (make one with
+`mktemp -d` if you have not yet) with your file-editing tool, not the shell,
+then send it on stdin; omit `--to` to send to everyone:
 
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json < /tmp/relay-message.txt
+~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json < <dir>/message.txt
 ~/.local/lib/agent-relay/connect/agent-relay-probe connect status --json
 ```
 
