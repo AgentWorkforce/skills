@@ -184,18 +184,19 @@ and at least 13.0.0. Find the same user-level npm, mise, or nvm CLI the app
 discovers; never run the desktop's `/usr/bin/agent-relay` launcher as a CLI:
 
 ```sh
-relay_cli=
-for candidate in \
-  "$HOME/.local/bin/agent-relay" \
-  "$HOME/.npm-global/bin/agent-relay" \
-  "$HOME/.agentworkforce/relay/bin/agent-relay"
-do
-  if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
-    relay_cli=$candidate
-    break
-  fi
-done
-if test -z "$relay_cli"; then
+# The installed Agent Relay CLI: user-level npm, mise or nvm, then PATH;
+# never the .deb's /usr/bin/agent-relay Desktop launcher. Section 2 and
+# section 6 define this identically; change both together.
+find_relay_cli() {
+  for candidate in \
+    "$HOME/.local/bin/agent-relay" \
+    "$HOME/.npm-global/bin/agent-relay" \
+    "$HOME/.agentworkforce/relay/bin/agent-relay"
+  do
+    if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      printf '%s\n' "$candidate"; return
+    fi
+  done
   for relay_root in \
     "$HOME/.local/share/mise/installs/node" \
     "$HOME/.nvm/versions/node"
@@ -204,11 +205,15 @@ if test -z "$relay_cli"; then
     candidate=$(find -L "$relay_root" -mindepth 3 -maxdepth 3 \
       -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
     if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
-      relay_cli=$candidate
-      break
+      printf '%s\n' "$candidate"; return
     fi
   done
-fi
+  candidate=$(command -v agent-relay 2>/dev/null || true)
+  if test -n "$candidate" && test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+    printf '%s\n' "$candidate"
+  fi
+}
+relay_cli=$(find_relay_cli)
 if test -n "$relay_cli"; then
   "$relay_cli" --version
   "$relay_cli" integration subscribe --help >/dev/null
@@ -897,6 +902,39 @@ is set:
 
 ```sh
 pull_glob='/github/repos/OWNER/REPO/pulls/NUMBER/**'
+# Shell variables do not survive between tool calls: when relay_cli is unset
+# here, find the installed CLI again with section 2's helper, so an installed
+# CLI is not replaced by the npx fallback.
+# The installed Agent Relay CLI: user-level npm, mise or nvm, then PATH;
+# never the .deb's /usr/bin/agent-relay Desktop launcher. Section 2 and
+# section 6 define this identically; change both together.
+find_relay_cli() {
+  for candidate in \
+    "$HOME/.local/bin/agent-relay" \
+    "$HOME/.npm-global/bin/agent-relay" \
+    "$HOME/.agentworkforce/relay/bin/agent-relay"
+  do
+    if test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      printf '%s\n' "$candidate"; return
+    fi
+  done
+  for relay_root in \
+    "$HOME/.local/share/mise/installs/node" \
+    "$HOME/.nvm/versions/node"
+  do
+    test -d "$relay_root" || continue
+    candidate=$(find -L "$relay_root" -mindepth 3 -maxdepth 3 \
+      -path '*/bin/agent-relay' -type f -perm -u+x -print -quit 2>/dev/null)
+    if test -n "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+      printf '%s\n' "$candidate"; return
+    fi
+  done
+  candidate=$(command -v agent-relay 2>/dev/null || true)
+  if test -n "$candidate" && test -x "$candidate" && test "$candidate" != /usr/bin/agent-relay; then
+    printf '%s\n' "$candidate"
+  fi
+}
+test -n "${relay_cli:-}" || relay_cli=$(find_relay_cli)
 relay_cli_major=
 if test -n "${relay_cli:-}"; then
   relay_cli_major=$("$relay_cli" --version 2>/dev/null | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\..*/\1/p' | sed -n '1p')
@@ -915,7 +953,8 @@ else
 fi
 ```
 
-Use the `relay_cli` found in section 2, never a bare `agent-relay`: on a
+Use the `relay_cli` found in section 2 (re-discovered above when this runs in
+a new shell), never a bare `agent-relay`: on a
 `.deb` host `/usr/bin/agent-relay` is the Desktop launcher, and `PATH` may
 resolve to it or to a different, older CLI than the one whose version was
 checked.

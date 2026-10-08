@@ -174,12 +174,14 @@ relay_cli_version=
 if test -n "$relay_cli"; then
   relay_cli_version=$("$relay_cli" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 fi
+# Gate only these optional checks on 13.x; keep relay_cli itself, which
+# setting-up-agent-relay-desktop section 6 uses with its own version handling.
+relay_cli_checks=
 case "$relay_cli_version" in
-  13.*) ;;
-  *) test -n "$relay_cli" && printf 'agent-relay %s is not 13.x; read the workspace from /setup/status instead.\n' "${relay_cli_version:-unknown}" >&2
-     relay_cli= ;;
+  13.*) relay_cli_checks=1 ;;
+  *) test -n "$relay_cli" && printf 'agent-relay %s is not 13.x; read the workspace from /setup/status instead.\n' "${relay_cli_version:-unknown}" >&2 ;;
 esac
-if test -n "$relay_cli"; then
+if test -n "$relay_cli_checks"; then
   "$relay_cli" cloud whoami       # signed in, and as whom
   "$relay_cli" workspace active   # the active Cloud workspace (keys stay masked)
   "$relay_cli" cloud workspaces   # every workspace this login can use, with ids
