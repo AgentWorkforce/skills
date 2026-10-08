@@ -55,7 +55,9 @@ agent-relay workspace list     # workspaces stored on this machine
 ```
 
 If the human already has a shared workspace, skip step 1 and join it on each
-machine that is not on it yet (step 2). Create a workspace only when the human
+machine that is not on it yet (step 2). The human gets that workspace's key
+from its owner over a secure channel such as a password manager, never through
+the agent. Create a workspace only when the human
 explicitly wants a new one.
 
 ### The workspace key never enters an agent session
@@ -69,7 +71,9 @@ transcript:
   `workspace active --json`) and never runs `workspace join` with a real key.
 - The agent never asks for the key in chat and never reads it from a file.
   If someone pastes a key into the conversation anyway, tell the human to treat
-  it as leaked and to create a fresh workspace.
+  it as leaked. A fresh workspace alone does not cut off access: the old key
+  stays valid, and agent-relay 13.x has no command to revoke it. Stop using the
+  old workspace and ask its owner to retire it or rotate its key.
 - The human reveals the key and enters it only in their own terminal, one no
   agent or recorder is watching, and moves it between machines over a secure
   channel such as a password manager.
