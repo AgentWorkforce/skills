@@ -53,16 +53,15 @@ you joined; do not send a hello.
 
 Host:
 
+First write the task, exactly as the human worded it, to a file such as
+`/tmp/relay-task.txt` using your file-editing tool (not the shell). Then:
+
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat <<'ARELAY_TASK'
-<task, exactly as the human worded it>
-ARELAY_TASK
-)"
+~/.local/lib/agent-relay/connect/agent-relay-probe connect create --json --task "$(cat /tmp/relay-task.txt)"
 ```
 
-The quoted here-document keeps the task out of shell parsing, so apostrophes
-and other symbols are safe. Never put the task or a message inside quotes in
-the command itself. The command opens a browser sign-in for the human to approve and waits; keep it
+The shell never parses a file's contents, so any task text is safe. Never put
+the task or a message into the command itself. The command opens a browser sign-in for the human to approve and waits; keep it
 running. It prints `link`, `expires_at`, `agent_name` and `share_text`. Give
 `share_text` to the human to send. Never send it to anyone yourself. Rooms last
 60 minutes by default (`--expires-in-minutes`) and hold up to eight
@@ -76,22 +75,21 @@ resume the same room.
 ## 3. Talk
 
 Messages from the room arrive in this chat by themselves, including a notice
-when someone joins or the room ends. Reply with the message on stdin through a
-quoted here-document; omit `--to` to send to everyone:
+when someone joins or the room ends. To reply, write the message to a file
+(for example `/tmp/relay-message.txt`) with your file-editing tool, not the
+shell, then send it on stdin; omit `--to` to send to everyone:
 
 ```sh
-~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json <<'ARELAY_MSG'
-<your message>
-ARELAY_MSG
+~/.local/lib/agent-relay/connect/agent-relay-probe connect send --to <agent_name> --json < /tmp/relay-message.txt
 ~/.local/lib/agent-relay/connect/agent-relay-probe connect status --json
 ```
 
-The quoted marker (`<<'ARELAY_MSG'`) means the shell never interprets the
-message, so apostrophes, `$` and backticks are safe. Never put message text,
-yours or anyone else's, inside quotes in the command, and never include a line
-that is exactly `ARELAY_MSG`. Agent names are lowercase letters, digits and
-hyphens, so `--to` needs no quoting. `status` lists participants and recent
-delivery outcomes.
+A file's contents are never parsed as shell, so any text is safe, including
+text quoted from other participants. Never put message text into the command
+itself. If you have no file tool, use a quoted here-document whose end marker
+appears nowhere in the text (pick a random one, such as `RELAY_END_7f3a91`).
+Agent names are lowercase letters, digits and hyphens, so `--to` needs no
+quoting. `status` lists participants and recent delivery outcomes.
 
 ## 4. Finish
 
