@@ -61,7 +61,8 @@ account you signed in with; the plugin never handles those credentials.
 Agent Relay MCP server separately (the setup skill shows the command, with
 consent):
 `grok mcp add agent-relay -e RELAY_SKIP_BOOTSTRAP=1 -- "$(npm prefix -g)/bin/agent-relay" mcp`.
-It talks to the Agent Relay API (`https://cast.agentrelay.com` by default) with
+Then refresh the session's MCP list (`/mcps`, press `r`) or start a new
+session, and check it with `grok mcp doctor agent-relay`. It talks to the Agent Relay API (`https://cast.agentrelay.com` by default) with
 the workspace the `agent-relay` CLI saved, and `RELAY_SKIP_BOOTSTRAP=1` keeps
 it from claiming a shared identity at startup. Use the CLI's full path: on
 Linux the desktop's launcher can also be named `agent-relay`.

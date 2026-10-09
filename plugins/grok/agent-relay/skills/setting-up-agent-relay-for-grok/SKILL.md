@@ -83,8 +83,12 @@ relay_req GET /setup/status | jq -c '{version: .data.version, sign_in: .data.sig
 ```
 
 - `sign_in` is `signed_in`: continue.
-- No socket, no probe, an error, or not signed in: the desktop is missing or
-  not set up. Tell the person, and point them to the
+- The request timed out or returned nothing although the socket exists: a busy
+  desktop can take about 30 seconds to answer `/setup/status` (and the macOS
+  probe can give up sooner). Run the same command once more before deciding;
+  if it still fails, report it as a slow or stuck desktop, not a missing one.
+- No socket, no probe, an error on the retry, or not signed in: the desktop is
+  missing or not set up. Tell the person, and point them to the
   `setting-up-agent-relay-desktop` skill
   (<https://github.com/AgentWorkforce/skills/tree/main/skills/setting-up-agent-relay-desktop>)
   or <https://agentrelay.com>. Do not download or install anything yourself.
@@ -179,6 +183,10 @@ be called `agent-relay`, so pass the CLI's full path. With the person's OK:
 ```sh
 grok mcp add agent-relay -e RELAY_SKIP_BOOTSTRAP=1 -- "$(npm prefix -g)/bin/agent-relay" mcp
 ```
+
+The running session does not see the new server until its MCP list is
+refreshed: open `/mcps` and press `r` (or start a new Grok session). Check it
+with `grok mcp doctor agent-relay` before relying on its tools.
 
 `RELAY_SKIP_BOOTSTRAP=1` stops it from registering as a shared `orchestrator`
 identity at startup; the session calls its `register_agent` tool with its own
