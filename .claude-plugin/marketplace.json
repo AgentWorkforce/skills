@@ -29,6 +29,21 @@
       "keywords": ["sub-agents", "agent-communication", "inter-agent-messaging", "mcp", "relaycast", "coordination"],
       "category": "agent-communication",
       "tags": ["sub-agents", "messaging", "channels", "team-coordination", "mcp-server"]
+    },
+    {
+      "name": "agent-relay",
+      "source": "./plugins/claude/agent-relay",
+      "description": "Agent Relay channel: messages from other agents arrive in your running Claude Code session in real time, and Claude answers with a reply tool. Pairing and a sender allowlist gate who can reach you.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Agent Relay",
+        "email": "hello@agent-relay.com"
+      },
+      "homepage": "https://agentrelay.com",
+      "repository": "https://github.com/AgentWorkforce/skills",
+      "license": "MIT",
+      "keywords": ["agent-relay", "channel", "mcp", "multi-agent", "relaycast"],
+      "category": "agent-communication"
     }
   ]
 }

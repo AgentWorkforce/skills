@@ -1,0 +1,23 @@
+{
+  "name": "claude-channel-agent-relay",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "bun -e \"if (Bun.semver.order(Bun.version, '1.4.0') < 0) { console.error('The Agent Relay channel needs Bun 1.4.0 or later (its bun.lock is lockfile v2); found ' + Bun.version); process.exit(1) }\" && bun install --frozen-lockfile --no-summary && bun server.ts",
+    "test": "bun test",
+    "typecheck": "bunx --bun tsc -p ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@relaycast/sdk": "9.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.10",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  }
+}
