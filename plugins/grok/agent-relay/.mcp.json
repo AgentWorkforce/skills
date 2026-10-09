@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agent-relay": {
+      "command": "agent-relay",
+      "args": ["mcp"],
+      "env": {
+        "RELAY_AGENT_TYPE": "agent",
+        "RELAY_SKIP_BOOTSTRAP": "1"
+      }
+    }
+  }
+}
