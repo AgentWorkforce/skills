@@ -2,12 +2,14 @@
 // tested with fakes: relay events in, gated and framed channel events out,
 // and the reply tool back to the relay.
 
-import { type Access, decide, loadAccess, saveAccess } from "./access.ts";
+import { type Access, decide, isAllowed, loadAccess, saveAccess } from "./access.ts";
 
 export interface InboundMessage {
   kind: "dm" | "thread";
   messageId: string;
   sender: string;
+  /** The sender's immutable relay agent id, when the event carries it. */
+  senderId?: string;
   senderType?: string;
   text: string;
   conversationId?: string;
@@ -61,26 +63,49 @@ export function createChannel(options: ChannelOptions) {
     return true;
   }
 
+  // Re-reads access.json, applies `change` and saves it, so a concurrent edit
+  // by /agent-relay:access is not overwritten with a stale copy.
+  function update(change: (access: Access) => void): void {
+    const access = loadAccess(options.accessFile);
+    change(access);
+    saveAccess(options.accessFile, access);
+  }
+
   async function receive(message: InboundMessage): Promise<"delivered" | "dropped" | "paired" | "duplicate"> {
     if (message.sender === options.self) return "dropped";
-    if (!remember(message.messageId)) return "duplicate";
+    if (seen.has(message.messageId)) return "duplicate";
     const access: Access = loadAccess(options.accessFile);
-    const decision = decide(access, message.sender, now());
+    const decision = decide(access, message.sender, now(), message.senderId);
     if (decision.action === "drop") {
+      remember(message.messageId);
       log(`dropped relay message ${message.messageId} from ${message.sender}: ${decision.reason}`);
       return "dropped";
     }
     if (decision.action === "pair") {
+      remember(message.messageId);
       if (decision.fresh) {
-        saveAccess(options.accessFile, access);
+        const issued = access.pending[decision.code];
+        update((current) => {
+          current.pending[decision.code] = issued;
+        });
         try {
           await options.relay.dm(message.sender, pairingMessage(decision.code));
         } catch (error) {
+          // Withdraw the code, so the sender's next message gets a new one.
+          update((current) => {
+            if (current.pending[decision.code]?.sender === message.sender) delete current.pending[decision.code];
+          });
           log(`could not send the pairing code to ${message.sender}: ${String(error)}`);
         }
       }
       log(`pairing requested by ${message.sender}`);
       return "paired";
+    }
+    if (decision.pin) {
+      const pin = decision.pin;
+      update((current) => {
+        if (current.allow.includes(message.sender) && !current.ids[message.sender]) current.ids[message.sender] = pin;
+      });
     }
     const text = message.text.length > MAX_TEXT ? `${message.text.slice(0, MAX_TEXT)}\n[truncated]` : message.text;
     const meta: Record<string, string> = {
@@ -91,9 +116,12 @@ export function createChannel(options: ChannelOptions) {
     if (message.conversationId) meta.conversation_id = message.conversationId;
     if (message.channel) meta.relay_channel = message.channel;
     if (message.parentId) meta.parent_id = message.parentId;
+    // Marked seen and repliable only once Claude Code has it, so a failed
+    // write can be delivered again when the relay replays the event.
+    await options.notify({ content: text, meta });
+    remember(message.messageId);
     delivered.set(message.messageId, message);
     if (delivered.size > SEEN_LIMIT) delivered.delete(delivered.keys().next().value as string);
-    await options.notify({ content: text, meta });
     return "delivered";
   }
 
@@ -104,6 +132,10 @@ export function createChannel(options: ChannelOptions) {
     if (text.length > MAX_TEXT) throw new Error(`reply text is over ${MAX_TEXT} characters`);
     const original = delivered.get(messageId);
     if (!original) throw new Error("message_id is not a relay message delivered to this session");
+    // Access may have changed since the message arrived (removed, disabled).
+    if (!isAllowed(loadAccess(options.accessFile), original.sender, original.senderId)) {
+      throw new Error(`@${original.sender} is no longer allowed to reach this session; nothing was sent`);
+    }
     const sent =
       original.kind === "thread" && original.parentId
         ? await options.relay.threadReply(original.parentId, text)
@@ -124,6 +156,7 @@ export function instructions(self: string, delivering: boolean, note?: string): 
     "To answer, call the reply tool with the message_id from the tag and your text. Keep replies short;",
     "the user sees only that a reply was sent, not its text. Do not reply to every message by reflex,",
     "and never start a reply loop with another agent.",
+    "The status tool reports whether the channel is connected and delivering right now.",
   ];
   if (!delivering && note) lines.push(note);
   return lines.join(" ");
@@ -146,12 +179,14 @@ export function fromRelayEvent(kind: "dm" | "thread", event: unknown): InboundMe
   const m = (e.message ?? {}) as Record<string, unknown>;
   const messageId = pick(m, "id");
   const sender = pick(m, "agentName", "agent_name");
+  const senderId = pick(m, "agentId", "agent_id");
   const text = typeof m.text === "string" ? m.text : undefined;
   if (!messageId || !sender || text === undefined) return undefined;
   return {
     kind,
     messageId,
     sender,
+    senderId,
     senderType: pick(m, "agentType", "agent_type"),
     text,
     conversationId: pick(e, "conversationId", "conversation_id"),

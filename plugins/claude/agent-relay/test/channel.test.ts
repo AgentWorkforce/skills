@@ -8,7 +8,7 @@ import { type ChannelEvent, createChannel, instructions, pairingMessage } from "
 function setup(allow: string[] = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-channel-"));
   const accessFile = path.join(dir, "access.json");
-  saveAccess(accessFile, { dmPolicy: "pairing", allow, pending: {} });
+  saveAccess(accessFile, { dmPolicy: "pairing", allow, ids: {}, pending: {} });
   const events: ChannelEvent[] = [];
   const sent: { to: string; text: string; thread?: boolean }[] = [];
   const channel = createChannel({
@@ -111,7 +111,7 @@ describe("relay events", () => {
         conversationId: "dm_1",
         message: { id: "9", agentId: "a", agentName: "grok-H", text: "ping", injectionMode: "wait" },
       }),
-    ).toEqual({ kind: "dm", messageId: "9", sender: "grok-H", senderType: undefined, text: "ping", conversationId: "dm_1", channel: undefined, parentId: undefined });
+    ).toEqual({ kind: "dm", messageId: "9", sender: "grok-H", senderId: "a", senderType: undefined, text: "ping", conversationId: "dm_1", channel: undefined, parentId: undefined });
   });
 
   test("snake_case events, as the SDK types them", async () => {
@@ -125,5 +125,74 @@ describe("relay events", () => {
     const { fromRelayEvent } = await import("../src/channel.ts");
     expect(fromRelayEvent("dm", { message: { id: "1", text: "x" } })).toBeUndefined();
     expect(fromRelayEvent("dm", {})).toBeUndefined();
+  });
+});
+
+describe("failures and revocation", () => {
+  test("a failed notification is not marked seen, so a replay delivers it", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-channel-"));
+    const accessFile = path.join(dir, "access.json");
+    saveAccess(accessFile, { dmPolicy: "pairing", allow: ["alice"], ids: {}, pending: {} });
+    let fail = true;
+    const events: ChannelEvent[] = [];
+    const channel = createChannel({
+      self: "me",
+      accessFile,
+      relay: { dm: async () => ({}), threadReply: async () => ({}) },
+      notify: async (event) => {
+        if (fail) throw new Error("transport closed");
+        events.push(event);
+      },
+    });
+    await expect(channel.receive(dm())).rejects.toThrow("transport closed");
+    await expect(channel.reply("1", "x")).rejects.toThrow("not a relay message delivered");
+    fail = false;
+    expect(await channel.receive(dm())).toBe("delivered");
+    expect(events).toHaveLength(1);
+  });
+
+  test("a pairing code whose DM failed is withdrawn, and the next message gets a new one", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-channel-"));
+    const accessFile = path.join(dir, "access.json");
+    let fail = true;
+    const sent: string[] = [];
+    const channel = createChannel({
+      self: "me",
+      accessFile,
+      relay: {
+        dm: async (_to, text) => {
+          if (fail) throw new Error("offline");
+          sent.push(text);
+          return {};
+        },
+        threadReply: async () => ({}),
+      },
+      notify: async () => {},
+    });
+    expect(await channel.receive(dm())).toBe("paired");
+    expect(loadAccess(accessFile).pending).toEqual({});
+    fail = false;
+    expect(await channel.receive(dm({ messageId: "2" }))).toBe("paired");
+    const codes = Object.keys(loadAccess(accessFile).pending);
+    expect(codes).toHaveLength(1);
+    expect(sent).toEqual([pairingMessage(codes[0])]);
+  });
+
+  test("reply refuses a sender removed after its message arrived", async () => {
+    const { channel, sent, accessFile } = setup(["alice"]);
+    await channel.receive(dm());
+    saveAccess(accessFile, { ...loadAccess(accessFile), allow: [] });
+    await expect(channel.reply("1", "x")).rejects.toThrow("no longer allowed");
+    saveAccess(accessFile, { ...loadAccess(accessFile), allow: ["alice"], dmPolicy: "disabled" });
+    await expect(channel.reply("1", "x")).rejects.toThrow("no longer allowed");
+    expect(sent).toEqual([]);
+  });
+
+  test("pairing keeps a concurrent edit to access.json", async () => {
+    const { channel, accessFile } = setup(["bob"]);
+    await channel.receive(dm());
+    const after = loadAccess(accessFile);
+    expect(after.allow).toEqual(["bob"]);
+    expect(Object.values(after.pending).map((entry) => entry.sender)).toEqual(["alice"]);
   });
 });

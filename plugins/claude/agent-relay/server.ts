@@ -92,6 +92,9 @@ pinProtocol(mcp);
 
 let agent: ReturnType<RelayCast["as"]> | undefined;
 let lastError: string | undefined;
+// The WebSocket's state, as its events report it; status shows this rather
+// than what was true at startup.
+let connected = false;
 
 const channel = createChannel({
   self: agentName,
@@ -144,7 +147,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     if (request.params.name === "status") {
       const text = JSON.stringify(
-        { agent: agentName, delivering, connected: Boolean(agent), note, error: lastError, desktop: desktop ?? null },
+        { agent: agentName, delivering, connected, note, error: lastError, desktop: desktop ?? null },
         null,
         2,
       );
@@ -196,8 +199,17 @@ if (delivering && workspaceKey) {
       const message = fromRelayEvent("thread", event);
       if (message) forward(message);
     });
-    agent.on.connected(() => log(`connected to Agent Relay as ${agentName}`));
+    agent.on.connected(() => {
+      connected = true;
+      lastError = undefined;
+      log(`connected to Agent Relay as ${agentName}`);
+    });
+    agent.on.disconnected(() => {
+      connected = false;
+    });
     agent.on.permanentlyDisconnected(() => {
+      connected = false;
+      delivering = false;
       lastError = "disconnected from Agent Relay; restart the session to reconnect";
       log(lastError);
     });

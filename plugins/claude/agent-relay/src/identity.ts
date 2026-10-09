@@ -1,6 +1,7 @@
-// This channel's own identity on the relay. The token is kept in
-// <state dir>/identity.json (mode 0600) and reused across restarts, so a
-// session keeps its agent name without taking over anyone else's.
+// This channel's own identities on the relay. Each workspace and agent name
+// keeps its own token in <state dir>/identity.json (mode 0600), reused across
+// restarts, so switching directories or names never strands an agent, and a
+// session keeps its name without taking over anyone else's.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -24,18 +25,35 @@ export function workspaceTag(workspaceKey: string): string {
   return createHash("sha256").update(workspaceKey).digest("hex").slice(0, 16);
 }
 
-export function loadIdentity(file: string): StoredIdentity | undefined {
-  try {
-    const value = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (["workspace", "name", "id", "token"].every((key) => typeof value?.[key] === "string")) return value;
-  } catch {}
-  return undefined;
+const keyOf = (workspace: string, name: string) => `${workspace}:${name}`;
+
+function isIdentity(value: unknown): value is StoredIdentity {
+  return ["workspace", "name", "id", "token"].every((key) => typeof (value as Record<string, unknown>)?.[key] === "string");
 }
 
+function readAll(file: string): Record<string, StoredIdentity> {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, "utf8"));
+    const all: Record<string, StoredIdentity> = {};
+    for (const entry of Object.values((value?.identities ?? {}) as Record<string, unknown>)) {
+      if (isIdentity(entry)) all[keyOf(entry.workspace, entry.name)] = entry;
+    }
+    return all;
+  } catch {
+    return {};
+  }
+}
+
+export function loadIdentity(file: string, workspace: string, name: string): StoredIdentity | undefined {
+  return readAll(file)[keyOf(workspace, name)];
+}
+
+/** Saves one identity, keeping every other workspace and name's. */
 export function saveIdentity(file: string, identity: StoredIdentity): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const identities = { ...readAll(file), [keyOf(identity.workspace, identity.name)]: identity };
   const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, `${JSON.stringify(identity)}\n`, { mode: 0o600 });
+  fs.writeFileSync(temporary, `${JSON.stringify({ identities })}\n`, { mode: 0o600 });
   fs.renameSync(temporary, file);
 }
 
@@ -53,8 +71,7 @@ export async function resolveIdentity(
   name: string,
 ): Promise<StoredIdentity> {
   const workspace = workspaceTag(workspaceKey);
-  const stored = loadIdentity(file);
-  const mine = stored && stored.workspace === workspace && stored.name === name ? stored : undefined;
+  const mine = loadIdentity(file, workspace, name);
   if (mine) {
     try {
       const me = await api.me(mine.token);

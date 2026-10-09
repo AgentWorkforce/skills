@@ -32,7 +32,8 @@ Use the printed path as `<state-dir>`. The file is `<state-dir>/access.json`:
 {
   "dmPolicy": "pairing",
   "allow": ["codex-relay-desktop-509d1d"],
-  "pending": { "k7m2qa": { "sender": "grok-h-e2e", "createdAt": 1791510000000 } }
+  "ids": { "codex-relay-desktop-509d1d": "234116642313732096" },
+  "pending": { "k7m2qa": { "sender": "grok-h-e2e", "senderId": "234119209671610368", "createdAt": 1791510000000 } }
 }
 ```
 
@@ -40,6 +41,8 @@ Use the printed path as `<state-dir>`. The file is `<state-dir>/access.json`:
   message is dropped), `allowlist` (unknown agents are dropped silently) or
   `disabled` (everything is dropped).
 - `allow`: relay agent names whose messages are delivered.
+- `ids`: the relay agent id each allowed name was approved as; a different
+  agent that later takes the same name must pair again.
 - `pending`: pairing codes issued in the last hour (at most three).
 
 ## Commands
@@ -52,7 +55,12 @@ Use the printed path as `<state-dir>`. The file is `<state-dir>/access.json`:
 | `remove <agent>` | Remove it from `allow` |
 | `policy <pairing\|allowlist\|disabled>` | Set `dmPolicy` |
 
-Write the file back with mode 0600 (create `<state-dir>` with mode 0700 if
-needed), keeping keys you did not change. Confirm what changed in one line.
+The channel server writes this file too (it adds pending codes), so after the
+user confirms, **read the file again immediately before writing** and apply
+only your change to that fresh copy; never write back the copy you read before
+asking. Write it with mode 0600 (create `<state-dir>` with mode 0700 if
+needed), keeping keys you did not change. `pair` also copies the pending
+entry's `senderId`, when present, into `ids[<sender>]`, and `remove` deletes
+`ids[<agent>]`. Confirm what changed in one line.
 Before approving a pairing, show the user the sender's name and ask them to
 confirm it is an agent they expect.

@@ -12,17 +12,23 @@ export type DmPolicy = "pairing" | "allowlist" | "disabled";
 
 export interface PendingPair {
   sender: string;
+  senderId?: string;
   createdAt: number;
 }
 
 export interface Access {
   dmPolicy: DmPolicy;
   allow: string[];
+  /**
+   * The immutable relay agent id each allowed name was approved as. A name
+   * re-registered by a different agent does not inherit access.
+   */
+  ids: Record<string, string>;
   pending: Record<string, PendingPair>;
 }
 
 export type Decision =
-  | { action: "deliver" }
+  | { action: "deliver"; pin?: string }
   | { action: "drop"; reason: string }
   | { action: "pair"; code: string; fresh: boolean };
 
@@ -33,7 +39,7 @@ const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export function defaultAccess(): Access {
-  return { dmPolicy: "pairing", allow: [], pending: {} };
+  return { dmPolicy: "pairing", allow: [], ids: {}, pending: {} };
 }
 
 export function isAgentName(value: unknown): value is string {
@@ -56,7 +62,11 @@ export function loadAccess(file: string): Access {
   for (const [code, entry] of Object.entries(value.pending ?? {})) {
     if (isAgentName(entry?.sender) && typeof entry.createdAt === "number") pending[code] = entry;
   }
-  return { dmPolicy, allow: [...new Set(allow)], pending };
+  const ids: Record<string, string> = {};
+  for (const [name, id] of Object.entries(value.ids ?? {})) {
+    if (isAgentName(name) && typeof id === "string" && id) ids[name] = id;
+  }
+  return { dmPolicy, allow: [...new Set(allow)], ids, pending };
 }
 
 export function saveAccess(file: string, access: Access): void {
@@ -78,24 +88,37 @@ function prune(access: Access, now: number): void {
   }
 }
 
+/** Whether `sender` (with its relay agent id, when known) is approved. */
+export function isAllowed(access: Access, sender: string, senderId?: string): boolean {
+  if (access.dmPolicy === "disabled" || !access.allow.includes(sender)) return false;
+  const pinned = access.ids[sender];
+  return !pinned || !senderId || pinned === senderId;
+}
+
 /**
  * Decides what to do with a message from `sender`, mutating `access` when a
- * pairing code is issued. The caller saves `access` after a "pair" decision.
+ * pairing code is issued. The caller saves `access` after a "pair" decision,
+ * and after a "deliver" decision that carries a `pin` (the first message from
+ * a name allowed by hand fixes the agent id it is allowed as).
  */
-export function decide(access: Access, sender: string, now = Date.now()): Decision {
+export function decide(access: Access, sender: string, now = Date.now(), senderId?: string): Decision {
   if (!isAgentName(sender)) return { action: "drop", reason: "invalid sender" };
   if (access.dmPolicy === "disabled") return { action: "drop", reason: "channel disabled" };
-  if (access.allow.includes(sender)) return { action: "deliver" };
+  if (isAllowed(access, sender, senderId)) {
+    return senderId && !access.ids[sender] ? { action: "deliver", pin: senderId } : { action: "deliver" };
+  }
   if (access.dmPolicy === "allowlist") return { action: "drop", reason: "sender not on the allowlist" };
   prune(access, now);
-  const existing = Object.entries(access.pending).find(([, entry]) => entry.sender === sender);
+  const existing = Object.entries(access.pending).find(
+    ([, entry]) => entry.sender === sender && (!entry.senderId || !senderId || entry.senderId === senderId),
+  );
   if (existing) return { action: "pair", code: existing[0], fresh: false };
   if (Object.keys(access.pending).length >= MAX_PENDING) {
     return { action: "drop", reason: "too many pending pairing requests" };
   }
   let code = newCode();
   while (access.pending[code]) code = newCode();
-  access.pending[code] = { sender, createdAt: now };
+  access.pending[code] = senderId ? { sender, senderId, createdAt: now } : { sender, createdAt: now };
   return { action: "pair", code, fresh: true };
 }
 
@@ -106,5 +129,6 @@ export function pair(access: Access, code: string, now = Date.now()): string | u
   if (!entry) return undefined;
   delete access.pending[code.trim().toLowerCase()];
   if (!access.allow.includes(entry.sender)) access.allow.push(entry.sender);
+  if (entry.senderId) access.ids[entry.sender] = entry.senderId;
   return entry.sender;
 }

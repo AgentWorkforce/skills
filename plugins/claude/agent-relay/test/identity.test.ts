@@ -34,7 +34,7 @@ describe("identity", () => {
     const first = await resolveIdentity(a, f, "rk_live_x", "me");
     expect(first.token).toBe("fresh");
     expect(fs.statSync(f).mode & 0o777).toBe(0o600);
-    expect(loadIdentity(f)?.workspace).toBe(workspaceTag("rk_live_x"));
+    expect(loadIdentity(f, workspaceTag("rk_live_x"), "me")?.id).toBe("a2");
     saveIdentity(f, { ...first, token: "good" });
     const second = await resolveIdentity(a, f, "rk_live_x", "me");
     expect(second.token).toBe("good");
@@ -75,5 +75,31 @@ describe("identity", () => {
     const f = file();
     await resolveIdentity(api(), f, "rk_live_secret", "me");
     expect(fs.readFileSync(f, "utf8")).not.toContain("rk_live_secret");
+  });
+});
+
+describe("identity per workspace and name", () => {
+  test("switching names and back keeps each agent's token", async () => {
+    const f = file();
+    const tokens: Record<string, string> = {};
+    const a: IdentityApi = {
+      async me(token) {
+        const name = Object.keys(tokens).find((n) => tokens[n] === token);
+        if (!name) throw new Error("401");
+        return { id: `id-${name}`, name };
+      },
+      async register(name) {
+        if (tokens[name]) throw new Error(`Agent "${name}" already exists in this workspace`);
+        tokens[name] = `t-${name}`;
+        return { id: `id-${name}`, name, token: tokens[name] };
+      },
+      async recover() {
+        throw new Error("not expected");
+      },
+    };
+    expect((await resolveIdentity(a, f, "rk_live_x", "alice")).token).toBe("t-alice");
+    expect((await resolveIdentity(a, f, "rk_live_x", "bob")).token).toBe("t-bob");
+    expect((await resolveIdentity(a, f, "rk_live_x", "alice")).token).toBe("t-alice");
+    expect(fs.statSync(f).mode & 0o777).toBe(0o600);
   });
 });

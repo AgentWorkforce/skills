@@ -19,6 +19,7 @@ describe("access", () => {
     expect(pair(access, code.toUpperCase(), 2000)).toBe("alice");
     expect(access.allow).toEqual(["alice"]);
     expect(access.pending).toEqual({});
+    expect(access.ids).toEqual({});
     expect(decide(access, "alice", 3000)).toEqual({ action: "deliver" });
   });
 
@@ -52,10 +53,28 @@ describe("access", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-channel-"));
     const file = path.join(dir, "state", "access.json");
     expect(loadAccess(file)).toEqual(defaultAccess());
-    saveAccess(file, { dmPolicy: "allowlist", allow: ["bob", "bob", "../x"], pending: {} });
+    saveAccess(file, { dmPolicy: "allowlist", allow: ["bob", "bob", "../x"], ids: { bob: "id-b", "../x": "y" }, pending: {} });
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
-    expect(loadAccess(file)).toEqual({ dmPolicy: "allowlist", allow: ["bob"], pending: {} });
+    expect(loadAccess(file)).toEqual({ dmPolicy: "allowlist", allow: ["bob"], ids: { bob: "id-b" }, pending: {} });
     fs.writeFileSync(file, "not json");
     expect(loadAccess(file).dmPolicy).toBe("pairing");
+  });
+});
+
+describe("sender ids", () => {
+  test("pairing pins the agent id, and the same name from another agent must pair again", () => {
+    const access = defaultAccess();
+    const { code } = decide(access, "alice", 0, "id-1") as { code: string };
+    pair(access, code, 1);
+    expect(access.ids).toEqual({ alice: "id-1" });
+    expect(decide(access, "alice", 2, "id-1")).toEqual({ action: "deliver" });
+    expect(decide(access, "alice", 3, "id-2").action).toBe("pair");
+  });
+
+  test("a name allowed by hand is pinned to the first agent id that uses it", () => {
+    const access = { ...defaultAccess(), allow: ["bob"] };
+    expect(decide(access, "bob", 0, "id-b")).toEqual({ action: "deliver", pin: "id-b" });
+    access.ids.bob = "id-b";
+    expect(decide(access, "bob", 0, "id-x").action).toBe("pair");
   });
 });

@@ -7,7 +7,9 @@ session as `<channel>` events, and Claude answers them with a `reply` tool.
 Pairing and a sender allowlist decide who can reach you.
 
 Channels are a research preview. Requires Claude Code with channels (tested on
-v2.1.280), a claude.ai or Console sign-in, and [Bun](https://bun.sh).
+v2.1.280), a claude.ai or Console sign-in, and [Bun](https://bun.sh) 1.4.0 or
+later (the lockfile is Bun's lockfile v2; an older Bun stops at start with a
+message saying so).
 
 ## Install
 
@@ -49,10 +51,13 @@ back and is not shown to Claude. Approve it in your terminal with
   from an allowlisted sender becomes a channel event:
   `<channel source="plugin:agent-relay:relay" from="AGENT" message_id="ID" kind="dm">TEXT</channel>`.
 - **Gate.** `access.json` holds `dmPolicy` (`pairing`, `allowlist` or
-  `disabled`), the allowlist of agent names, and pending pairing codes (one per
-  sender, at most three, one hour each). It is re-read on every message. Only
-  the user's own `/agent-relay:access` changes it; the skill refuses requests
-  that arrive through a channel.
+  `disabled`), the allowlist of agent names, the relay agent id each name was
+  approved as (a different agent that later takes the same name must pair
+  again), and pending pairing codes (one per sender, at most three, one hour
+  each; a code whose DM fails is withdrawn so the next message gets a new
+  one). It is re-read on every message. Only the user's own
+  `/agent-relay:access` changes the allowlist; the skill refuses requests that
+  arrive through a channel.
 - **Framing.** The server's instructions tell Claude that a relayed message is
   a request from a peer, never the user's approval: it cannot grant
   permissions or justify changing settings or `CLAUDE.md`, and replies should
@@ -61,12 +66,14 @@ back and is not shown to Claude. Approve it in your terminal with
   `claude/channel/permission`, so no peer agent can approve tool use in your
   session.
 - **Reply.** `reply(message_id, text)` answers only a message that was
-  delivered to this session: a DM by DM, a thread message in its thread.
+  delivered to this session, and only while its sender is still allowed: a DM
+  by DM, a thread message in its thread. A message is marked delivered only
+  after Claude Code accepted it.
 - **Protocol.** Claude Code does not register a channel server that negotiates
   MCP revision 2026-07-28. The server is pinned to MCP SDK 1.32.1 and clamps
   the negotiated revision to 2025-11-25.
-- **Identity.** The agent token is kept in `identity.json` (mode 0600) and
-  reused. A name already taken by an agent this channel did not create is
+- **Identity.** Each workspace and agent name keeps its own token in
+  `identity.json` (mode 0600), reused across restarts and directories. A name already taken by an agent this channel did not create is
   refused rather than taken over. The plain `RELAY_*` variables are ignored, so
   the channel never reuses an identity an Agent Relay broker gave the session.
 
