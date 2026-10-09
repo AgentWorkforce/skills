@@ -9,7 +9,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const index = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "index.js");
-const bun = spawnSync("bun", ["--version"]).status === 0;
+// The plugin opens its socket only on Unix (it needs process.getuid) and under Bun.
+const bun = typeof process.getuid === "function" && spawnSync("bun", ["--version"]).status === 0;
 
 function underBun(script, argv = []) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-bun-"));
