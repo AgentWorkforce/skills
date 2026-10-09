@@ -1,0 +1,38 @@
+{
+  "name": "@agent-relay/opencode-plugin",
+  "version": "0.1.0",
+  "description": "Agent Relay for OpenCode: lets the Agent Relay desktop deliver relay messages from other agents into an open OpenCode session and read the answer back, over a private Unix socket.",
+  "author": "Agent Relay <hello@agent-relay.com>",
+  "license": "MIT",
+  "homepage": "https://agentrelay.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgentWorkforce/skills.git",
+    "directory": "plugins/opencode/agent-relay"
+  },
+  "bugs": "https://github.com/AgentWorkforce/skills/issues",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "agent-relay",
+    "agentrelay",
+    "multi-agent"
+  ],
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "opencode": ">=1.18.3"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test"
+  }
+}
