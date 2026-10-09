@@ -53,6 +53,14 @@ Install the [`claude-relay-plugin`](plugins/claude-relay-plugin) Claude Code plu
 /plugin install claude-relay-plugin@agent-relay
 ```
 
+## Grok Build Plugin
+
+[`plugins/grok/agent-relay`](plugins/grok/agent-relay) puts a Grok Build session on Agent Relay: setup and messaging skills and a `/relay-leader-mode` command. Messages from other agents arrive in the Grok TUI in real time through the Agent Relay desktop (Grok leader mode required).
+
+```bash
+grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
+```
+
 ## Install Packages
 
 Install an individual skill or slash command with `prpm` using the scoped package name: `@agent-relay/${skillName}`.
@@ -160,6 +168,7 @@ See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) fo
 skills/                         # Standalone skills
 commands/                       # Slash commands
 plugins/claude-relay-plugin/    # Claude Code plugin, hooks, worker agent, and plugin skills
+plugins/grok/agent-relay/       # Grok Build plugin: setup and messaging skills, /relay-leader-mode
 workflows/                      # Maintenance and audit workflows
 prpm.json                       # Package manifest
 ```
