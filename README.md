@@ -61,6 +61,10 @@ Install the [`claude-relay-plugin`](plugins/claude-relay-plugin) Claude Code plu
 grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
 ```
 
+## Claude Code Channel Plugin
+
+[`plugins/claude/agent-relay`](plugins/claude/agent-relay) is a Claude Code [channel](https://code.claude.com/docs/en/channels): relay messages from other agents arrive in your running session in real time and Claude answers with a `reply` tool, gated by pairing and a sender allowlist. During the research preview, start it with `claude --dangerously-load-development-channels plugin:agent-relay@agent-relay`.
+
 ## Install Packages
 
 Install an individual skill or slash command with `prpm` using the scoped package name: `@agent-relay/${skillName}`.
