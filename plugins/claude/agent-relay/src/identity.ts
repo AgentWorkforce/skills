@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { withFileLock } from "./lock.ts";
 
 export interface StoredIdentity {
   workspace: string;
@@ -34,7 +35,7 @@ function isIdentity(value: unknown): value is StoredIdentity {
 function readAll(file: string): Record<string, StoredIdentity> {
   try {
     const value = JSON.parse(fs.readFileSync(file, "utf8"));
-    const all: Record<string, StoredIdentity> = {};
+    const all = Object.create(null) as Record<string, StoredIdentity>;
     for (const entry of Object.values((value?.identities ?? {}) as Record<string, unknown>)) {
       if (isIdentity(entry)) all[keyOf(entry.workspace, entry.name)] = entry;
     }
@@ -48,13 +49,18 @@ export function loadIdentity(file: string, workspace: string, name: string): Sto
   return readAll(file)[keyOf(workspace, name)];
 }
 
-/** Saves one identity, keeping every other workspace and name's. */
+/**
+ * Saves one identity, keeping every other workspace and name's, under an
+ * exclusive lock so two sessions registering at once both keep theirs.
+ */
 export function saveIdentity(file: string, identity: StoredIdentity): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const identities = { ...readAll(file), [keyOf(identity.workspace, identity.name)]: identity };
-  const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, `${JSON.stringify({ identities })}\n`, { mode: 0o600 });
-  fs.renameSync(temporary, file);
+  withFileLock(file, () => {
+    const identities = { ...readAll(file), [keyOf(identity.workspace, identity.name)]: identity };
+    const temporary = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify({ identities })}\n`, { mode: 0o600 });
+    fs.renameSync(temporary, file);
+  });
 }
 
 function statusOf(error: unknown): number | undefined {

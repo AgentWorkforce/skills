@@ -98,3 +98,25 @@ describe("sender ids", () => {
     expect(decide(access, "bob", 0, "id-x").action).toBe("pair");
   });
 });
+
+test("agents named after Object.prototype keys are paired and pinned like any other", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-proto-"));
+  try {
+    const file = path.join(dir, "access.json");
+    for (const name of ["constructor", "toString", "hasOwnProperty"]) {
+      // Allowed by hand: on a plain object, ids[name] would already be a
+      // function, so the first message would be refused instead of pinned.
+      const byHand = { ...defaultAccess(), allow: [name] };
+      expect(decide(byHand, name, 0, "id-1")).toEqual({ action: "deliver", pin: "id-1" });
+      const access = defaultAccess();
+      const { code } = decide(access, name, 0, "id-p") as { code: string };
+      pair(access, code, 1);
+      saveAccess(file, access);
+      const loaded = loadAccess(file);
+      expect(Object.keys(loaded.ids)).toEqual([name]);
+      expect(decide(loaded, name, 2, "id-p")).toEqual({ action: "deliver" });
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

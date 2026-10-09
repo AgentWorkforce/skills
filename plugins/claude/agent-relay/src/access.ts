@@ -7,6 +7,7 @@
 import { randomInt } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { withFileLock } from "./lock.ts";
 
 export type DmPolicy = "pairing" | "allowlist" | "disabled";
 
@@ -38,8 +39,14 @@ export const MAX_PENDING = 3;
 const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
+// Agent names are user-chosen ("__proto__" is a valid one), so maps keyed by
+// them have no prototype.
+function emptyMap<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>;
+}
+
 export function defaultAccess(): Access {
-  return { dmPolicy: "pairing", allow: [], ids: {}, pending: {} };
+  return { dmPolicy: "pairing", allow: [], ids: emptyMap(), pending: emptyMap() };
 }
 
 export function isAgentName(value: unknown): value is string {
@@ -54,16 +61,18 @@ export function loadAccess(file: string): Access {
     return defaultAccess();
   }
   const value = (raw ?? {}) as Partial<Access>;
+  const own = <T>(map: unknown): [string, T][] =>
+    map && typeof map === "object" ? (Object.entries(map) as [string, T][]) : [];
   const dmPolicy: DmPolicy = ["pairing", "allowlist", "disabled"].includes(value.dmPolicy as string)
     ? (value.dmPolicy as DmPolicy)
     : "pairing";
   const allow = Array.isArray(value.allow) ? value.allow.filter(isAgentName) : [];
-  const pending: Record<string, PendingPair> = {};
-  for (const [code, entry] of Object.entries(value.pending ?? {})) {
+  const pending = emptyMap<PendingPair>();
+  for (const [code, entry] of own<PendingPair>(value.pending)) {
     if (isAgentName(entry?.sender) && typeof entry.createdAt === "number") pending[code] = entry;
   }
-  const ids: Record<string, string> = {};
-  for (const [name, id] of Object.entries(value.ids ?? {})) {
+  const ids = emptyMap<string>();
+  for (const [name, id] of own<unknown>(value.ids)) {
     if (isAgentName(name) && typeof id === "string" && id) ids[name] = id;
   }
   return { dmPolicy, allow: [...new Set(allow)], ids, pending };
@@ -76,9 +85,6 @@ export function saveAccess(file: string, access: Access): void {
   fs.renameSync(temporary, file);
 }
 
-const LOCK_STALE_MS = 10_000;
-const pause = new Int32Array(new SharedArrayBuffer(4));
-
 /**
  * Re-reads access.json, applies `change` and saves it under an exclusive
  * lock file, so concurrent channel processes (and their pairing codes) do
@@ -86,31 +92,12 @@ const pause = new Int32Array(new SharedArrayBuffer(4));
  */
 export function updateAccess(file: string, change: (access: Access) => void): Access {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const lock = `${file}.lock`;
-  const deadline = Date.now() + 5_000;
-  for (;;) {
-    try {
-      fs.closeSync(fs.openSync(lock, "wx", 0o600));
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      try {
-        if (Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS) fs.unlinkSync(lock);
-      } catch {}
-      if (Date.now() > deadline) throw new Error(`access.json is locked (${lock})`);
-      Atomics.wait(pause, 0, 0, 20);
-    }
-  }
-  try {
+  return withFileLock(file, () => {
     const access = loadAccess(file);
     change(access);
     saveAccess(file, access);
     return access;
-  } finally {
-    try {
-      fs.unlinkSync(lock);
-    } catch {}
-  }
+  });
 }
 
 function newCode(): string {
