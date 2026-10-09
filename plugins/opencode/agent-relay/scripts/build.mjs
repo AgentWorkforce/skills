@@ -17,11 +17,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const output = path.join(here, "..", "index.js");
 const args = process.argv.slice(2);
 const check = args.includes("--check");
-const desktop = args.find((arg) => !arg.startsWith("--"));
-if (!desktop) {
+const desktopArg = args.find((arg) => !arg.startsWith("--"));
+if (!desktopArg) {
   console.error("usage: node scripts/build.mjs <relay-desktop checkout> [--check]");
   process.exit(2);
 }
+// Absolute, so the git pathspec below resolves from inside the checkout.
+const desktop = path.resolve(desktopArg);
 
 const templatePath = path.join(desktop, "probe/src/relay/opencode/agent-relay.js");
 const rustPath = path.join(desktop, "probe/src/relay/opencode.rs");
@@ -30,7 +32,7 @@ const version = /pub const PLUGIN_VERSION: u32 = (\d+);/.exec(fs.readFileSync(ru
 if (!version) throw new Error("PLUGIN_VERSION not found in opencode.rs");
 let commit = "unknown";
 try {
-  commit = execFileSync("git", ["-C", desktop, "log", "-1", "--format=%h", "--", templatePath], {
+  commit = execFileSync("git", ["-C", desktop, "log", "-1", "--format=%h", "--", "probe/src/relay/opencode/agent-relay.js"], {
     encoding: "utf8",
   }).trim() || "unknown";
 } catch {}
@@ -102,6 +104,50 @@ export const AgentRelay = async ({ client, directory }) => {
   globalThis[CLAIM] = VERSION;
 `,
 );
+// Fixes not yet in the desktop template (AgentWorkforce/relay-desktop, same
+// fixes proposed there). Each anchor must match exactly once, so the build
+// fails loudly when the template changes and the patch can be dropped.
+//
+// 1. `--session <id> --fork` opens a new fork: never hold the source session.
+source = replaceOnce(
+  source,
+  `    const words = result.stdout.toString().trim().split(/\\s+/);
+    for (let index = 1;`,
+  `    const words = result.stdout.toString().trim().split(/\\s+/);
+    if (words.includes("--fork")) return {};
+    for (let index = 1;`,
+);
+// 2. A prompt body that is valid JSON but not an object (null, an array, a
+//    number) is the caller's error: 400, not a 502 from a thrown dereference.
+source = replaceOnce(
+  source,
+  `        return json(400);
+      }
+      const part = Array.isArray(body?.parts)`,
+  `        return json(400);
+      }
+      if (body === null || typeof body !== "object" || Array.isArray(body)) return json(400);
+      const part = Array.isArray(body?.parts)`,
+);
+// 3. When OpenCode disposes this instance it may load plugins again in the
+//    same process: release the claim so the next load serves.
+source = replaceOnce(
+  source,
+  `        case "server.instance.disposed":
+          break;`,
+  `        case "server.instance.disposed":
+          if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
+          break;`,
+);
+source = replaceOnce(
+  source,
+  `  if (globalThis[CLAIM]) return {};
+  globalThis[CLAIM] = VERSION;`,
+  `  if (globalThis[CLAIM]) return {};
+  const claim = { version: VERSION };
+  globalThis[CLAIM] = claim;`,
+);
+
 for (const placeholder of ["__RUNTIME__", "__VERSION__"]) {
   if (source.includes(placeholder)) throw new Error(`${placeholder} left in output`);
 }

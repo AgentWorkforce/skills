@@ -72,6 +72,7 @@ function startedOn() {
   try {
     const result = Bun.spawnSync(["ps", "-o", "args=", "-p", String(process.pid)]);
     const words = result.stdout.toString().trim().split(/\s+/);
+    if (words.includes("--fork")) return {};
     for (let index = 1; index < words.length; index++) {
       const word = words[index];
       if (word === "--session" || word === "-s") return { session: words[index + 1] };
@@ -140,7 +141,8 @@ export const AgentRelay = async ({ client, directory }) => {
   // Two versions of this package (global and project opencode.json) load
   // separately; only the first serves the process.
   if (globalThis[CLAIM]) return {};
-  globalThis[CLAIM] = VERSION;
+  const claim = { version: VERSION };
+  globalThis[CLAIM] = claim;
   const tagging = { "shell.env": tag };
   if (typeof Bun === "undefined" || !client?._client?.getConfig) return tagging;
   if (!privateRuntime()) return tagging;
@@ -267,6 +269,7 @@ export const AgentRelay = async ({ client, directory }) => {
       } catch {
         return json(400);
       }
+      if (body === null || typeof body !== "object" || Array.isArray(body)) return json(400);
       const part = Array.isArray(body?.parts) && body.parts.length === 1 ? body.parts[0] : undefined;
       if (
         Object.keys(body ?? {}).some((key) => key !== "messageID" && key !== "parts") ||
@@ -361,6 +364,7 @@ export const AgentRelay = async ({ client, directory }) => {
           await touch(properties.info?.sessionID);
           break;
         case "server.instance.disposed":
+          if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
           break;
       }
     },

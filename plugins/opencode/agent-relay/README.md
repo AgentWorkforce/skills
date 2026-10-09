@@ -6,8 +6,9 @@ read the answer back. Replies from the session go out on the relay as that
 session's agent.
 
 A plain OpenCode TUI opens no port, so the plugin gives each OpenCode process
-its own private Unix socket that only the Agent Relay desktop talks to. No
-TCP port, no keystrokes, no tokens.
+its own Unix socket, private to your user, which the Agent Relay desktop uses
+to deliver (see the trust boundary below). No TCP port, no keystrokes, no
+tokens.
 
 ## Install
 

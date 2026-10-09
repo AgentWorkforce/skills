@@ -57,6 +57,35 @@ test("a second copy in the same process stays out", () => {
   assert.deepEqual(run({ times: 2 }), [["shell.env"], []]);
 });
 
+// Two separately loaded copies (as global and project opencode.json load
+// different versions), not two calls of one module.
+function runCopies(steps) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "ar-opencode-"));
+  fs.mkdirSync(path.join(home, ".config", "opencode", "plugins"), { recursive: true });
+  const script = `
+    const a = (await import(${JSON.stringify(index)} + "?copy=a")).AgentRelay;
+    const b = (await import(${JSON.stringify(index)} + "?copy=b")).AgentRelay;
+    const out = [];
+    let hooks;
+    for (const step of ${JSON.stringify(steps)}) {
+      if (step === "dispose") { await hooks.event({ event: { type: "server.instance.disposed", properties: {} } }); continue; }
+      const result = await (step === "a" ? a : b)({ client: {}, directory: "/w" });
+      if (Object.keys(result).length) hooks = result;
+      out.push(Object.keys(result));
+    }
+    console.log(JSON.stringify(out));`;
+  return JSON.parse(
+    execFileSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { PATH: process.env.PATH, HOME: home },
+      encoding: "utf8",
+    }),
+  );
+}
+
+test("a separately loaded second copy stays out", () => {
+  assert.deepEqual(runCopies(["a", "b"]), [["shell.env"], []]);
+});
+
 test("a session the relay launched itself is left alone", () => {
   assert.deepEqual(run({ env: { AGENT_RELAY_MANAGED_SESSION_MARKER: "x" } }), [[]]);
 });
@@ -95,3 +124,4 @@ test("index.js keeps the desktop's allow-list", () => {
   const head = source.split("\n").slice(0, 5).join("\n");
   assert.ok(!head.includes("AGENT_RELAY_OPENCODE_PLUGIN="));
 });
+
