@@ -79,3 +79,20 @@ test("disposing the instance releases the claim for the next load", { skip: !bun
     process.exit(0);`);
   assert.deepEqual(result, { before: [], after: ["shell.env", "event"] });
 });
+
+test("disposing stops the listener and removes the socket and record", { skip: !bun }, () => {
+  const result = underBun(`${prelude}
+    const fs = await import("node:fs");
+    await hooks.event({ event: { type: "session.created", properties: { info: { id: "ses_abcd1234", directory: "/w" } } } });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const before = [fs.existsSync(socket), fs.existsSync(socket.replace(/sock$/, "json"))];
+    await hooks.event({ event: { type: "server.instance.disposed", properties: {} } });
+    await hooks.event({ event: { type: "session.created", properties: { info: { id: "ses_efgh5678", directory: "/w" } } } });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const after = [fs.existsSync(socket), fs.existsSync(socket.replace(/sock$/, "json"))];
+    let refused = false;
+    try { await post("null"); } catch { refused = true; }
+    console.log(JSON.stringify({ before, after, refused }));
+    process.exit(0);`);
+  assert.deepEqual(result, { before: [true, true], after: [false, false], refused: true });
+});

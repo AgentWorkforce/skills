@@ -183,9 +183,11 @@ export const AgentRelay = async ({ client, directory }) => {
   }
 
   let writing = Promise.resolve();
+  let stopped = false;
   function save() {
     writing = writing
       .then(() => {
+        if (stopped) return;
         // Every session this process holds: one left out could not be
         // delivered to while the process still holds it.
         const list = [...sessions.values()].sort((a, b) => b.updated - a.updated);
@@ -364,6 +366,10 @@ export const AgentRelay = async ({ client, directory }) => {
           await touch(properties.info?.sessionID);
           break;
         case "server.instance.disposed":
+          // Stop this instance's listener and remove its socket and record,
+          // so a reload in the same process binds them afresh.
+          stopped = true;
+          close();
           if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
           break;
       }

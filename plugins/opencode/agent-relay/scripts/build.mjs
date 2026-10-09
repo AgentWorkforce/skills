@@ -136,8 +136,27 @@ source = replaceOnce(
   `        case "server.instance.disposed":
           break;`,
   `        case "server.instance.disposed":
+          // Stop this instance's listener and remove its socket and record,
+          // so a reload in the same process binds them afresh.
+          stopped = true;
+          close();
           if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
           break;`,
+);
+// 4. Once stopped, nothing (a late event, the startup timer) rewrites the
+//    record of a disposed instance.
+source = replaceOnce(
+  source,
+  `  let writing = Promise.resolve();
+  function save() {
+    writing = writing
+      .then(() => {`,
+  `  let writing = Promise.resolve();
+  let stopped = false;
+  function save() {
+    writing = writing
+      .then(() => {
+        if (stopped) return;`,
 );
 source = replaceOnce(
   source,
