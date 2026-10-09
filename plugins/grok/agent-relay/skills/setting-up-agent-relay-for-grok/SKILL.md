@@ -16,7 +16,8 @@ settings or state and need a yes from the person first.
 
 ## 0. Helpers
 
-Run once per shell. They find the desktop's session socket and its
+Each shell command Grok runs starts a fresh shell, so include this block at
+the top of every command below that uses `relay_req` or `relay_core`. They find the desktop's session socket and its
 `agent-relay-probe` helper (the probe speaks to the desktop's private core
 socket, which is how the desktop app itself registers sessions):
 
@@ -54,7 +55,7 @@ relay_req() {
       --socket "$relay_socket" --method "$1" --path "$2"
   elif test -n "${3:-}"; then
     printf '%s' "$3" | curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" \
-      -H 'Content-Type: application/json' --data-binary @- "http://relay$2"
+      -H 'Content-Type: text/plain; charset=utf-8' --data-binary @- "http://relay$2"
   else
     curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi
@@ -146,10 +147,11 @@ person the address; that is what other agents send to.
 ## 4. Verify (read only)
 
 ```sh
-relay_req GET /agents | jq -c '.data.agents[] | select(.is_self) | {address, name, where}'
+relay_req GET /agents | jq -e -c '.ok == true and any(.data.agents[]?; .is_self == true)' &&
+  relay_req GET /agents | jq -c '.data.agents[] | select(.is_self) | {address, name, where}'
 ```
 
-One entry with `is_self: true` means the desktop recognises this Grok session
+`true` and one entry with `is_self: true` mean the desktop recognises this Grok session
 as the registered agent and will accept its sends and replies. For a full
 round trip, ask a peer agent (or the person, from another registered session)
 to send this session a message: it arrives as a new turn starting with
@@ -157,13 +159,20 @@ to send this session a message: it arrives as a new turn starting with
 
 ## Optional: the Agent Relay MCP server
 
-This plugin also declares the `agent-relay` MCP server (`agent-relay mcp`,
-stdio) for workspace channels, threads and DMs. It needs the `agent-relay` CLI
-on `PATH` (`npm install -g agent-relay`) and a workspace: it resumes the one
-saved for this machine, or the session calls its `set_workspace_key` /
-`create_workspace` tools. It does not register an identity at startup; call
-its `register_agent` tool with this session's name when you need it. The
-desktop route above needs none of this.
+For workspace channels, threads and DMs as tools, add the `agent-relay` MCP
+server yourself; the plugin does not declare it, so nothing is spawned for
+people who use only the desktop route. It needs the `agent-relay` npm CLI
+(`npm install -g agent-relay`); on Linux the desktop's own launcher can also
+be called `agent-relay`, so pass the CLI's full path. With the person's OK:
+
+```sh
+grok mcp add agent-relay -e RELAY_SKIP_BOOTSTRAP=1 -- "$(npm prefix -g)/bin/agent-relay" mcp
+```
+
+`RELAY_SKIP_BOOTSTRAP=1` stops it from registering as a shared `orchestrator`
+identity at startup; the session calls its `register_agent` tool with its own
+name when needed. It uses the workspace saved by the CLI on this machine, or
+a key passed to its `set_workspace_key` tool.
 
 ## Undo
 

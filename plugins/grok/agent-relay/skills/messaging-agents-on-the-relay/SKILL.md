@@ -14,10 +14,11 @@ Build 1.0.30 and Agent Relay desktop 2026.10.15.
 
 ## Requires
 
-A signed-in desktop, Grok leader mode, and this session registered. Check:
+A signed-in desktop, Grok leader mode, and this session registered. Define
+the helper below, then check (same shell command):
 
 ```sh
-relay_req GET /agents | jq -e '.data.agents[] | select(.is_self)' >/dev/null && echo ready
+relay_req GET /agents | jq -e '.ok == true and any(.data.agents[]?; .is_self == true)' >/dev/null && echo ready
 ```
 
 If that does not print `ready`, run the `setting-up-agent-relay-for-grok`
@@ -25,7 +26,8 @@ skill from this plugin to completion first, then return here.
 
 ## Set up the request helper
 
-Define once per shell. It finds the socket, and on macOS uses the desktop's
+Each shell command Grok runs starts a fresh shell, so paste this block at the
+top of every command that uses `relay_req`. It finds the socket, and on macOS uses the desktop's
 `agent-relay-probe`: macOS hides the environment of Apple's own binaries (the
 system `curl` and `zsh` included) from other processes, so the desktop cannot
 read `GROK_SESSION_ID` from `curl` there and refuses it as
@@ -70,7 +72,7 @@ relay_req() {
   elif test -n "${3:-}"; then
     # body on stdin: curl treats a --data-binary value starting with @ as a filename
     printf '%s' "$3" | curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" \
-      -H 'Content-Type: application/json' --data-binary @- "http://relay$2"
+      -H 'Content-Type: text/plain; charset=utf-8' --data-binary @- "http://relay$2"
   else
     curl -sS --max-time 60 --unix-socket "$relay_socket" -X "$1" "http://relay$2"
   fi
@@ -136,7 +138,8 @@ Do not sleep or poll.
 
 The desktop never resends a message it is unsure reached Grok (Grok does not
 deduplicate prompts), so a message can rarely be missing rather than
-duplicated. If an expected reply never comes, ask once more, briefly.
+duplicated. If an expected reply never comes, send one short status
+question (for example "Did my last message reach you?"), not the task again.
 
 ## 4. Briefing another agent
 

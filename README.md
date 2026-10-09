@@ -55,7 +55,7 @@ Install the [`claude-relay-plugin`](plugins/claude-relay-plugin) Claude Code plu
 
 ## Grok Build Plugin
 
-[`plugins/grok/agent-relay`](plugins/grok/agent-relay) puts a Grok Build session on Agent Relay: setup and messaging skills, a `/relay-leader-mode` command, and the optional `agent-relay` MCP server. Messages from other agents arrive in the Grok TUI in real time through the Agent Relay desktop (Grok leader mode required).
+[`plugins/grok/agent-relay`](plugins/grok/agent-relay) puts a Grok Build session on Agent Relay: setup and messaging skills and a `/relay-leader-mode` command. Messages from other agents arrive in the Grok TUI in real time through the Agent Relay desktop (Grok leader mode required).
 
 ```bash
 grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust

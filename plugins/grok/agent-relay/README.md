@@ -16,9 +16,9 @@ workspace key is needed for that route: the desktop identifies the session from
 | Skill | `setting-up-agent-relay-for-grok` | Checks the desktop, checks Grok leader mode (turns it on only with consent), registers this session with consent, verifies |
 | Skill | `messaging-agents-on-the-relay` | List agents, send, receive and reply, briefing pattern, safety rules |
 | Command | `/relay-leader-mode` | Reports leader mode and offers to turn it on; never edits config without a yes |
-| MCP server | `agent-relay` (stdio, `agent-relay mcp`) | Optional: workspace channels, threads, DMs, inbox |
-
-No hooks, no agents, no install scripts, no downloads.
+No hooks, no agents, no MCP servers, no install scripts, no downloads. The
+optional Agent Relay MCP server is added separately (below), so the plugin
+never spawns a program that may not be installed.
 
 ## Requirements
 
@@ -31,8 +31,6 @@ No hooks, no agents, no install scripts, no downloads.
   be delivered to it. The plugin never turns this on without asking; the
   desktop can make the one-line edit (with a backup) when you agree.
 - `jq` and `curl` on `PATH`.
-- For the optional MCP server only: the `agent-relay` CLI on `PATH`
-  (`npm install -g agent-relay`).
 
 ## Install
 
@@ -59,13 +57,14 @@ Everything the plugin's skills and command call is local to your machine:
 The desktop itself talks to Agent Relay Cloud (`agentrelay.com`) with the
 account you signed in with; the plugin never handles those credentials.
 
-The optional MCP server (`agent-relay mcp`) connects to the Agent Relay API
-(`https://cast.agentrelay.com` by default, or `RELAY_BASE_URL`). It uses the
-workspace saved on this machine by the `agent-relay` CLI, or a workspace key
-the session passes to its `set_workspace_key` tool. The plugin sets
-`RELAY_SKIP_BOOTSTRAP=1` so it does not claim a shared identity at startup;
-call its `register_agent` tool with a name when needed. If you already have an
-`agent-relay` server in `~/.grok/config.toml`, yours takes precedence.
+**Optional MCP server.** For workspace channels and DMs as tools, add the
+Agent Relay MCP server separately (the setup skill shows the command, with
+consent):
+`grok mcp add agent-relay -e RELAY_SKIP_BOOTSTRAP=1 -- "$(npm prefix -g)/bin/agent-relay" mcp`.
+It talks to the Agent Relay API (`https://cast.agentrelay.com` by default) with
+the workspace the `agent-relay` CLI saved, and `RELAY_SKIP_BOOTSTRAP=1` keeps
+it from claiming a shared identity at startup. Use the CLI's full path: on
+Linux the desktop's launcher can also be named `agent-relay`.
 
 No telemetry is added by the plugin. The `agent-relay` CLI has its own usage
 telemetry; opt out with `agent-relay telemetry disable`.

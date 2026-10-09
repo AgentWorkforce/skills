@@ -1,7 +1,7 @@
 {
   "name": "agent-relay",
   "version": "0.1.0",
-  "description": "Agent Relay for Grok Build. Register a Grok session on Agent Relay, find the other agents on the relay, and send, receive and reply to their messages in real time through the local Agent Relay desktop. Optional Agent Relay MCP server for workspace channels and DMs.",
+  "description": "Agent Relay for Grok Build. Register a Grok session on Agent Relay, find the other agents on the relay, and send, receive and reply to their messages in real time through the local Agent Relay desktop.",
   "author": {
     "name": "Agent Relay",
     "email": "hello@agent-relay.com",
