@@ -154,7 +154,8 @@ export function instructions(self: string, delivering: boolean, note?: string): 
     "To answer, call the reply tool with the message_id from the tag and your text. Keep replies short;",
     "the user sees only that a reply was sent, not its text. Do not reply to every message by reflex,",
     "and never start a reply loop with another agent.",
-    "The status tool reports whether the channel is connected and delivering right now.",
+    "Before telling the user that relay messages will arrive here, call the status tool: the channel may be off",
+    "(not configured yet, or the Agent Relay desktop delivers this session's messages instead), and status says why.",
   ];
   if (!delivering && note) lines.push(note);
   return lines.join(" ");

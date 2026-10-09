@@ -19,13 +19,12 @@ import { RelayCast } from "@relaycast/sdk";
 import { isAgentName } from "./src/access.ts";
 import { createChannel, fromRelayEvent, instructions, type InboundMessage } from "./src/channel.ts";
 import { desktopSession, desktopSocket, inboundMode, shouldDeliver } from "./src/desktop.ts";
-import { resolveIdentity } from "./src/identity.ts";
+import { resolveIdentity, workspaceTag } from "./src/identity.ts";
 import { pinProtocol } from "./src/protocol.ts";
 
 const STATE_DIR =
   process.env.AGENT_RELAY_CHANNEL_STATE_DIR ??
   path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), ".claude"), "channels/agent-relay");
-const ACCESS_FILE = path.join(STATE_DIR, "access.json");
 const IDENTITY_FILE = path.join(STATE_DIR, "identity.json");
 
 function log(line: string) {
@@ -56,11 +55,34 @@ function defaultAgentName(): string {
   return `claude-${directory}-${hash}`;
 }
 
+// Shut down cleanly even if Claude Code goes away during the slow startup
+// steps below (the desktop check, registration): later steps check this.
+let shuttingDown = false;
+let agent: ReturnType<RelayCast["as"]> | undefined;
+const shutdown = async () => {
+  shuttingDown = true;
+  try {
+    await agent?.disconnect();
+  } catch {}
+  process.exit(0);
+};
+process.stdin.on("close", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
 const settings = loadSettings();
 const workspaceKey = settings.AGENT_RELAY_CHANNEL_WORKSPACE_KEY;
 const agentName = settings.AGENT_RELAY_CHANNEL_AGENT_NAME ?? defaultAgentName();
 const baseUrl = settings.AGENT_RELAY_CHANNEL_BASE_URL;
 const mode = inboundMode(settings.AGENT_RELAY_CHANNEL_INBOUND);
+// Who may reach this session is decided per relay identity (workspace and
+// agent name), so approving an agent for one project's session does not let
+// it into another's.
+const ACCESS_FILE = path.join(
+  STATE_DIR,
+  "access",
+  `${workspaceKey ? workspaceTag(workspaceKey) : "unconfigured"}-${isAgentName(agentName) ? agentName : "invalid"}.json`,
+);
 
 // Decided after Claude Code is connected: the desktop check can take tens of
 // seconds, longer than Claude Code waits for a server to start.
@@ -82,7 +104,6 @@ const mcp = new Server(
 );
 pinProtocol(mcp);
 
-let agent: ReturnType<RelayCast["as"]> | undefined;
 let lastError: string | undefined;
 // The WebSocket's state, as its events report it; status shows this rather
 // than what was true at startup.
@@ -139,7 +160,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     if (request.params.name === "status") {
       const text = JSON.stringify(
-        { agent: agentName, delivering, connected, note, error: lastError, desktop: desktop ?? null },
+        { agent: agentName, delivering, connected, note, error: lastError, access_file: ACCESS_FILE, desktop: desktop ?? null },
         null,
         2,
       );
@@ -154,6 +175,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (request) => {
 await mcp.connect(new StdioServerTransport());
 
 desktop = await desktopSession(desktopSocket());
+if (shuttingDown) await new Promise(() => {});
 delivering = shouldDeliver(mode, desktop) && Boolean(workspaceKey) && isAgentName(agentName);
 note = undefined;
 if (!workspaceKey) {
@@ -191,6 +213,7 @@ if (delivering && workspaceKey) {
       workspaceKey,
       agentName,
     );
+    if (shuttingDown) await new Promise(() => {});
     agent = relay.as(identity.token);
     // The SDK attaches event handlers to a live WebSocket, so connect first.
     agent.connect();
@@ -229,12 +252,3 @@ if (delivering && workspaceKey) {
   log(note);
 }
 
-const shutdown = async () => {
-  try {
-    await agent?.disconnect();
-  } catch {}
-  process.exit(0);
-};
-process.stdin.on("close", shutdown);
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);

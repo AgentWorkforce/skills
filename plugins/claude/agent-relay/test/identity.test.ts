@@ -119,7 +119,7 @@ test("a transient me() failure is surfaced, not treated as a dead token", async 
 
 test("concurrent saves from several processes keep every identity", async () => {
   const f = file();
-  const identity = new URL("../src/identity.ts", import.meta.url).pathname;
+  const identity = new URL("../src/identity.ts", import.meta.url).href;
   const writers = Array.from({ length: 6 }, (_, i) =>
     Bun.spawn(["bun", "-e", `const { saveIdentity } = await import(${JSON.stringify(identity)}); for (let j = 0; j < 5; j++) saveIdentity(${JSON.stringify(f)}, { workspace: "w", name: "n-${i}-" + j, id: "i", token: "t" });`]),
   );

@@ -27,7 +27,13 @@ You only edit JSON; the channel server re-reads it on every inbound message.
 echo "${AGENT_RELAY_CHANNEL_STATE_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/channels/agent-relay}"
 ```
 
-Use the printed path as `<state-dir>`. The file is `<state-dir>/access.json`:
+Use the printed path as `<state-dir>`. Access is kept per relay identity, so
+approving an agent for this session does not let it into another project's:
+the file is `<state-dir>/access/<workspace-tag>-<agent-name>.json`. Find this
+session's file from the `access_file` field of the `relay` server's `status`
+tool. For `pair <code>` you may instead search `<state-dir>/access/*.json` for
+the file whose `pending` holds that code (codes are unique). The file looks
+like:
 
 ```json
 {
@@ -60,7 +66,7 @@ The channel server writes this file too (it adds pending codes), so after the
 user confirms, **read the file again immediately before writing** and apply
 only your change to that fresh copy; never write back the copy you read before
 asking. Keep keys you did not change. Create `<state-dir>` with mode 0700 if
-needed, and after writing run `chmod 600 <state-dir>/access.json`. `pair` also copies the pending
+needed, and after writing run `chmod 600` on the file. `pair` also copies the pending
 entry's `senderId`, when present, into `ids[<sender>]`, and `remove` deletes
 `ids[<agent>]`. Confirm what changed in one line.
 Before approving a pairing, show the user the sender's name and ask them to

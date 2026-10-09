@@ -68,7 +68,7 @@ describe("access", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-lock-"));
     try {
       const file = path.join(dir, "access.json");
-      const access = new URL("../src/access.ts", import.meta.url).pathname;
+      const access = new URL("../src/access.ts", import.meta.url).href;
       const writers = Array.from({ length: 6 }, (_, i) =>
         Bun.spawn(["bun", "-e", `const { updateAccess } = await import(${JSON.stringify(access)}); for (let j = 0; j < 10; j++) updateAccess(${JSON.stringify(file)}, (a) => { a.allow.push("agent-${i}-" + j); });`]),
       );
@@ -119,4 +119,11 @@ test("agents named after Object.prototype keys are paired and pinned like any ot
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a pinned name without a sender id fails closed", () => {
+  const access = { ...defaultAccess(), allow: ["alice"] };
+  access.ids.alice = "id-1";
+  expect(decide(access, "alice", 0, undefined).action).toBe("drop");
+  expect(decide(access, "alice", 0, "id-1").action).toBe("deliver");
 });

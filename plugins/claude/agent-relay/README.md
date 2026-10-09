@@ -52,7 +52,9 @@ in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
   and listens on its WebSocket for direct messages and thread replies. Each one
   from an allowlisted sender becomes a channel event:
   `<channel source="plugin:agent-relay:relay" from="AGENT" message_id="ID" kind="dm">TEXT</channel>`.
-- **Gate.** `access.json` holds `dmPolicy` (`pairing`, `allowlist` or
+- **Gate.** Each relay identity (workspace and agent name) has its own
+  access file, `access/<workspace-tag>-<agent-name>.json`, so approving an
+  agent for one project's session does not let it into another's. It holds `dmPolicy` (`pairing`, `allowlist` or
   `disabled`), the allowlist of agent names, the relay agent id each name was
   approved as (a different agent that later takes the same name must pair
   again), and pending pairing codes (one per sender, at most three, one hour
@@ -97,7 +99,7 @@ turns inbound off.
 |---|---|---|
 | Agent Relay API and WebSocket | `https://cast.agentrelay.com` (or `AGENT_RELAY_CHANNEL_BASE_URL`) | Workspace key `AGENT_RELAY_CHANNEL_WORKSPACE_KEY` to register; then the agent token |
 | Agent Relay desktop session socket (read only, optional) | `$XDG_RUNTIME_DIR/agent-relay/relay.sock`, or the macOS app socket | None |
-| State | `~/.claude/channels/agent-relay/` (`.env`, `access.json`, `identity.json`, all 0600) | Stored there |
+| State | `~/.claude/channels/agent-relay/` (`.env`, `access/*.json`, `identity.json`, all 0600) | Stored there |
 | npm registry, at start | `bun install --frozen-lockfile` against `bun.lock` | None |
 
 No telemetry is added by the plugin.

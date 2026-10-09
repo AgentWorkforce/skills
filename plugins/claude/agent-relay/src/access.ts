@@ -116,7 +116,8 @@ function prune(access: Access, now: number): void {
 export function isAllowed(access: Access, sender: string, senderId?: string): boolean {
   if (access.dmPolicy === "disabled" || !access.allow.includes(sender)) return false;
   const pinned = access.ids[sender];
-  return !pinned || !senderId || pinned === senderId;
+  // Once a name is pinned, a message must prove it is that agent.
+  return !pinned || pinned === senderId;
 }
 
 /**
@@ -130,6 +131,9 @@ export function decide(access: Access, sender: string, now = Date.now(), senderI
   if (access.dmPolicy === "disabled") return { action: "drop", reason: "channel disabled" };
   if (isAllowed(access, sender, senderId)) {
     return senderId && !access.ids[sender] ? { action: "deliver", pin: senderId } : { action: "deliver" };
+  }
+  if (access.allow.includes(sender) && access.ids[sender] && !senderId) {
+    return { action: "drop", reason: "message carries no sender id for a pinned agent" };
   }
   if (access.dmPolicy === "allowlist") return { action: "drop", reason: "sender not on the allowlist" };
   prune(access, now);

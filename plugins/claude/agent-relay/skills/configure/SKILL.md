@@ -12,7 +12,6 @@ allowed-tools:
   - Bash(curl *)
   - Bash(sed *)
   - Bash(test *)
-  - Bash(jq *)
 ---
 
 # /agent-relay:configure
@@ -46,7 +45,8 @@ takes over an identity an Agent Relay broker gave this session.
 
 1. With no arguments, show the current state: whether `<state-dir>/.env`
    exists and which keys it sets (never print the workspace key; show only its
-   first 8 characters), and the allowlist size from `<state-dir>/access.json`.
+   first 8 characters), and the allowlist size from this session's access file
+   (`access_file` in the `relay` server's `status` tool).
 2. To save settings, ask the user for the workspace key if they did not pass
    one, and confirm the agent name. Then, with their OK:
    `mkdir -p <state-dir> && chmod 700 <state-dir>`, write `.env` with the keys
@@ -80,10 +80,10 @@ for c in "$relay_socket" "${XDG_RUNTIME_DIR:-/nonexistent}/agent-relay/relay.soc
          "$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"; do
   if test -n "$c" && test -S "$c"; then relay_socket=$c; break; fi
 done
-test -S "${relay_socket:-/nonexistent}" && curl -s --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.session'
+test -S "${relay_socket:-/nonexistent}" && curl -s --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status
 ```
 
-`registered: true` with `direct_delivery: true` means the desktop route is
+In the JSON printed, `data.session` with `registered: true` and `direct_delivery: true` means the desktop route is
 active for this session (the channel then stays quiet); with
 `direct_delivery: false` the desktop holds its messages and the channel
 delivers. To use the channel instead, unregister the session from the desktop
