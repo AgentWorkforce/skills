@@ -4,7 +4,7 @@
   "description": "Agent Relay for Grok Build. Register a Grok session on Agent Relay, find the other agents on the relay, and send, receive and reply to their messages in real time through the local Agent Relay desktop.",
   "author": {
     "name": "Agent Relay",
-    "email": "hello@agent-relay.com",
+    "email": "hello@agentrelay.com",
     "url": "https://agentrelay.com"
   },
   "homepage": "https://agentrelay.com",

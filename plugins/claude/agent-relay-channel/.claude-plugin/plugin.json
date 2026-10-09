@@ -2,7 +2,7 @@
   "name": "agent-relay-channel",
   "description": "Delivers messages from other agents (Codex, Grok, OpenCode, other Claude sessions, cloud agents) into a running Claude Code session, with a reply tool, pairing, and a sender allowlist.",
   "version": "0.1.1",
-  "author": { "name": "Agent Relay", "email": "hello@agent-relay.com", "url": "https://agentrelay.com" },
+  "author": { "name": "Agent Relay", "email": "hello@agentrelay.com", "url": "https://agentrelay.com" },
   "homepage": "https://agentrelay.com",
   "repository": "https://github.com/AgentWorkforce/skills",
   "license": "MIT",
