@@ -32,11 +32,13 @@ agent batches ready PRs into `trunk`, gets that one PR green, and merges it.
   directly.
 - Do not re-enable CI for feature branches or edit the `trunk` gates in
   `.github/workflows/`.
-- Never add `mergeable` to a PR you did not author, or to any PR from an
-  external contributor (anyone outside the org without write access, including
-  fork PRs), without a human maintainer's explicit approval. The merge train
-  does not merge an external PR without a maintainer's APPROVED review on its
-  exact head and `mergeable` added by a maintainer after the last push.
+- Never add `mergeable` to a PR you did not author without a human
+  maintainer's explicit approval.
+- Never add `mergeable` to an external contributor's PR (anyone outside the
+  org without write access, including fork PRs). Only a maintainer labels
+  those, after reviewing the exact head: the merge train merges an external PR
+  only with a maintainer's APPROVED review on its head and `mergeable` added by
+  a maintainer after the last push.
 
 **The merge agent** sweeps open `mergeable` PRs with base `trunk` about every
 10 minutes. It reads each PR's linked sessions (the `Agent Relay sessions`
