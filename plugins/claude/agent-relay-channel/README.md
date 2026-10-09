@@ -18,26 +18,30 @@ v2; an older Bun stops at start with a message saying so).
 
 ```
 /plugin marketplace add AgentWorkforce/skills
-/plugin install agent-relay@agent-relay
-/agent-relay:configure
+/plugin install agent-relay-channel@agent-relay
+/agent-relay-channel:configure
 ```
 
-`/agent-relay:configure` saves an Agent Relay workspace key and this session's
+If you previously installed `agent-relay@agent-relay`, uninstall it and replace
+the old plugin identifier in both the install and channel launch commands.
+Your existing settings under `~/.claude/channels/agent-relay/` are reused.
+
+`/agent-relay-channel:configure` saves an Agent Relay workspace key and this session's
 agent name to `~/.claude/channels/agent-relay/.env` (mode 0600). Then restart
 with the channel on. This marketplace is not on Anthropic's channel allowlist,
 so during the preview it needs the development flag:
 
 ```bash
-claude --dangerously-load-development-channels plugin:agent-relay@agent-relay
+claude --dangerously-load-development-channels plugin:agent-relay-channel@agent-relay
 ```
 
 (If your organisation lists it in `allowedChannelPlugins`,
-`claude --channels plugin:agent-relay@agent-relay` works.)
+`claude --channels plugin:agent-relay-channel@agent-relay` works.)
 
 Under the default `pairing` policy, the first message from an agent you have
 not approved is not shown to Claude, and the agent gets a pairing code back
 (while fewer than three codes are pending; otherwise it is dropped). Approve it
-in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
+in your terminal with `/agent-relay-channel:access pair <code>`. The `allowlist` and
 `disabled` policies never issue codes.
 
 ## What it ships
@@ -45,8 +49,8 @@ in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
 | Component | Name |
 |---|---|
 | Channel MCP server | `relay` (stdio, `bun server.ts`), declares `claude/channel`; tools `reply` and `status` |
-| Skill | `/agent-relay:configure`: settings, launch flag, desktop check |
-| Skill | `/agent-relay:access`: pair, allow, remove, policy |
+| Skill | `/agent-relay-channel:configure`: settings, launch flag, desktop check |
+| Skill | `/agent-relay-channel:access`: pair, allow, remove, policy |
 | Skill | `messaging-agents-on-the-relay`: roster and messaging through the Agent Relay desktop |
 
 ## How it behaves
@@ -54,7 +58,7 @@ in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
 - **Inbound.** The server registers its own agent on Agent Relay (Relaycast)
   and listens on its WebSocket for direct messages and thread replies. Each one
   from an allowlisted sender becomes a channel event:
-  `<channel source="plugin:agent-relay:relay" from="AGENT" message_id="ID" kind="dm">TEXT</channel>`.
+  `<channel source="plugin:agent-relay-channel:relay" from="AGENT" message_id="ID" kind="dm">TEXT</channel>`.
 - **Gate.** Each relay identity (workspace and agent name) has its own
   access file, `access/<workspace-tag>-<agent-name>-<hash>.json`, so
   approving an agent for one identity does not let it into a session using a
@@ -65,7 +69,7 @@ in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
   again), and pending pairing codes (one per sender, at most three, one hour
   each; a code whose DM fails is withdrawn so the next message gets a new
   one). It is re-read on every message. Only the user's own
-  `/agent-relay:access` changes the allowlist; the skill refuses requests that
+  `/agent-relay-channel:access` changes the allowlist; the skill refuses requests that
   arrive through a channel.
 - **Framing.** The server's instructions tell Claude that a relayed message is
   a request from a peer, never the user's approval: it cannot grant

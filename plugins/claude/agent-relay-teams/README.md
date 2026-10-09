@@ -20,10 +20,14 @@ The easiest way to install is via the Claude Code plugin marketplace:
 
 ```
 /plugin marketplace add AgentWorkforce/skills
-/plugin install claude-relay-plugin@agent-relay
+/plugin install agent-relay-teams@agent-relay
 ```
 
 This downloads and configures the plugin automatically.
+
+If you previously installed `claude-relay-plugin@agent-relay`, uninstall it
+before installing `agent-relay-teams@agent-relay`. The old identifier is not
+an alias and will not receive updates under the new name.
 
 **Local development**
 
@@ -34,7 +38,7 @@ Claude Code with the plugin directory explicitly:
 ```bash
 git clone https://github.com/AgentWorkforce/skills.git
 cd skills
-claude --plugin-dir ./plugins/claude-relay-plugin
+claude --plugin-dir ./plugins/claude/agent-relay-teams
 ```
 
 The marketplace commands above are the supported installation path. The
@@ -100,16 +104,16 @@ Ask Claude to use the Agent Relay MCP tools directly:
 Use the built-in skills to orchestrate multi-agent work:
 
 ```
-> /relay-team Refactor the auth module — split the middleware, update tests, and update docs
+> /agent-relay-teams:relay-team Refactor the auth module — split the middleware, update tests, and update docs
 
-> /relay-fanout Run linting fixes across all packages in the monorepo
+> /agent-relay-teams:relay-fanout Run linting fixes across all packages in the monorepo
 
-> /relay-pipeline Analyze the API logs, then generate a summary report, then draft an email
+> /agent-relay-teams:relay-pipeline Analyze the API logs, then generate a summary report, then draft an email
 ```
 
-- **`/relay-team`** — Best for multi-part tasks where workers need some coordination. Spawns 1-5 workers with explicit scopes and monitors their progress.
-- **`/relay-fanout`** — Best for embarrassingly parallel work (same task across different targets). Workers run independently with no inter-dependencies.
-- **`/relay-pipeline`** — Best for sequential work where each stage depends on the previous one's output. Stages run one at a time with explicit handoffs.
+- **`/agent-relay-teams:relay-team`** — Best for multi-part tasks where workers need some coordination. Spawns 1-5 workers with explicit scopes and monitors their progress.
+- **`/agent-relay-teams:relay-fanout`** — Best for embarrassingly parallel work (same task across different targets). Workers run independently with no inter-dependencies.
+- **`/agent-relay-teams:relay-pipeline`** — Best for sequential work where each stage depends on the previous one's output. Stages run one at a time with explicit handoffs.
 
 These slash commands are prompt templates — they load orchestration instructions into Claude's context as a convenience. They are not the only way to trigger relay coordination. You can also describe what you want in plain language and Claude will set up the workspace, spawn relay-workers, and coordinate them. The plugin's hooks and agent definitions handle the infrastructure automatically regardless of how the request is phrased.
 
@@ -133,13 +137,13 @@ Claude recognizes these requests because the plugin's skills, hooks, and agent d
 
 The plugin uses two separate mechanisms — **Claude Code's Agent tool** for spawning processes, and **Relay** for communication between them:
 
-1. **Spawning**: When a skill like `/relay-team` runs, Claude uses its built-in Agent tool to spawn child Claude processes (subagents). Each worker is created with `subagent_type: "relay-worker"`, which gives it the Agent Relay MCP server, inbox-polling hooks, and the worker protocol prompt.
+1. **Spawning**: When a skill like `/agent-relay-teams:relay-team` runs, Claude uses its built-in Agent tool to spawn child Claude processes (subagents). Each worker is created with `subagent_type: "relay-worker"`, which gives it the Agent Relay MCP server, inbox-polling hooks, and the worker protocol prompt.
 
 2. **Bootstrap**: The `SubagentStart` hook automatically fires when a worker is spawned, injecting relay bootstrap instructions — register with the workspace, check inbox, ACK the lead, send DONE when finished.
 
 3. **Communication**: Workers and the lead communicate through Relay MCP tools (`send_dm`, `post_message`, `check_inbox`). The `PostToolUse` hook polls the inbox after every tool call, so messages are picked up automatically.
 
-4. **Concurrency**: Workers can run in the background (parallel) or foreground (sequential). The `/relay-team` and `/relay-fanout` skills use background mode; `/relay-pipeline` uses foreground mode to enforce stage ordering.
+4. **Concurrency**: Workers can run in the background (parallel) or foreground (sequential). The `/agent-relay-teams:relay-team` and `/agent-relay-teams:relay-fanout` skills use background mode; `/agent-relay-teams:relay-pipeline` uses foreground mode to enforce stage ordering.
 
 5. **Peer messaging**: Workers can message each other directly through Relay, not just the lead. Each worker has its own MCP server connection and inbox-polling hooks.
 
@@ -208,7 +212,7 @@ Each agent registers with the relay and can message the others through channels 
 ## Plugin structure
 
 ```
-claude-relay-plugin/
+agent-relay-teams/
   .claude-plugin/plugin.json   # Plugin manifest (Claude discovers this)
   .mcp.json                    # Agent Relay MCP server configuration
   hooks/
@@ -247,9 +251,9 @@ Emits a relay-state summary (agent identity, workspace, known workers) before Cl
 
 The plugin includes three coordination skills:
 
-- **`/relay-team`** — Set up a team of coordinated agents
-- **`/relay-fanout`** — Fan out work across multiple agents in parallel
-- **`/relay-pipeline`** — Chain agents in a sequential pipeline
+- **`/agent-relay-teams:relay-team`** — Set up a team of coordinated agents
+- **`/agent-relay-teams:relay-fanout`** — Fan out work across multiple agents in parallel
+- **`/agent-relay-teams:relay-pipeline`** — Chain agents in a sequential pipeline
 
 ## Troubleshooting
 

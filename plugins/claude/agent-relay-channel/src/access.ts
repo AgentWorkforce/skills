@@ -1,7 +1,7 @@
 // Who may push relay messages into this session.
 //
 // State lives in <state dir>/access.json and is re-read on every inbound
-// message, so the /agent-relay:access skill's edits apply without a restart.
+// message, so the /agent-relay-channel:access skill's edits apply without a restart.
 // A sender is a relay agent name; the room or conversation is never the key.
 
 import { randomInt } from "node:crypto";

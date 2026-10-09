@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "claude-channel-agent-relay",
+      "name": "agent-relay-channel",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.32.1",
         "@relaycast/sdk": "9.1.1",

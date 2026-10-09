@@ -1,5 +1,5 @@
 {
-  "name": "claude-relay-plugin",
+  "name": "agent-relay-teams",
   "version": "0.2.1",
   "description": "Coordinates Claude Code sub-agents via Agent Relay MCP and lifecycle hooks",
   "author": "Agent Relay <hello@agent-relay.com>",
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/AgentWorkforce/skills.git",
-    "directory": "plugins/claude-relay-plugin"
+    "directory": "plugins/claude/agent-relay-teams"
   },
   "keywords": [
     "claude-code-plugin",

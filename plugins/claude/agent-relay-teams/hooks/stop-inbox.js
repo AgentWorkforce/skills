@@ -2,51 +2,35 @@
 
 import { readFileSync } from 'node:fs';
 
-type HookInput = {
-  stop_hook_active?: boolean;
-};
-
-type HookOutput = {
-  decision: 'approve' | 'block';
-  reason?: string;
-};
-
-type InboxMessage = {
-  id?: string;
-  from?: string;
-  text?: string;
-  channel?: string;
-};
-
 const DEFAULT_BASE_URL = 'https://cast.agentrelay.com';
 const MAX_RENDERED_MESSAGES = 20;
 
-function readInput(): HookInput {
+function readInput() {
   try {
     const raw = readFileSync(0, 'utf8').trim();
-    return raw ? (JSON.parse(raw) as HookInput) : {};
+    return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-function writeOutput(output: HookOutput): void {
+function writeOutput(output) {
   process.stdout.write(JSON.stringify(output));
 }
 
-function normalizeBaseUrl(value: string | undefined): string {
+function normalizeBaseUrl(value) {
   return (value?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
 }
 
-function cleanText(value: string | undefined): string {
+function cleanText(value) {
   return (value || '').replace(/\s+/g, ' ').trim();
 }
 
-function formatMessage(message: InboxMessage): string {
-  const from = cleanText(message.from) || 'unknown';
-  const text = cleanText(message.text) || '(no text)';
-  const id = cleanText(message.id);
-  const channel = cleanText(message.channel);
+function formatMessage(message) {
+  const from = cleanText(message?.from) || 'unknown';
+  const text = cleanText(message?.text) || '(no text)';
+  const id = cleanText(message?.id);
+  const channel = cleanText(message?.channel);
   const prefix = channel
     ? `Relay message from ${from} in #${channel}`
     : `Relay message from ${from}`;
@@ -54,7 +38,7 @@ function formatMessage(message: InboxMessage): string {
   return `${prefix}${suffix}: ${text}`;
 }
 
-async function checkInbox(token: string, baseUrl: string): Promise<InboxMessage[]> {
+async function checkInbox(token, baseUrl) {
   const response = await fetch(`${baseUrl}/v1/inbox/check`, {
     method: 'POST',
     headers: {
@@ -68,11 +52,11 @@ async function checkInbox(token: string, baseUrl: string): Promise<InboxMessage[
     throw new Error(`Inbox check failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as { messages?: InboxMessage[] } | null;
+  const payload = await response.json();
   return Array.isArray(payload?.messages) ? payload.messages : [];
 }
 
-async function main(): Promise<void> {
+async function main() {
   try {
     const input = readInput();
 
@@ -112,7 +96,7 @@ async function main(): Promise<void> {
         'Please read and respond.',
     });
   } catch (error) {
-    console.error('[claude-relay-plugin] stop-inbox hook error:', error);
+    console.error('[agent-relay-teams] stop-inbox hook error:', error);
     writeOutput({ decision: 'approve' });
   }
 }

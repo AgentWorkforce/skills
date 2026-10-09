@@ -44,7 +44,7 @@ const SEEN_LIMIT = 2_000;
 export function pairingMessage(code: string): string {
   return (
     "This Claude Code session accepts Agent Relay messages only from approved agents. " +
-    `Ask the person running it to approve you with: /agent-relay:access pair ${code}`
+    `Ask the person running it to approve you with: /agent-relay-channel:access pair ${code}`
   );
 }
 
@@ -63,7 +63,7 @@ export function createChannel(options: ChannelOptions) {
     return true;
   }
 
-  // Locked read-modify-write, so a concurrent edit by /agent-relay:access or
+  // Locked read-modify-write, so a concurrent edit by /agent-relay-channel:access or
   // another channel process is not overwritten with a stale copy.
   function update(change: (access: Access) => void): void {
     updateAccess(options.accessFile, change);
