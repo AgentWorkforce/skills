@@ -317,7 +317,7 @@ export const AgentRelay = async ({ client, directory }) => {
 
   // Once the server is up (calling it while plugins load would wait on
   // itself), hold the session the TUI was started on.
-  setTimeout(async () => {
+  const startup = setTimeout(async () => {
     const started = startedOn();
     if (started.session) {
       await touch(started.session);
@@ -369,6 +369,8 @@ export const AgentRelay = async ({ client, directory }) => {
           // Stop this instance's listener and remove its socket and record,
           // so a reload in the same process binds them afresh.
           stopped = true;
+          clearTimeout(startup);
+          process.removeListener("exit", close);
           close();
           if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
           break;

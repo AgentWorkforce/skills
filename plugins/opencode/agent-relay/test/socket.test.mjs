@@ -93,7 +93,7 @@ test("disposing stops the listener and removes the socket and record", { skip: !
     const after = [fs.existsSync(socket), fs.existsSync(socket.replace(/sock$/, "json"))];
     let refused = false;
     try { await post("null"); } catch { refused = true; }
-    console.log(JSON.stringify({ before, after, refused }));
+    console.log(JSON.stringify({ before, after, refused, exitHooks: process.listenerCount("exit") }));
     process.exit(0);`);
-  assert.deepEqual(result, { before: [true, true], after: [false, false], refused: true });
+  assert.deepEqual(result, { before: [true, true], after: [false, false], refused: true, exitHooks: 0 });
 });

@@ -139,9 +139,18 @@ source = replaceOnce(
           // Stop this instance's listener and remove its socket and record,
           // so a reload in the same process binds them afresh.
           stopped = true;
+          clearTimeout(startup);
+          process.removeListener("exit", close);
           close();
           if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
           break;`,
+);
+source = replaceOnce(
+  source,
+  `  setTimeout(async () => {
+    const started = startedOn();`,
+  `  const startup = setTimeout(async () => {
+    const started = startedOn();`,
 );
 // 4. Once stopped, nothing (a late event, the startup timer) rewrites the
 //    record of a disposed instance.
