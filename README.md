@@ -44,13 +44,13 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [/spawn](commands/spawn.md) | 1.1.0 | Bootstrap the broker (`agent-relay node up`) and spawn a worker for `claude`, `codex`, `opencode`, `droid`, `gemini`, or `pi`. |
 | [/review-loop](commands/review-loop.md) | 1.0.1 | Run a dual-reviewer code-review loop with repair and fresh-context signoff. |
 
-## Claude Relay Plugin
+## Claude Code Teams Plugin
 
-Install the [`claude-relay-plugin`](plugins/claude-relay-plugin) Claude Code plugin from the `agent-relay` marketplace, which is published from this repo:
+Install [`agent-relay-teams`](plugins/claude/agent-relay-teams) from the `agent-relay` marketplace to coordinate Claude Code sub-agents:
 
 ```bash
 /plugin marketplace add AgentWorkforce/skills
-/plugin install claude-relay-plugin@agent-relay
+/plugin install agent-relay-teams@agent-relay
 ```
 
 ## Grok Build Plugin
@@ -63,15 +63,24 @@ grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
 
 ## Claude Code Channel Plugin
 
-[`plugins/claude/agent-relay`](plugins/claude/agent-relay) is a Claude Code [channel](https://code.claude.com/docs/en/channels): relay messages from other agents arrive in your running session in real time and Claude answers with a `reply` tool, gated by pairing and a sender allowlist.
+[`agent-relay-channel`](plugins/claude/agent-relay-channel) is a Claude Code [channel](https://code.claude.com/docs/en/channels): relay messages from other agents arrive in your running session in real time and Claude answers with a `reply` tool, gated by pairing and a sender allowlist.
 
 ```
 /plugin marketplace add AgentWorkforce/skills
-/plugin install agent-relay@agent-relay
-/agent-relay:configure
+/plugin install agent-relay-channel@agent-relay
+/agent-relay-channel:configure
 ```
 
-Then restart with the channel on; during the research preview: `claude --dangerously-load-development-channels plugin:agent-relay@agent-relay`. See the [plugin README](plugins/claude/agent-relay/README.md) for pairing and requirements (Bun 1.4+).
+Then restart with the channel on; during the research preview: `claude --dangerously-load-development-channels plugin:agent-relay-channel@agent-relay`. See the [plugin README](plugins/claude/agent-relay-channel/README.md) for pairing and requirements (Bun 1.4+).
+
+### Migrating the Claude plugins
+
+The old identifiers are not aliases. Uninstall `claude-relay-plugin@agent-relay`
+and install `agent-relay-teams@agent-relay`; uninstall
+`agent-relay@agent-relay` and install `agent-relay-channel@agent-relay`.
+Channel users must also replace the old plugin identifier in their
+`--dangerously-load-development-channels` launch command. Existing channel
+settings under `~/.claude/channels/agent-relay/` are reused.
 
 ## OpenCode Plugin
 
@@ -183,9 +192,9 @@ See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) fo
 ```text
 skills/                         # Standalone skills
 commands/                       # Slash commands
-plugins/claude-relay-plugin/    # Claude Code plugin, hooks, worker agent, and plugin skills
+plugins/claude/agent-relay-teams/ # Claude Code plugin, hooks, worker agent, and plugin skills
 plugins/grok/agent-relay/       # Grok Build plugin: setup and messaging skills, /relay-leader-mode
-plugins/claude/agent-relay/     # Claude Code channel plugin: relay messages into a running session
+plugins/claude/agent-relay-channel/ # Claude Code channel plugin: relay messages into a running session
 plugins/opencode/agent-relay/   # @agent-relay/opencode-plugin npm package (generated from the desktop template)
 workflows/                      # Maintenance and audit workflows
 prpm.json                       # Package manifest

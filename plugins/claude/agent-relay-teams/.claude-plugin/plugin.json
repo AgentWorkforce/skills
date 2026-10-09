@@ -1,5 +1,5 @@
 {
-  "name": "claude-relay-plugin",
+  "name": "agent-relay-teams",
   "description": "Coordinates Claude Code sub-agents in real time through shared Agent Relay messages, channels, and lifecycle hooks.",
   "version": "0.2.1",
   "author": {

@@ -185,9 +185,9 @@ if (shuttingDown) await new Promise(() => {});
 delivering = shouldDeliver(mode, desktop) && Boolean(workspaceKey) && isAgentName(agentName);
 note = undefined;
 if (!workspaceKey) {
-  note = "The channel is not configured yet (no workspace key); run /agent-relay:configure.";
+  note = "The channel is not configured yet (no workspace key); run /agent-relay-channel:configure.";
 } else if (!isAgentName(agentName)) {
-  note = `The configured agent name "${agentName}" is not valid; run /agent-relay:configure.`;
+  note = `The configured agent name "${agentName}" is not valid; run /agent-relay-channel:configure.`;
 } else if (!shouldDeliver(mode, desktop)) {
   note =
     mode === "never"

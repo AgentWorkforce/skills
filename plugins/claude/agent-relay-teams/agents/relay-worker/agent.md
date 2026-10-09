@@ -45,7 +45,7 @@ in this directory. Report that as your final response rather than guessing at th
 
 ## Message Templates
 
-- `ACK: Implementing the relay worker prompt and config files in plugins/claude-relay-plugin.`
+- `ACK: Implementing the relay worker prompt and config files in plugins/claude/agent-relay-teams.`
 - `STATUS: Updated the worker config and validated the hook paths.`
 - `BLOCKED: Need the lead to confirm whether worker hooks should reference stop-inbox.ts directly or a built artifact.`
 - `DONE: Added the worker prompt, worker config, and bootstrap hook wiring.`

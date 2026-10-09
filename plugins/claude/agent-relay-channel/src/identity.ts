@@ -111,7 +111,7 @@ export async function resolveIdentity(
     if (!mine) {
       throw new Error(
         `The agent name "${name}" is already taken in this workspace, by another agent or by another Claude Code session using this name right now. ` +
-          "Two sessions must not share one relay identity (both would receive every message). Choose another AGENT_RELAY_CHANNEL_AGENT_NAME with /agent-relay:configure.",
+          "Two sessions must not share one relay identity (both would receive every message). Choose another AGENT_RELAY_CHANNEL_AGENT_NAME with /agent-relay-channel:configure.",
       );
     }
   }
