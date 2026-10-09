@@ -83,11 +83,12 @@ relay_req GET /setup/status | jq -c '{version: .data.version, sign_in: .data.sig
 ```
 
 - `sign_in` is `signed_in`: continue.
-- The request timed out or returned nothing although the socket exists: a busy
+- The socket exists but the request timed out or returned nothing: a busy
   desktop can take about 30 seconds to answer `/setup/status` (and the macOS
-  probe can give up sooner). Run the same command once more before deciding;
-  if it still fails, report it as a slow or stuck desktop, not a missing one.
-- No socket, no probe, an error on the retry, or not signed in: the desktop is
+  probe can give up sooner). Run the same command once more. If it times out
+  again, report a slow or stuck desktop (not a missing one) and stop; if it
+  now answers, continue with the bullets here.
+- No socket, no probe, an error response, or not signed in: the desktop is
   missing or not set up. Tell the person, and point them to the
   `setting-up-agent-relay-desktop` skill
   (<https://github.com/AgentWorkforce/skills/tree/main/skills/setting-up-agent-relay-desktop>)
