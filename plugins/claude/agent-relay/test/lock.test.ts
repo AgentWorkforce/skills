@@ -31,6 +31,8 @@ test("a fresh lock is never removed by a reclaimer that inspected an older one",
     // An old lock is inspected, then replaced by a live process's fresh lock.
     fs.writeFileSync(lock, "999999999");
     const staleIno = fs.statSync(lock).ino;
+    // Keep the old inode allocated so the fresh lock cannot reuse it.
+    fs.linkSync(lock, `${lock}.held`);
     fs.unlinkSync(lock);
     fs.writeFileSync(lock, String(process.pid));
     const { reclaimForTest } = require("../src/lock.ts");

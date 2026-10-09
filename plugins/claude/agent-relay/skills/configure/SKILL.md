@@ -47,8 +47,9 @@ takes over an identity an Agent Relay broker gave this session.
    exists and which keys it sets (never print the workspace key; show only its
    first 8 characters). If the `relay` server's `status` tool is available
    (the session was started with the channel), also show the allowlist size
-   from its `access_file`; before the first restart with the channel there is
-   none yet, so skip it.
+   from its `access_file`; that file is created on the first inbound message
+   or access change, so a missing file means an empty allowlist. Before the
+   first restart with the channel there is no status tool, so skip it.
 2. To save settings, ask the user for the workspace key if they did not pass
    one, and confirm the agent name. Then, with their OK:
    `mkdir -p <state-dir> && chmod 700 <state-dir>`, write `.env` with the keys
