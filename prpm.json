@@ -616,7 +616,7 @@
     },
     {
       "name": "merge-train-snippet",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "AGENTS.md snippet: feature PRs target trunk, verify locally (no feature-branch CI), and add the `mergeable` label when ready; the merge agent sweeps them into trunk and promotes trunk to the default branch.",
       "format": "generic",
       "subtype": "snippet",
