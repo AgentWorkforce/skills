@@ -168,6 +168,7 @@ See [prpm.dev](https://prpm.dev/) and the [prpm docs](https://docs.prpm.dev/) fo
 skills/                         # Standalone skills
 commands/                       # Slash commands
 plugins/claude-relay-plugin/    # Claude Code plugin, hooks, worker agent, and plugin skills
+plugins/grok/agent-relay/       # Grok Build plugin: setup and messaging skills, /relay-leader-mode
 workflows/                      # Maintenance and audit workflows
 prpm.json                       # Package manifest
 ```

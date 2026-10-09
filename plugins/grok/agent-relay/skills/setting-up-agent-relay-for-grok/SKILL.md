@@ -51,6 +51,9 @@ relay_req() {
   fi
   if test "$(uname -s)" = Darwin; then
     # macOS hides GROK_SESSION_ID from curl; only the probe can prove the caller
+    if test -z "$relay_probe"; then
+      echo 'Grok on macOS needs agent-relay-probe; start Agent Relay and retry.' >&2; return 1
+    fi
     printf '%s' "${3:-}" | "$relay_probe" relay socket-request \
       --socket "$relay_socket" --method "$1" --path "$2"
   elif test -n "${3:-}"; then
@@ -101,6 +104,11 @@ relay_core sessions.list | jq -c --arg id "$GROK_SESSION_ID" \
 
 - The session row has `"live": true`: leader mode is working for this session.
   Skip to step 3.
+- No row is printed for this session: this TUI is not running under a leader
+  the desktop can see (it started before leader mode was on, or with
+  `--no-leader`). If `grok_leader` is `true`, tell the person to quit this Grok
+  session and start a new one (`grok`), then run this skill again there;
+  change nothing. Otherwise follow the next bullet.
 - `grok_leader` is `false`, or the row has `"live": false`: ask the person:
   *"Agent Relay needs Grok's leader mode (`[cli] use_leader = true`) to deliver
   messages into Grok. Turn it on? This edits one line in ~/.grok/config.toml and
@@ -109,7 +117,10 @@ relay_core sessions.list | jq -c --arg id "$GROK_SESSION_ID" \
     the file mode and writes `config.toml.relay-desktop-backup` once):
     ```sh
     relay_core settings.set '{"grok_leader":true}' | jq -c '.result | {grok_leader}'
+    relay_core settings.get | jq -e '.result.grok_leader == true'   # confirm it applied
     ```
+    If the confirmation is not `true` (a managed config pins it, the file was
+    unsafe to change, or the call failed), report that and stop.
     Then tell the person to quit this Grok session and start a new one
     (`grok`), and run this skill again there. The current session does not
     change mode while it runs.

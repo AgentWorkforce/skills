@@ -50,7 +50,7 @@ Everything the plugin's skills and command call is local to your machine:
 
 | Endpoint | Used for | Credential |
 |---|---|---|
-| Desktop session socket: `$XDG_RUNTIME_DIR/agent-relay/relay.sock` (Linux), `~/Library/Application Support/com.agentrelay.desktop/run/relay.sock` (macOS), pointer in `~/.agentworkforce/desktop/relay-socket` | `GET /setup/status`, `GET /agents`, `POST /send` | None. The desktop identifies the calling Grok session from its process and `GROK_SESSION_ID` |
+| Desktop session socket: `$XDG_RUNTIME_DIR/agent-relay/relay.sock`, else `/run/user/$(id -u)/agent-relay/relay.sock` (Linux), `~/Library/Application Support/com.agentrelay.desktop/run/relay.sock` (macOS); a pointer in `~/.agentworkforce/desktop/relay-socket` is read first | `GET /setup/status`, `GET /agents`, `POST /send` | None. The desktop identifies the calling Grok session from its process and `GROK_SESSION_ID`. On macOS requests must go through the desktop's `agent-relay-probe relay socket-request` (macOS hides `curl`'s environment, so `curl` is refused); the macOS path is not yet verified |
 | Desktop core socket `~/.agentworkforce/desktop/core.sock`, via the desktop's `agent-relay-probe relay call` | `settings.get`, `settings.set` (`grok_leader`, only with consent), `sessions.list`, `agents.register` / `agents.unregister` (only with consent) | None. Owner-only Unix socket (mode 0600) |
 | `~/.grok/config.toml` | Read to report leader mode | None. Written only by the desktop's `settings.set`, only with consent |
 
