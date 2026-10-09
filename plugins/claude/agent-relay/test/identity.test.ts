@@ -13,7 +13,7 @@ function api(over: Partial<IdentityApi> = {}): IdentityApi & { calls: string[] }
     async me(token) {
       calls.push(`me:${token}`);
       if (token === "good") return { id: "a1", name: "me" };
-      throw new Error("401");
+      throw Object.assign(new Error("Unauthorized"), { status: 401 });
     },
     async register(name) {
       calls.push(`register:${name}`);
@@ -61,6 +61,7 @@ describe("identity", () => {
     });
     const identity = await resolveIdentity(a, f, "rk_live_x", "me");
     expect(identity).toEqual({ workspace: workspaceTag("rk_live_x"), name: "me", id: "a1", token: "recovered" });
+    expect(a.calls).toContain("recover:me:a1");
   });
 
   test("a stored identity from another workspace or name is ignored", async () => {
@@ -102,4 +103,16 @@ describe("identity per workspace and name", () => {
     expect((await resolveIdentity(a, f, "rk_live_x", "alice")).token).toBe("t-alice");
     expect(fs.statSync(f).mode & 0o777).toBe(0o600);
   });
+});
+
+test("a transient me() failure is surfaced, not treated as a dead token", async () => {
+  const f = file();
+  saveIdentity(f, { workspace: workspaceTag("rk_live_x"), name: "me", id: "a1", token: "good" });
+  const a = api({
+    async me() {
+      throw Object.assign(new Error("Too Many Requests"), { status: 429 });
+    },
+  });
+  await expect(resolveIdentity(a, f, "rk_live_x", "me")).rejects.toThrow("Too Many Requests");
+  expect(a.calls).toEqual([]);
 });

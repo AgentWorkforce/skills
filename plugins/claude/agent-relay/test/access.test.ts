@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_PENDING, PAIR_TTL_MS, decide, defaultAccess, loadAccess, pair, saveAccess } from "../src/access.ts";
+import { MAX_PENDING, PAIR_TTL_MS, decide, defaultAccess, loadAccess, pair, saveAccess, updateAccess } from "../src/access.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -51,6 +51,7 @@ describe("access", () => {
 
   test("load is lenient and save is private", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-channel-"));
+    try {
     const file = path.join(dir, "state", "access.json");
     expect(loadAccess(file)).toEqual(defaultAccess());
     saveAccess(file, { dmPolicy: "allowlist", allow: ["bob", "bob", "../x"], ids: { bob: "id-b", "../x": "y" }, pending: {} });
@@ -58,6 +59,25 @@ describe("access", () => {
     expect(loadAccess(file)).toEqual({ dmPolicy: "allowlist", allow: ["bob"], ids: { bob: "id-b" }, pending: {} });
     fs.writeFileSync(file, "not json");
     expect(loadAccess(file).dmPolicy).toBe("pairing");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("locked updates from several processes keep every edit", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-lock-"));
+    try {
+      const file = path.join(dir, "access.json");
+      const access = new URL("../src/access.ts", import.meta.url).pathname;
+      const writers = Array.from({ length: 6 }, (_, i) =>
+        Bun.spawn(["bun", "-e", `const { updateAccess } = await import(${JSON.stringify(access)}); for (let j = 0; j < 10; j++) updateAccess(${JSON.stringify(file)}, (a) => { a.allow.push("agent-${i}-" + j); });`]),
+      );
+      await Promise.all(writers.map((w) => w.exited));
+      expect(loadAccess(file).allow).toHaveLength(60);
+      expect(fs.existsSync(`${file}.lock`)).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

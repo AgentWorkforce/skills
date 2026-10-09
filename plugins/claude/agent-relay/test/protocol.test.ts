@@ -35,6 +35,30 @@ describe("protocol pin", () => {
     expect((await negotiate("2025-06-18")).protocolVersion).toBe("2025-06-18");
   });
 
+  test("the wrapper clamps whatever the SDK's own handler would agree to", async () => {
+    const server = new Server({ name: "t", version: "0" }, { capabilities: { experimental: { "claude/channel": {} } } });
+    // Stand in for a future SDK that negotiates 2026-07-28.
+    (server as any)._oninitialize = async () => ({
+      protocolVersion: "2026-07-28",
+      capabilities: { experimental: { "claude/channel": {} } },
+      serverInfo: { name: "t", version: "0" },
+    });
+    pinProtocol(server);
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(a);
+    await b.start();
+    const reply = new Promise<any>((resolve) => {
+      b.onmessage = (message) => resolve(message);
+    });
+    await b.send({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2026-07-28", capabilities: {}, clientInfo: { name: "c", version: "0" } },
+    });
+    expect((await reply).result.protocolVersion).toBe(PROTOCOL_CEILING);
+  });
+
   test("the clamp refuses newer and draft revisions", () => {
     expect(clampProtocol("2026-07-28")).toBe(PROTOCOL_CEILING);
     expect(clampProtocol("DRAFT-2026-v1")).toBe(PROTOCOL_CEILING);

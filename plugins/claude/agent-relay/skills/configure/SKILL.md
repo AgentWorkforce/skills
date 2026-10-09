@@ -10,6 +10,9 @@ allowed-tools:
   - Bash(chmod *)
   - Bash(echo *)
   - Bash(curl *)
+  - Bash(sed *)
+  - Bash(test *)
+  - Bash(jq *)
 ---
 
 # /agent-relay:configure
@@ -67,14 +70,23 @@ takes over an identity an Agent Relay broker gave this session.
 If the Agent Relay desktop has registered this session, it already delivers
 relay messages through Claude Code's cross-session inbox. With
 `AGENT_RELAY_CHANNEL_INBOUND=auto` the channel then delivers nothing, so no
-message arrives twice; use one route per session. To check (read only):
+message arrives twice; use one route per session. To check (read only), find the desktop's socket
+the way the channel does and ask it:
 
 ```bash
-curl -s --max-time 30 --unix-socket "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/agent-relay/relay.sock" http://relay/setup/status
+relay_socket=
+if test -r "$HOME/.agentworkforce/desktop/relay-socket"; then relay_socket=$(sed -n '1p' "$HOME/.agentworkforce/desktop/relay-socket"); fi
+for c in "$relay_socket" "${XDG_RUNTIME_DIR:-/nonexistent}/agent-relay/relay.sock" "/run/user/$(id -u)/agent-relay/relay.sock" \
+         "$HOME/Library/Application Support/com.agentrelay.desktop/run/relay.sock"; do
+  if test -n "$c" && test -S "$c"; then relay_socket=$c; break; fi
+done
+test -S "${relay_socket:-/nonexistent}" && curl -s --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq -c '.data.session'
 ```
 
-`data.session.registered: true` means the desktop route is active for this
-session. To use the channel instead, unregister the session from the desktop
+`registered: true` with `direct_delivery: true` means the desktop route is
+active for this session (the channel then stays quiet); with
+`direct_delivery: false` the desktop holds its messages and the channel
+delivers. To use the channel instead, unregister the session from the desktop
 (`DELETE /register` on that socket, or remove it in the desktop app), or set
 `AGENT_RELAY_CHANNEL_INBOUND=always` knowing the session then has two relay
 addresses.

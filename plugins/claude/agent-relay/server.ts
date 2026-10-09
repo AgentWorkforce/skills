@@ -62,19 +62,11 @@ const agentName = settings.AGENT_RELAY_CHANNEL_AGENT_NAME ?? defaultAgentName();
 const baseUrl = settings.AGENT_RELAY_CHANNEL_BASE_URL;
 const mode = inboundMode(settings.AGENT_RELAY_CHANNEL_INBOUND);
 
-const desktop = await desktopSession(desktopSocket());
-let delivering = shouldDeliver(mode, desktop) && Boolean(workspaceKey) && isAgentName(agentName);
-let note: string | undefined;
-if (!workspaceKey) {
-  note = "The channel is not configured yet (no workspace key); run /agent-relay:configure.";
-} else if (!isAgentName(agentName)) {
-  note = `The configured agent name "${agentName}" is not valid; run /agent-relay:configure.`;
-} else if (!shouldDeliver(mode, desktop)) {
-  note =
-    mode === "never"
-      ? "Inbound delivery is turned off (AGENT_RELAY_CHANNEL_INBOUND=never)."
-      : `The Agent Relay desktop already delivers this session's messages${desktop?.address ? ` as ${desktop.address}` : ""}, through Claude Code's cross-session inbox, so this channel does not deliver them again.`;
-}
+// Decided after Claude Code is connected: the desktop check can take tens of
+// seconds, longer than Claude Code waits for a server to start.
+let desktop: Awaited<ReturnType<typeof desktopSession>>;
+let delivering = false;
+let note: string | undefined = "Checking whether the Agent Relay desktop already delivers to this session…";
 
 const mcp = new Server(
   { name: "agent-relay", version: "0.1.0" },
@@ -85,7 +77,7 @@ const mcp = new Server(
       experimental: { "claude/channel": {} },
       tools: {},
     },
-    instructions: instructions(agentName, delivering, note),
+    instructions: instructions(agentName, true),
   },
 );
 pinProtocol(mcp);
@@ -160,6 +152,20 @@ mcp.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 await mcp.connect(new StdioServerTransport());
+
+desktop = await desktopSession(desktopSocket());
+delivering = shouldDeliver(mode, desktop) && Boolean(workspaceKey) && isAgentName(agentName);
+note = undefined;
+if (!workspaceKey) {
+  note = "The channel is not configured yet (no workspace key); run /agent-relay:configure.";
+} else if (!isAgentName(agentName)) {
+  note = `The configured agent name "${agentName}" is not valid; run /agent-relay:configure.`;
+} else if (!shouldDeliver(mode, desktop)) {
+  note =
+    mode === "never"
+      ? "Inbound delivery is turned off (AGENT_RELAY_CHANNEL_INBOUND=never)."
+      : `The Agent Relay desktop already delivers this session's messages${desktop?.address ? ` as ${desktop.address}` : ""}, through Claude Code's cross-session inbox, so this channel does not deliver them again.`;
+}
 
 if (delivering && workspaceKey) {
   try {

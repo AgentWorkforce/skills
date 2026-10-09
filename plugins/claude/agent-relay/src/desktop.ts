@@ -35,6 +35,8 @@ export function desktopSocket(env: NodeJS.ProcessEnv = process.env): string | un
 
 export interface DesktopSession {
   registered: boolean;
+  /** Whether the desktop delivers this session's messages itself. */
+  directDelivery: boolean;
   address?: string;
 }
 
@@ -45,7 +47,8 @@ export interface DesktopSession {
  */
 export async function desktopSession(
   socket: string | undefined,
-  timeoutMs = 5000,
+  // A busy desktop can take tens of seconds to answer /setup/status.
+  timeoutMs = 30_000,
 ): Promise<DesktopSession | undefined> {
   if (!socket) return undefined;
   try {
@@ -56,11 +59,16 @@ export async function desktopSession(
     } as RequestInit);
     if (!response.ok) return undefined;
     const body = (await response.json()) as {
-      data?: { session?: { registered?: boolean; address?: string | null } };
+      data?: { session?: { registered?: boolean; direct_delivery?: boolean; address?: string | null } };
     };
     const session = body.data?.session;
     if (!session) return undefined;
-    return { registered: session.registered === true, address: session.address ?? undefined };
+    return {
+      registered: session.registered === true,
+      // Older desktops omit the field; they deliver to every registered session.
+      directDelivery: session.direct_delivery !== false,
+      address: session.address ?? undefined,
+    };
   } catch {
     return undefined;
   }
@@ -76,5 +84,5 @@ export function inboundMode(value: string | undefined): InboundMode {
 export function shouldDeliver(mode: InboundMode, desktop: DesktopSession | undefined): boolean {
   if (mode === "never") return false;
   if (mode === "always") return true;
-  return !desktop?.registered;
+  return !(desktop?.registered && desktop.directDelivery);
 }

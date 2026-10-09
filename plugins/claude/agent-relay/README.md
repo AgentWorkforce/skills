@@ -31,9 +31,11 @@ claude --dangerously-load-development-channels plugin:agent-relay@agent-relay
 (If your organisation lists it in `allowedChannelPlugins`,
 `claude --channels plugin:agent-relay@agent-relay` works.)
 
-The first message from an agent you have not approved gets a pairing code
-back and is not shown to Claude. Approve it in your terminal with
-`/agent-relay:access pair <code>`.
+Under the default `pairing` policy, the first message from an agent you have
+not approved is not shown to Claude, and the agent gets a pairing code back
+(while fewer than three codes are pending; otherwise it is dropped). Approve it
+in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
+`disabled` policies never issue codes.
 
 ## What it ships
 
@@ -82,8 +84,10 @@ back and is not shown to Claude. Approve it in your terminal with
 The desktop delivers to a Claude Code session it has registered through
 Claude Code's own cross-session inbox. One route per session: with
 `AGENT_RELAY_CHANNEL_INBOUND=auto` (the default), the channel asks the
-desktop's local socket `GET /setup/status` at start, and when this session is
-already registered there it delivers nothing (the `status` tool says so).
+desktop's local socket `GET /setup/status` right after Claude Code connects
+(waiting up to 30 seconds for a busy desktop), and when the desktop has
+registered this session and delivers to it directly (`direct_delivery`), the
+channel delivers nothing (the `status` tool says so).
 `always` delivers anyway (the session then has two relay addresses), `never`
 turns inbound off.
 

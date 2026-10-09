@@ -8,6 +8,7 @@ allowed-tools:
   - Bash(ls *)
   - Bash(mkdir *)
   - Bash(echo *)
+  - Bash(chmod *)
 ---
 
 # /agent-relay:access
@@ -58,8 +59,8 @@ Use the printed path as `<state-dir>`. The file is `<state-dir>/access.json`:
 The channel server writes this file too (it adds pending codes), so after the
 user confirms, **read the file again immediately before writing** and apply
 only your change to that fresh copy; never write back the copy you read before
-asking. Write it with mode 0600 (create `<state-dir>` with mode 0700 if
-needed), keeping keys you did not change. `pair` also copies the pending
+asking. Keep keys you did not change. Create `<state-dir>` with mode 0700 if
+needed, and after writing run `chmod 600 <state-dir>/access.json`. `pair` also copies the pending
 entry's `senderId`, when present, into `ids[<sender>]`, and `remove` deletes
 `ids[<agent>]`. Confirm what changed in one line.
 Before approving a pairing, show the user the sender's name and ask them to

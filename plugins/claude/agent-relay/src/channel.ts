@@ -2,7 +2,7 @@
 // tested with fakes: relay events in, gated and framed channel events out,
 // and the reply tool back to the relay.
 
-import { type Access, decide, isAllowed, loadAccess, saveAccess } from "./access.ts";
+import { type Access, decide, isAllowed, loadAccess, updateAccess } from "./access.ts";
 
 export interface InboundMessage {
   kind: "dm" | "thread";
@@ -63,12 +63,10 @@ export function createChannel(options: ChannelOptions) {
     return true;
   }
 
-  // Re-reads access.json, applies `change` and saves it, so a concurrent edit
-  // by /agent-relay:access is not overwritten with a stale copy.
+  // Locked read-modify-write, so a concurrent edit by /agent-relay:access or
+  // another channel process is not overwritten with a stale copy.
   function update(change: (access: Access) => void): void {
-    const access = loadAccess(options.accessFile);
-    change(access);
-    saveAccess(options.accessFile, access);
+    updateAccess(options.accessFile, change);
   }
 
   async function receive(message: InboundMessage): Promise<"delivered" | "dropped" | "paired" | "duplicate"> {

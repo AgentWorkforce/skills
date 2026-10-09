@@ -76,6 +76,43 @@ export function saveAccess(file: string, access: Access): void {
   fs.renameSync(temporary, file);
 }
 
+const LOCK_STALE_MS = 10_000;
+const pause = new Int32Array(new SharedArrayBuffer(4));
+
+/**
+ * Re-reads access.json, applies `change` and saves it under an exclusive
+ * lock file, so concurrent channel processes (and their pairing codes) do
+ * not overwrite each other's edits.
+ */
+export function updateAccess(file: string, change: (access: Access) => void): Access {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const lock = `${file}.lock`;
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    try {
+      fs.closeSync(fs.openSync(lock, "wx", 0o600));
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      try {
+        if (Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS) fs.unlinkSync(lock);
+      } catch {}
+      if (Date.now() > deadline) throw new Error(`access.json is locked (${lock})`);
+      Atomics.wait(pause, 0, 0, 20);
+    }
+  }
+  try {
+    const access = loadAccess(file);
+    change(access);
+    saveAccess(file, access);
+    return access;
+  } finally {
+    try {
+      fs.unlinkSync(lock);
+    } catch {}
+  }
+}
+
 function newCode(): string {
   let code = "";
   for (let i = 0; i < 6; i++) code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];

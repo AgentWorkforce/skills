@@ -57,6 +57,19 @@ export function saveIdentity(file: string, identity: StoredIdentity): void {
   fs.renameSync(temporary, file);
 }
 
+function statusOf(error: unknown): number | undefined {
+  const e = error as { status?: number; statusCode?: number };
+  return e?.status ?? e?.statusCode;
+}
+
+/** Only an authentication failure means a stored token is dead. */
+function isAuthFailure(error: unknown): boolean {
+  const status = statusOf(error);
+  if (status === 401 || status === 403) return true;
+  const text = error instanceof Error ? error.message : String(error);
+  return status === undefined && /\b(401|403|unauthori[sz]ed|forbidden|invalid token)\b/i.test(text);
+}
+
 function isConflict(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);
   const status = (error as { status?: number; statusCode?: number })?.status ?? (error as { statusCode?: number })?.statusCode;
@@ -76,7 +89,11 @@ export async function resolveIdentity(
     try {
       const me = await api.me(mine.token);
       if (me.name === name) return mine;
-    } catch {}
+    } catch (error) {
+      // A rate limit, server error or network failure says nothing about the
+      // token: surface it rather than registering or recovering.
+      if (!isAuthFailure(error)) throw error;
+    }
   }
   try {
     const created = await api.register(name);
@@ -87,7 +104,8 @@ export async function resolveIdentity(
     if (!isConflict(error)) throw error;
     if (!mine) {
       throw new Error(
-        `The agent name "${name}" is already taken in this workspace. Choose another AGENT_RELAY_CHANNEL_AGENT_NAME with /agent-relay:configure.`,
+        `The agent name "${name}" is already taken in this workspace, by another agent or by another Claude Code session using this name right now. ` +
+          "Two sessions must not share one relay identity (both would receive every message). Choose another AGENT_RELAY_CHANNEL_AGENT_NAME with /agent-relay:configure.",
       );
     }
   }
