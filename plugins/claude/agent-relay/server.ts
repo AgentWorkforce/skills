@@ -81,7 +81,13 @@ const mode = inboundMode(settings.AGENT_RELAY_CHANNEL_INBOUND);
 const ACCESS_FILE = path.join(
   STATE_DIR,
   "access",
-  `${workspaceKey ? workspaceTag(workspaceKey) : "unconfigured"}-${isAgentName(agentName) ? agentName : "invalid"}.json`,
+  // The hash keeps names that differ only in case apart on case-insensitive
+  // file systems (macOS by default).
+  `${workspaceKey ? workspaceTag(workspaceKey) : "unconfigured"}-${
+    isAgentName(agentName)
+      ? `${agentName.toLowerCase()}-${createHash("sha256").update(agentName).digest("hex").slice(0, 8)}`
+      : "invalid"
+  }.json`,
 );
 
 // Decided after Claude Code is connected: the desktop check can take tens of

@@ -21,6 +21,31 @@ function holderDead(lock: string): boolean {
   }
 }
 
+// Removes `lock` only if it is still the lock that was found stale (same
+// inode). Reclaimers serialize on a second lock file, so two waiters that both
+// saw the same dead owner cannot remove a lock a third process has just taken.
+function reclaim(lock: string, staleIno: number): void {
+  const guard = `${lock}.reclaim`;
+  try {
+    fs.closeSync(fs.openSync(guard, "wx", 0o600));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") return;
+    // A reclaimer that crashed mid-reclaim leaves the guard behind.
+    try {
+      if (Date.now() - fs.statSync(guard).mtimeMs > LOCK_STALE_MS) fs.unlinkSync(guard);
+    } catch {}
+    return;
+  }
+  try {
+    if (fs.statSync(lock).ino === staleIno) fs.unlinkSync(lock);
+  } catch {
+  } finally {
+    try {
+      fs.unlinkSync(guard);
+    } catch {}
+  }
+}
+
 export function withFileLock<T>(file: string, run: () => T): T {
   const lock = `${file}.lock`;
   const deadline = Date.now() + LOCK_WAIT_MS;
@@ -33,7 +58,8 @@ export function withFileLock<T>(file: string, run: () => T): T {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       try {
-        if (holderDead(lock) || Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS) fs.unlinkSync(lock);
+        const seen = fs.statSync(lock);
+        if (holderDead(lock) || Date.now() - seen.mtimeMs > LOCK_STALE_MS) reclaim(lock, seen.ino);
       } catch {}
       if (Date.now() > deadline) throw new Error(`${file} is locked (${lock})`);
       Atomics.wait(pause, 0, 0, 20);
@@ -47,3 +73,4 @@ export function withFileLock<T>(file: string, run: () => T): T {
     } catch {}
   }
 }
+export const reclaimForTest = reclaim;

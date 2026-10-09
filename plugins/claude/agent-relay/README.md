@@ -53,8 +53,10 @@ in your terminal with `/agent-relay:access pair <code>`. The `allowlist` and
   from an allowlisted sender becomes a channel event:
   `<channel source="plugin:agent-relay:relay" from="AGENT" message_id="ID" kind="dm">TEXT</channel>`.
 - **Gate.** Each relay identity (workspace and agent name) has its own
-  access file, `access/<workspace-tag>-<agent-name>.json`, so approving an
-  agent for one project's session does not let it into another's. It holds `dmPolicy` (`pairing`, `allowlist` or
+  access file, `access/<workspace-tag>-<agent-name>-<hash>.json`, so
+  approving an agent for one identity does not let it into a session using a
+  different identity (sessions that share a workspace and agent name share
+  the file). It holds `dmPolicy` (`pairing`, `allowlist` or
   `disabled`), the allowlist of agent names, the relay agent id each name was
   approved as (a different agent that later takes the same name must pair
   again), and pending pairing codes (one per sender, at most three, one hour

@@ -45,8 +45,10 @@ takes over an identity an Agent Relay broker gave this session.
 
 1. With no arguments, show the current state: whether `<state-dir>/.env`
    exists and which keys it sets (never print the workspace key; show only its
-   first 8 characters), and the allowlist size from this session's access file
-   (`access_file` in the `relay` server's `status` tool).
+   first 8 characters). If the `relay` server's `status` tool is available
+   (the session was started with the channel), also show the allowlist size
+   from its `access_file`; before the first restart with the channel there is
+   none yet, so skip it.
 2. To save settings, ask the user for the workspace key if they did not pass
    one, and confirm the agent name. Then, with their OK:
    `mkdir -p <state-dir> && chmod 700 <state-dir>`, write `.env` with the keys

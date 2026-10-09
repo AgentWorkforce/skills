@@ -2,7 +2,7 @@
 // tested with fakes: relay events in, gated and framed channel events out,
 // and the reply tool back to the relay.
 
-import { type Access, decide, isAllowed, loadAccess, updateAccess } from "./access.ts";
+import { type Access, canReply, decide, loadAccess, updateAccess } from "./access.ts";
 
 export interface InboundMessage {
   kind: "dm" | "thread";
@@ -131,7 +131,7 @@ export function createChannel(options: ChannelOptions) {
     const original = delivered.get(messageId);
     if (!original) throw new Error("message_id is not a relay message delivered to this session");
     // Access may have changed since the message arrived (removed, disabled).
-    if (!isAllowed(loadAccess(options.accessFile), original.sender, original.senderId)) {
+    if (!canReply(loadAccess(options.accessFile), original.sender, original.senderId)) {
       throw new Error(`@${original.sender} is no longer allowed to reach this session; nothing was sent`);
     }
     const sent =

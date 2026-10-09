@@ -196,3 +196,11 @@ describe("failures and revocation", () => {
     expect(Object.values(after.pending).map((entry) => entry.sender)).toEqual(["alice"]);
   });
 });
+
+test("a message delivered before its sender was pinned stays answerable", async () => {
+  const { channel, sent, accessFile } = setup(["alice"]);
+  await channel.receive(dm()); // no sender id on the event
+  saveAccess(accessFile, { ...loadAccess(accessFile), ids: Object.assign(Object.create(null), { alice: "id-1" }) });
+  expect(await channel.reply("1", "still here")).toContain("sent to @alice");
+  expect(sent).toEqual([{ to: "alice", text: "still here" }]);
+});

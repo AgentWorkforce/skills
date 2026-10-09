@@ -121,6 +121,18 @@ export function isAllowed(access: Access, sender: string, senderId?: string): bo
 }
 
 /**
+ * Whether a message that was already delivered may still be answered: the
+ * sender is still allowed and the channel on, and the message does not come
+ * from an agent id other than the one the name is now pinned to. A message
+ * delivered before the name was pinned (no id on it) stays answerable.
+ */
+export function canReply(access: Access, sender: string, senderId?: string): boolean {
+  if (access.dmPolicy === "disabled" || !access.allow.includes(sender)) return false;
+  const pinned = access.ids[sender];
+  return !pinned || !senderId || pinned === senderId;
+}
+
+/**
  * Decides what to do with a message from `sender`, mutating `access` when a
  * pairing code is issued. The caller saves `access` after a "pair" decision,
  * and after a "deliver" decision that carries a `pin` (the first message from
