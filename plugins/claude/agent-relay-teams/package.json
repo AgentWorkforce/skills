@@ -2,7 +2,7 @@
   "name": "agent-relay-teams",
   "version": "0.2.1",
   "description": "Coordinates Claude Code sub-agents via Agent Relay MCP and lifecycle hooks",
-  "author": "Agent Relay <hello@agent-relay.com>",
+  "author": "Agent Relay <hello@agentrelay.com>",
   "license": "MIT",
   "homepage": "https://agentrelay.com",
   "repository": {

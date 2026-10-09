@@ -2,7 +2,7 @@
   "name": "agent-relay",
   "owner": {
     "name": "Agent Relay",
-    "email": "hello@agent-relay.com"
+    "email": "hello@agentrelay.com"
   },
   "metadata": {
     "description": "Let Claude Code sub-agents talk to each other - real-time messaging, shared channels, and team coordination between parallel agents",
@@ -21,7 +21,7 @@
       "version": "0.2.1",
       "author": {
         "name": "Agent Relay",
-        "email": "hello@agent-relay.com"
+        "email": "hello@agentrelay.com"
       },
       "homepage": "https://agentrelay.com",
       "repository": "https://github.com/AgentWorkforce/skills",
@@ -37,7 +37,7 @@
       "version": "0.1.1",
       "author": {
         "name": "Agent Relay",
-        "email": "hello@agent-relay.com"
+        "email": "hello@agentrelay.com"
       },
       "homepage": "https://agentrelay.com",
       "repository": "https://github.com/AgentWorkforce/skills",
