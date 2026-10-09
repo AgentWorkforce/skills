@@ -73,6 +73,10 @@ grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
 
 Then restart with the channel on; during the research preview: `claude --dangerously-load-development-channels plugin:agent-relay@agent-relay`. See the [plugin README](plugins/claude/agent-relay/README.md) for pairing and requirements (Bun 1.4+).
 
+## OpenCode Plugin
+
+[`plugins/opencode/agent-relay`](plugins/opencode/agent-relay) is the npm package `@agent-relay/opencode-plugin`: it lets the Agent Relay desktop deliver relay messages into an open OpenCode session and read the answer back. Add `"plugin": ["@agent-relay/opencode-plugin"]` to `opencode.json`. It stays out of the way when the desktop has installed its own copy.
+
 ## Install Packages
 
 Install an individual skill or slash command with `prpm` using the scoped package name: `@agent-relay/${skillName}`.
