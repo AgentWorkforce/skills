@@ -15,7 +15,13 @@ without an explicit yes from the person in this conversation.
    - `grep -nE '^\s*use_leader\s*=|^\s*\[cli\]' ~/.grok/config.toml` (no match means off).
    - With the probe: `<probe> relay call settings.get` → `result.grok_leader`, and
      `<probe> relay call sessions.list` → the row whose `target.id` is
-     `$GROK_SESSION_ID`, and its `live` flag. Without the probe, `grok leader list`.
+     `$GROK_SESSION_ID`, and its `live` flag.
+   - Without the probe, only the config can be read: a reachable leader in
+     `grok leader list` may belong to another session, so it does not show
+     that Agent Relay can deliver into this one. Report "off" when the config
+     has no `use_leader = true`; otherwise say leader mode is configured but
+     the desktop (its probe) is needed to confirm delivery into this session,
+     and stop.
 3. Report one of these, in one or two lines, and act as it says:
    - **This session's row is `live: true`:** leader mode is working for this
      session. Nothing to change, no restart. Stop.

@@ -104,12 +104,12 @@ relay_core sessions.list | jq -c --arg id "$GROK_SESSION_ID" \
 
 - The session row has `"live": true`: leader mode is working for this session.
   Skip to step 3.
-- No row is printed for this session: this TUI is not running under a leader
-  the desktop can see (it started before leader mode was on, or with
-  `--no-leader`). If `grok_leader` is `true`, tell the person to quit this Grok
-  session and start a new one (`grok`), then run this skill again there;
-  change nothing. Otherwise follow the next bullet.
-- `grok_leader` is `false`, or the row has `"live": false`: ask the person:
+- `grok_leader` is `true` but there is no row for this session, or its row has
+  `"live": false`: leader mode is configured but this TUI is not running under
+  a leader (it started before leader mode was on, or with `--no-leader`). Tell
+  the person to quit this Grok session and start a new one (`grok`), then run
+  this skill again there. Change nothing.
+- `grok_leader` is `false`: ask the person:
   *"Agent Relay needs Grok's leader mode (`[cli] use_leader = true`) to deliver
   messages into Grok. Turn it on? This edits one line in ~/.grok/config.toml and
   keeps a backup; it takes effect for Grok sessions started afterwards."*
