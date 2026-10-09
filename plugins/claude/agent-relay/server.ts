@@ -97,7 +97,7 @@ let delivering = false;
 let note: string | undefined = "Checking whether the Agent Relay desktop already delivers to this session…";
 
 const mcp = new Server(
-  { name: "agent-relay", version: "0.1.0" },
+  { name: "agent-relay", version: "0.1.1" },
   {
     capabilities: {
       // Registers the channel listener. Permission relay is deliberately not
@@ -257,4 +257,3 @@ if (delivering && workspaceKey) {
 } else if (note) {
   log(note);
 }
-

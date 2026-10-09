@@ -17,8 +17,8 @@
         "url": "https://github.com/AgentWorkforce/skills.git",
         "path": "plugins/claude-relay-plugin"
       },
-      "description": "Lets your Claude Code sub-agents communicate with each other in real time - send messages, coordinate in shared channels, and work as a team instead of in isolation",
-      "version": "0.2.0",
+      "description": "Coordinates Claude Code sub-agents in real time through shared Agent Relay messages, channels, and lifecycle hooks.",
+      "version": "0.2.1",
       "author": {
         "name": "Agent Relay",
         "email": "hello@agent-relay.com"
@@ -34,7 +34,7 @@
       "name": "agent-relay",
       "source": "./plugins/claude/agent-relay",
       "description": "Agent Relay channel: messages from other agents arrive in your running Claude Code session in real time, and Claude answers with a reply tool. Pairing and a sender allowlist gate who can reach you.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Agent Relay",
         "email": "hello@agent-relay.com"
