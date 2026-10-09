@@ -101,107 +101,22 @@ export const AgentRelay = async ({ client, directory }) => {
   // Two versions of this package (global and project opencode.json) load
   // separately; only the first serves the process.
   if (globalThis[CLAIM]) return {};
-  globalThis[CLAIM] = VERSION;
+  const claim = { version: VERSION };
+  globalThis[CLAIM] = claim;
 `,
 );
-// Fixes not yet in the desktop template (AgentWorkforce/relay-desktop, same
-// fixes proposed there). Each anchor must match exactly once, so the build
-// fails loudly when the template changes and the patch can be dropped.
-//
-// 1. `--session <id> --fork` opens a new fork: never hold the source session.
+// When OpenCode disposes this instance it may load plugins again in the same
+// process: the template's dispose hook also releases this package's claim,
+// so the next load serves.
 source = replaceOnce(
   source,
-  `    const words = result.stdout.toString().trim().split(/\\s+/);
-    for (let index = 1;`,
-  `    const words = result.stdout.toString().trim().split(/\\s+/);
-    // \`--fork\` is a boolean flag: \`--fork\` and \`--fork=true\` fork; \`--fork=false\` does not.
-    if (words.some((word) => word === "--fork" || (word.startsWith("--fork=") && !/^--fork=(false|0|no)$/i.test(word)))) {
-      return {};
-    }
-    for (let index = 1;`,
-);
-// 2. A prompt body that is valid JSON but not an object (null, an array, a
-//    number) is the caller's error: 400, not a 502 from a thrown dereference.
-source = replaceOnce(
-  source,
-  `        return json(400);
-      }
-      const part = Array.isArray(body?.parts)`,
-  `        return json(400);
-      }
-      if (body === null || typeof body !== "object" || Array.isArray(body)) return json(400);
-      const part = Array.isArray(body?.parts)`,
-);
-// 3. When OpenCode disposes this instance it may load plugins again in the
-//    same process: release the claim so the next load serves.
-source = replaceOnce(
-  source,
-  `        case "server.instance.disposed":
-          break;`,
-  `        case "server.instance.disposed":
-          await dispose();
-          break;`,
-);
-// 3b. OpenCode runs plugin disposers before it emits that event, so the real
-//     teardown is the plugin's dispose hook.
-source = replaceOnce(
-  source,
-  `  process.once("exit", close);
-`,
-  `  process.once("exit", close);
-
-  // OpenCode calls a plugin's dispose hook when it tears an instance down
-  // (before it emits server.instance.disposed): stop the listener, the
-  // startup timer and the exit hook, remove the socket and record, and
-  // release the process claim, so a reload in the same process serves again.
-  const dispose = async () => {
-    stopped = true;
-    clearTimeout(startup);
-    process.removeListener("exit", close);
+  `    process.removeListener("exit", close);
+    close();
+  };`,
+  `    process.removeListener("exit", close);
     close();
     if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
-  };
-`,
-);
-source = replaceOnce(
-  source,
-  `  return {
-    "shell.env": tag,
-    event: async ({ event }) => {`,
-  `  return {
-    "shell.env": tag,
-    dispose,
-    event: async ({ event }) => {`,
-);
-source = replaceOnce(
-  source,
-  `  setTimeout(async () => {
-    const started = startedOn();`,
-  `  const startup = setTimeout(async () => {
-    const started = startedOn();`,
-);
-// 4. Once stopped, nothing (a late event, the startup timer) rewrites the
-//    record of a disposed instance.
-source = replaceOnce(
-  source,
-  `  let writing = Promise.resolve();
-  function save() {
-    writing = writing
-      .then(() => {`,
-  `  let writing = Promise.resolve();
-  let stopped = false;
-  function save() {
-    writing = writing
-      .then(() => {
-        if (stopped) return;`,
-);
-source = replaceOnce(
-  source,
-  `  if (globalThis[CLAIM]) return {};
-  globalThis[CLAIM] = VERSION;`,
-  `  if (globalThis[CLAIM]) return {};
-  const claim = { version: VERSION };
-  globalThis[CLAIM] = claim;`,
+  };`,
 );
 
 for (const placeholder of ["__RUNTIME__", "__VERSION__"]) {

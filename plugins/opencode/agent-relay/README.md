@@ -79,6 +79,7 @@ every request.
 speak the same protocol; do not edit it by hand.
 
 ```bash
+# a relay-desktop checkout that has AgentWorkforce/relay-desktop#363 (trunk now, main once promoted)
 node scripts/build.mjs <relay-desktop checkout>          # regenerate
 node scripts/build.mjs <relay-desktop checkout> --check  # verify it is current
 npm test
