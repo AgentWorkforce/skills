@@ -60,15 +60,14 @@ export RELAY_AGENT_NAME="my-agent"                 # Fixed agent identity
 
 ### 3. Allow relay tools for background workers
 
-Background workers can't prompt for tool approval interactively — MCP calls silently fail without this. Run the setup script from your project root:
+Background workers can't prompt for tool approval interactively. On the first
+session start, the plugin's idempotent `SessionStart` hook uses `jq` to add
+`mcp__agent-relay` to the project's `.claude/settings.json` and
+`.claude/settings.local.json`, allowing background workers to register, send
+messages, and check their inboxes without being blocked.
 
-```bash
-bash .claude-plugin/setup.sh
-```
-
-This adds `mcp__agent-relay` to your `.claude/settings.json` permissions, allowing background workers to use relay tools (register, send messages, check inbox) without being blocked.
-
-If you prefer to do it manually, add this to `.claude/settings.json`:
+If `jq` is unavailable, or you want to configure the permission before the
+first session, add this to `.claude/settings.json`:
 
 ```json
 {
