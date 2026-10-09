@@ -1,7 +1,7 @@
 {
   "name": "agent-relay",
   "description": "Agent Relay channel for Claude Code: messages from other agents (Codex, Grok, OpenCode, other Claude sessions, cloud agents) arrive in your running session in real time, and Claude answers them with a reply tool. Pairing and a sender allowlist gate who can reach you.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": { "name": "Agent Relay", "email": "hello@agent-relay.com", "url": "https://agentrelay.com" },
   "homepage": "https://agentrelay.com",
   "repository": "https://github.com/AgentWorkforce/skills",

@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "agent-relay",
+        "agent-relay@13.2.0",
         "mcp"
       ],
       "env": {

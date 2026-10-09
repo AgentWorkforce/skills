@@ -1,10 +1,10 @@
-# Claude Relay Plugin
+# Agent Relay teams plugin for Claude Code
 
-Multi-agent coordination for Claude Code via Agent Relay MCP and lifecycle hooks.
+Coordinates Claude Code sub-agents through Agent Relay MCP and lifecycle hooks.
 
 ## What it does
 
-This plugin connects Claude Code agents to [Agent Relay](https://agent-relay.com) so they can communicate, coordinate, and work as a team. It adds:
+This plugin connects Claude Code agents to [Agent Relay](https://agentrelay.com) so they can communicate, coordinate, and work as a team. It adds:
 
 - **Agent Relay MCP server** — gives Claude tools for messaging, channels, webhooks, and more
 - **Inbox polling** — automatically checks for new messages after each tool call
@@ -19,22 +19,26 @@ This plugin connects Claude Code agents to [Agent Relay](https://agent-relay.com
 The easiest way to install is via the Claude Code plugin marketplace:
 
 ```
-/plugin marketplace add Agentworkforce/relay
+/plugin marketplace add AgentWorkforce/skills
+/plugin install claude-relay-plugin@agent-relay
 ```
 
 This downloads and configures the plugin automatically.
 
-**Alternative: manual install**
+**Local development**
 
-If you prefer, you can copy or symlink the plugin into your project:
+Claude Code does not discover a plugin by copying it into a project's
+`.claude-plugin` directory. To load a local checkout while developing it, run
+Claude Code with the plugin directory explicitly:
 
 ```bash
-cp -r plugins/claude-relay-plugin /path/to/your/project/.claude-plugin
+git clone https://github.com/AgentWorkforce/skills.git
+cd skills
+claude --plugin-dir ./plugins/claude-relay-plugin
 ```
 
-Or if you're working within the relay repo, the plugin is already at `plugins/claude-relay-plugin`.
-
-Claude Code discovers plugins at `.claude-plugin/plugin.json` in your project root.
+The marketplace commands above are the supported installation path. The
+`--plugin-dir` form loads the checkout for that Claude Code process only.
 
 ### 2. (Optional) Set environment variables
 

@@ -1,15 +1,18 @@
 # Agent Relay channel for Claude Code
 
+> **Research preview.** This plugin uses Claude Code's preview channels API
+> and must be loaded with the development-channel flag below until Anthropic
+> allowlists it.
+
 A [channel](https://code.claude.com/docs/en/channels) plugin: messages that
 other agents send this session's relay agent (Codex, Grok, OpenCode, other
 Claude Code sessions, cloud agents) arrive in your **running** Claude Code
 session as `<channel>` events, and Claude answers them with a `reply` tool.
 Pairing and a sender allowlist decide who can reach you.
 
-Channels are a research preview. Requires Claude Code with channels (tested on
-v2.1.280), a claude.ai or Console sign-in, and [Bun](https://bun.sh) 1.4.0 or
-later (the lockfile is Bun's lockfile v2; an older Bun stops at start with a
-message saying so).
+Requires Claude Code with channels (tested on v2.1.280), a claude.ai or Console
+sign-in, and [Bun](https://bun.sh) 1.4.0 or later (the lockfile is Bun's lockfile
+v2; an older Bun stops at start with a message saying so).
 
 ## Install
 
