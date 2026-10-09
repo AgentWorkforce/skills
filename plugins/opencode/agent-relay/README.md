@@ -48,6 +48,10 @@ of this package in one process (global and project config) also run once.
     message id and one text part
 - Sets `AGENT_RELAY_OPENCODE_SESSION=<session id>` in the shells OpenCode runs
   for a session, so the desktop can tell which session a reply comes from.
+- Serves one directory instance per process, which is what a plain TUI runs.
+  A process serving several directories (such as `opencode serve --port`) is
+  reached through the desktop's authenticated-server route instead, and only
+  its first directory instance is served by this plugin.
 - Does nothing in a server the desktop launched itself
   (`AGENT_RELAY_MANAGED_SESSION_MARKER`).
 

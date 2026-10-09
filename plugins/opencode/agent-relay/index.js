@@ -72,7 +72,10 @@ function startedOn() {
   try {
     const result = Bun.spawnSync(["ps", "-o", "args=", "-p", String(process.pid)]);
     const words = result.stdout.toString().trim().split(/\s+/);
-    if (words.includes("--fork")) return {};
+    // `--fork` is a boolean flag: `--fork` and `--fork=true` fork; `--fork=false` does not.
+    if (words.some((word) => word === "--fork" || (word.startsWith("--fork=") && !/^--fork=(false|0|no)$/i.test(word)))) {
+      return {};
+    }
     for (let index = 1; index < words.length; index++) {
       const word = words[index];
       if (word === "--session" || word === "-s") return { session: words[index + 1] };
@@ -348,8 +351,21 @@ export const AgentRelay = async ({ client, directory }) => {
   };
   process.once("exit", close);
 
+  // OpenCode calls a plugin's dispose hook when it tears an instance down
+  // (before it emits server.instance.disposed): stop the listener, the
+  // startup timer and the exit hook, remove the socket and record, and
+  // release the process claim, so a reload in the same process serves again.
+  const dispose = async () => {
+    stopped = true;
+    clearTimeout(startup);
+    process.removeListener("exit", close);
+    close();
+    if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
+  };
+
   return {
     "shell.env": tag,
+    dispose,
     event: async ({ event }) => {
       const properties = event?.properties ?? {};
       switch (event?.type) {
@@ -366,13 +382,7 @@ export const AgentRelay = async ({ client, directory }) => {
           await touch(properties.info?.sessionID);
           break;
         case "server.instance.disposed":
-          // Stop this instance's listener and remove its socket and record,
-          // so a reload in the same process binds them afresh.
-          stopped = true;
-          clearTimeout(startup);
-          process.removeListener("exit", close);
-          close();
-          if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
+          await dispose();
           break;
       }
     },

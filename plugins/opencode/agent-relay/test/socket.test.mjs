@@ -69,6 +69,20 @@ test("--session <id> holds that session", { skip: !bun }, () => {
 
 test("--session <id> --fork never holds the source session", { skip: !bun }, () => {
   assert.deepEqual(underBun(held, ["--session", "ses_abcd1234", "--fork"]), []);
+  assert.deepEqual(underBun(held, ["--session", "ses_abcd1234", "--fork=true"]), []);
+  assert.deepEqual(underBun(held, ["--session", "ses_abcd1234", "--fork=false"]), ["ses_abcd1234"]);
+});
+
+test("the dispose hook tears the instance down", { skip: !bun }, () => {
+  const result = underBun(`${prelude}
+    const fs = await import("node:fs");
+    const before = fs.existsSync(socket);
+    await hooks.dispose();
+    const after = [fs.existsSync(socket), fs.existsSync(socket.replace(/sock$/, "json")), process.listenerCount("exit")];
+    const next = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=d")).AgentRelay({ client, directory: "/w" }));
+    console.log(JSON.stringify({ before, after, next }));
+    process.exit(0);`);
+  assert.deepEqual(result, { before: true, after: [false, false, 0], next: ["shell.env", "dispose", "event"] });
 });
 
 test("disposing the instance releases the claim for the next load", { skip: !bun }, () => {
@@ -78,7 +92,7 @@ test("disposing the instance releases the claim for the next load", { skip: !bun
     const after = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=c")).AgentRelay({ client, directory: "/w" }));
     console.log(JSON.stringify({ before, after }));
     process.exit(0);`);
-  assert.deepEqual(result, { before: [], after: ["shell.env", "event"] });
+  assert.deepEqual(result, { before: [], after: ["shell.env", "dispose", "event"] });
 });
 
 test("disposing stops the listener and removes the socket and record", { skip: !bun }, () => {
