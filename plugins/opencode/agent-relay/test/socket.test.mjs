@@ -341,7 +341,11 @@ test("an older failed V2 steer cannot clear a newer pending steer", { skip: !bun
     const queued = [];
     const waiters = [];
     const rejectors = [];
-    const emit = (event) => (waiters.shift()?.(event) ?? queued.push(event));
+    const emit = (event) => {
+      const waiter = waiters.shift();
+      if (waiter) waiter(event);
+      else queued.push(event);
+    };
     const context = {
       location: { directory: "/w", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
       shell: { hook: async () => ({ dispose: async () => {} }) },
