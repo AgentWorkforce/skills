@@ -128,14 +128,17 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
         }),
         context: async () => [
           { id: "msg_relay_" + "a".repeat(32), type: "user", text: "hello", time: { created: 3 } },
-          { id: "msg_answer1234", type: "assistant", finish: "stop", time: { created: 4, completed: 5 }, content: [{ type: "text", text: "hi" }] },
+          { id: "msg_answer1234", type: "assistant", finish: "stop", time: { created: 4, completed: 5 }, content: [
+            { type: "text", text: "hi" },
+            { type: "tool", id: "tool_1", name: "websearch", executed: true, state: { status: "completed", input: {}, content: [{ type: "text", text: "done" }] }, time: { created: 4, completed: 5 } },
+          ] },
         ],
         prompt: async (input) => { prompts.push(input); },
       },
       event: {
         subscribe: async function* ({ signal }) {
           yield { type: "session.created", created: 1, data: { sessionID: "ses_abcd1234", projectID: "prj_abcd", location: { directory: "/w" }, title: "V2 session" } };
-          yield { type: "session.status", created: 2, data: { sessionID: "ses_abcd1234", status: { type: "idle" } } };
+          yield { type: "session.execution.started", created: 2, location: { directory: "/w" }, data: { sessionID: "ses_abcd1234" } };
           await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
         },
       },
@@ -156,16 +159,23 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
     });
     const env = { OPENCODE_SESSION_ID: "ses_abcd1234" };
     await shellHook({ env });
+    let secondHooks = 0;
+    const second = await plugin.setup({
+      ...context,
+      location: { ...context.location, directory: "/other" },
+      shell: { hook: async () => { secondHooks++; return { dispose: async () => {} }; } },
+    });
     await cleanup();
     console.log(JSON.stringify({
       shape: [plugin.id, typeof plugin.setup, typeof plugin.server],
       session: [session.id, session.directory, session.workspaceID],
       status: status.ses_abcd1234.type,
       user: [messages[0].info.role, messages[0].parts[0].text],
-      answer: [exact.info.parentID, exact.parts[0].text, exact.parts.at(-1).type],
+      answer: [exact.info.parentID, exact.parts[0].text, exact.parts[1].metadata.providerExecuted, exact.parts.at(-1).type],
       accepted: accepted.status,
       prompt: prompts[0],
       env,
+      second: [second === undefined, secondHooks],
       cleaned: [shellDisposed, fs.existsSync(socket)],
     }));
     process.exit(0);
@@ -173,9 +183,9 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
   assert.deepEqual(result, {
     shape: ["agent-relay", "function", "function"],
     session: ["ses_abcd1234", "/w", "ws_abcd"],
-    status: "idle",
+    status: "busy",
     user: ["user", "hello"],
-    answer: ["msg_relay_" + "a".repeat(32), "hi", "step-finish"],
+    answer: ["msg_relay_" + "a".repeat(32), "hi", true, "step-finish"],
     accepted: 204,
     prompt: {
       sessionID: "ses_abcd1234",
@@ -184,8 +194,35 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
       delivery: "steer",
     },
     env: { OPENCODE_SESSION_ID: "ses_abcd1234", AGENT_RELAY_OPENCODE_SESSION: "ses_abcd1234" },
+    second: [true, 0],
     cleaned: [true, false],
   });
+});
+
+test("an unavailable private runtime stays shell-only and releases the V2 claim", { skip: !bun }, () => {
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const runtime = path.join(process.env.HOME, ".agentworkforce/desktop/opencode");
+    fs.mkdirSync(runtime, { recursive: true, mode: 0o755 });
+    fs.chmodSync(runtime, 0o755);
+    let hooks = 0, subscriptions = 0, disposals = 0;
+    const context = {
+      location: { directory: "/tmp", project: { id: "prj_abcd", directory: "/tmp", canonical: "/tmp" } },
+      shell: { hook: async () => { hooks++; return { dispose: async () => { disposals++; } }; } },
+      session: {},
+      event: { subscribe: () => { subscriptions++; throw new Error("must not subscribe"); } },
+    };
+    const first = (await import(${JSON.stringify(index)} + "?v2=unavailable-a")).default;
+    const second = (await import(${JSON.stringify(index)} + "?v2=unavailable-b")).default;
+    const cleanupA = await first.setup(context);
+    const cleanupB = await second.setup(context);
+    await cleanupA();
+    await cleanupB();
+    console.log(JSON.stringify({ hooks, subscriptions, disposals }));
+    process.exit(0);
+  `);
+  assert.deepEqual(result, { hooks: 2, subscriptions: 0, disposals: 2 });
 });
 
 test("V2 --continue discovers an idle resumed session through the public CLI", { skip: !bun }, () => {

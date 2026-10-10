@@ -70,9 +70,10 @@ source = replaceOnce(
 source = replaceOnce(source, "const VERSION = __VERSION__;", `const VERSION = ${version};`);
 source = replaceOnce(
   source,
-  `// The npm build replaces this with its cross-copy ownership guard.
-function claimInstance() {
-  return () => {};
+  `// The npm build replaces only this filesystem check. The process-wide claim
+// also protects the desktop's managed copy when V2 loads several locations.
+function deferToDesktop() {
+  return false;
 }`,
   `// OpenCode's global config directory, as OpenCode and the desktop resolve it.
 function configDirectory() {
@@ -91,20 +92,6 @@ function deferToDesktop() {
   } catch {
     return false;
   }
-}
-
-const CLAIM = Symbol.for("agent-relay.opencode-plugin");
-
-function claimInstance() {
-  if (deferToDesktop()) return;
-  // Two versions of this package (global and project opencode.json) load
-  // separately; only the first serves the process.
-  if (globalThis[CLAIM]) return;
-  const claim = { version: VERSION };
-  globalThis[CLAIM] = claim;
-  return () => {
-    if (globalThis[CLAIM] === claim) delete globalThis[CLAIM];
-  };
 }`,
 );
 
