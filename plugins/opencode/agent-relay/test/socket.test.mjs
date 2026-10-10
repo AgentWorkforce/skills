@@ -215,6 +215,223 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
   });
 });
 
+test("a failed V2 steer does not overwrite an event-derived busy status", { skip: !bun }, () => {
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=failed-steer")).default;
+    const context = {
+      location: { directory: "/w", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
+      shell: { hook: async () => ({ dispose: async () => {} }) },
+      session: {
+        get: async ({ sessionID }) => ({ id: sessionID, projectID: "prj_abcd", location: { directory: "/w" }, time: { created: 1, updated: 2 } }),
+        context: async () => [],
+        prompt: async () => { throw Object.assign(new Error("steer rejected"), { status: 409 }); },
+      },
+      event: { subscribe: async function* ({ signal }) {
+        yield { type: "session.created", created: 1, data: { sessionID: "ses_abcd1234", projectID: "prj_abcd", location: { directory: "/w" } } };
+        yield { type: "session.execution.started", created: 2, data: { sessionID: "ses_abcd1234" } };
+        await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+      } },
+    };
+    const cleanup = await plugin.setup(context);
+    const socket = path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".sock");
+    const call = (pathname, options) => fetch("http://x" + pathname, { ...options, unix: socket });
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (fs.existsSync(socket)) {
+          try { if ((await call("/session/ses_abcd1234")).status === 200) break; } catch {}
+        }
+        await Bun.sleep(20);
+      }
+      const before = await (await call("/session/status")).json();
+      const rejected = await call("/session/ses_abcd1234/prompt_async", {
+        method: "POST",
+        body: JSON.stringify({ messageID: "msg_relay_" + "d".repeat(32), parts: [{ type: "text", text: "steer" }] }),
+      });
+      const after = await (await call("/session/status")).json();
+      console.log(JSON.stringify({ before, rejected: rejected.status, after }));
+    } finally {
+      await cleanup();
+    }
+    process.exit(0);
+  `);
+  assert.deepEqual(result, {
+    before: { ses_abcd1234: { type: "busy" } },
+    rejected: 409,
+    after: { ses_abcd1234: { type: "busy" } },
+  });
+});
+
+test("concurrent failed V2 steers clear only their own pending status", { skip: !bun }, () => {
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=concurrent-failed-steers")).default;
+    const rejectors = [];
+    const context = {
+      location: { directory: "/w", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
+      shell: { hook: async () => ({ dispose: async () => {} }) },
+      session: {
+        get: async ({ sessionID }) => ({ id: sessionID, projectID: "prj_abcd", location: { directory: "/w" }, time: { created: 1, updated: 2 } }),
+        context: async () => [],
+        prompt: () => new Promise((_, reject) => rejectors.push(reject)),
+      },
+      event: { subscribe: async function* ({ signal }) {
+        yield { type: "session.created", created: 1, data: { sessionID: "ses_abcd1234", projectID: "prj_abcd", location: { directory: "/w" } } };
+        await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+      } },
+    };
+    const cleanup = await plugin.setup(context);
+    const socket = path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".sock");
+    const call = (pathname, options) => fetch("http://x" + pathname, { ...options, unix: socket });
+    const post = (suffix) => call("/session/ses_abcd1234/prompt_async", {
+      method: "POST",
+      body: JSON.stringify({ messageID: "msg_relay_" + suffix.repeat(32), parts: [{ type: "text", text: "steer" }] }),
+    });
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (fs.existsSync(socket)) {
+          try { if ((await call("/session/ses_abcd1234")).status === 200) break; } catch {}
+        }
+        await Bun.sleep(20);
+      }
+      const idle = await (await call("/session/status")).json();
+      const first = post("e");
+      for (let attempt = 0; attempt < 100 && rejectors.length < 1; attempt++) await Bun.sleep(10);
+      const second = post("f");
+      for (let attempt = 0; attempt < 100 && rejectors.length < 2; attempt++) await Bun.sleep(10);
+      if (rejectors.length !== 2) throw new Error("timed out waiting for concurrent steers");
+      const busy = await (await call("/session/status")).json();
+      const error = () => Object.assign(new Error("steer rejected"), { status: 409 });
+      rejectors[0](error());
+      const firstRejected = await first;
+      const afterFirst = await (await call("/session/status")).json();
+      rejectors[1](error());
+      const secondRejected = await second;
+      const after = await (await call("/session/status")).json();
+      console.log(JSON.stringify({
+        idle,
+        busy,
+        firstRejected: firstRejected.status,
+        afterFirst,
+        secondRejected: secondRejected.status,
+        after,
+      }));
+    } finally {
+      await cleanup();
+    }
+    process.exit(0);
+  `);
+  assert.deepEqual(result, {
+    idle: { ses_abcd1234: { type: "idle" } },
+    busy: { ses_abcd1234: { type: "busy" } },
+    firstRejected: 409,
+    afterFirst: { ses_abcd1234: { type: "busy" } },
+    secondRejected: 409,
+    after: { ses_abcd1234: { type: "idle" } },
+  });
+});
+
+test("an older failed V2 steer cannot clear a newer pending steer", { skip: !bun }, () => {
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=interleaved-failed-steers")).default;
+    const queued = [];
+    const waiters = [];
+    const rejectors = [];
+    const emit = (event) => (waiters.shift()?.(event) ?? queued.push(event));
+    const context = {
+      location: { directory: "/w", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
+      shell: { hook: async () => ({ dispose: async () => {} }) },
+      session: {
+        get: async ({ sessionID }) => ({ id: sessionID, projectID: "prj_abcd", location: { directory: "/w" }, time: { created: 1, updated: 2 } }),
+        context: async () => [],
+        prompt: () => new Promise((_, reject) => rejectors.push(reject)),
+      },
+      event: { subscribe: async function* ({ signal }) {
+        while (!signal.aborted) {
+          const event = queued.shift() ?? await new Promise((resolve) => {
+            waiters.push(resolve);
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+          if (!event) return;
+          yield event;
+        }
+      } },
+    };
+    const cleanup = await plugin.setup(context);
+    const socket = path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".sock");
+    const call = (pathname, options) => fetch("http://x" + pathname, { ...options, unix: socket });
+    const post = (suffix) => call("/session/ses_abcd1234/prompt_async", {
+      method: "POST",
+      body: JSON.stringify({ messageID: "msg_relay_" + suffix.repeat(32), parts: [{ type: "text", text: "steer" }] }),
+    });
+    const status = async () => (await (await call("/session/status")).json()).ses_abcd1234.type;
+    try {
+      emit({ type: "session.created", created: 1, data: { sessionID: "ses_abcd1234", projectID: "prj_abcd", location: { directory: "/w" } } });
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (fs.existsSync(socket)) {
+          try { if ((await call("/session/ses_abcd1234")).status === 200) break; } catch {}
+        }
+        await Bun.sleep(20);
+      }
+      const first = post("1");
+      for (let attempt = 0; attempt < 100 && rejectors.length < 1; attempt++) await Bun.sleep(10);
+      emit({ type: "session.execution.succeeded", created: 2, data: { sessionID: "ses_abcd1234" } });
+      for (let attempt = 0; attempt < 100 && await status() !== "idle"; attempt++) await Bun.sleep(10);
+      const second = post("2");
+      for (let attempt = 0; attempt < 100 && rejectors.length < 2; attempt++) await Bun.sleep(10);
+      if (rejectors.length !== 2) throw new Error("timed out waiting for interleaved steers");
+      const error = () => Object.assign(new Error("steer rejected"), { status: 409 });
+      rejectors[0](error());
+      const rejectedFirst = await first;
+      const afterFirst = await status();
+      rejectors[1](error());
+      const rejectedSecond = await second;
+      const afterSecond = await status();
+      console.log(JSON.stringify({ rejected: [rejectedFirst.status, rejectedSecond.status], afterFirst, afterSecond }));
+    } finally {
+      await cleanup();
+    }
+    process.exit(0);
+  `);
+  assert.deepEqual(result, { rejected: [409, 409], afterFirst: "busy", afterSecond: "idle" });
+});
+
+test("a failed V2 shell hook releases the claim for the next load", { skip: !bun }, () => {
+  const result = underBun(`
+    const failing = (await import(${JSON.stringify(index)} + "?v2=shell-failure")).default;
+    const valid = (await import(${JSON.stringify(index)} + "?v2=after-shell-failure")).default;
+    let rejected = false;
+    try {
+      await failing.setup({
+        location: { directory: "/w" },
+        shell: { hook: async () => { throw new Error("hook unavailable"); } },
+      });
+    } catch { rejected = true; }
+    let hooks = 0;
+    const cleanup = await valid.setup({
+      location: { directory: "/w", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
+      shell: { hook: async () => { hooks++; return { dispose: async () => {} }; } },
+      session: {
+        get: async ({ sessionID }) => ({ id: sessionID, projectID: "prj_abcd", location: { directory: "/w" }, time: {} }),
+        context: async () => [],
+        prompt: async () => {},
+      },
+      event: { subscribe: async function* ({ signal }) {
+        await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+      } },
+    });
+    const loaded = typeof cleanup === "function";
+    await cleanup();
+    console.log(JSON.stringify({ rejected, hooks, loaded }));
+    process.exit(0);
+  `);
+  assert.deepEqual(result, { rejected: true, hooks: 1, loaded: true });
+});
+
 test("an unavailable private runtime stays shell-only and releases the V2 claim", { skip: !bun }, () => {
   const result = underBun(`
     const fs = await import("node:fs");
@@ -244,7 +461,8 @@ test("an unavailable private runtime stays shell-only and releases the V2 claim"
 test("V2 --continue discovers an idle resumed session through the public CLI", { skip: !bun }, () => {
   const cliSource = `#!/bin/sh
 [ "$AGENT_RELAY_MANAGED_SESSION_MARKER" = 1 ] || exit 9
-printf '%s\\n' '[{"id":"ses_continue1","title":"Resumed","updated":9,"created":1,"projectId":"prj_abcd","directory":"/tmp"}]'
+[ "$6" = 1000 ] || exit 8
+printf '%s\\n' '[{"id":"ses_archived1","title":"Archived","updated":11,"created":1,"projectId":"prj_abcd","directory":"/tmp"},{"id":"ses_child123","title":"Child","updated":10,"created":1,"projectId":"prj_abcd","directory":"/tmp"},{"id":"ses_continue1","title":"Resumed","updated":9,"created":1,"projectId":"prj_abcd","directory":"/tmp"}]'
 `;
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-cli-"));
   fs.writeFileSync(path.join(bin, "opencode"), cliSource);
@@ -253,18 +471,96 @@ printf '%s\\n' '[{"id":"ses_continue1","title":"Resumed","updated":9,"created":1
     const fs = await import("node:fs");
     const path = await import("node:path");
     const plugin = (await import(${JSON.stringify(index)} + "?v2=continue")).default;
+    const sessions = {
+      ses_continue1: { id: "ses_continue1", title: "Resumed", projectID: "prj_abcd", location: { directory: "/tmp" }, time: { created: 1, updated: 9 } },
+      ses_child123: { id: "ses_child123", parentID: "ses_continue1", title: "Child", projectID: "prj_abcd", location: { directory: "/tmp" }, time: { created: 1, updated: 10 } },
+      ses_archived1: { id: "ses_archived1", title: "Archived", projectID: "prj_abcd", location: { directory: "/tmp" }, time: { created: 1, updated: 11, archived: 12 } },
+    };
     const context = {
       location: { directory: "/tmp", project: { id: "prj_abcd", directory: "/tmp", canonical: "/tmp" } },
       shell: { hook: async () => ({ dispose: async () => {} }) },
-      session: { get: async () => { throw new Error("not needed"); }, context: async () => [], prompt: async () => {} },
+      session: { get: async ({ sessionID }) => sessions[sessionID], context: async () => [], prompt: async () => {} },
       event: { subscribe: async function* ({ signal }) { await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true })); } },
     };
     const cleanup = await plugin.setup(context);
-    await new Promise((resolve) => setTimeout(resolve, 1400));
-    const record = JSON.parse(fs.readFileSync(path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".json"), "utf8"));
-    await cleanup();
-    console.log(JSON.stringify(record.sessions));
+    const runtime = path.join(process.env.HOME, ".agentworkforce/desktop/opencode");
+    const recordPath = path.join(runtime, process.pid + ".json");
+    const socket = path.join(runtime, process.pid + ".sock");
+    let record;
+    let idle;
+    let busy;
+    let accepted;
+    try {
+      for (let attempt = 0; attempt < 120; attempt++) {
+        try {
+          record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+          if (record.sessions.some((session) => session.id === "ses_continue1")) break;
+        } catch {}
+        await Bun.sleep(50);
+      }
+      if (!record?.sessions.some((session) => session.id === "ses_continue1")) {
+        throw new Error("timed out waiting for resumed session discovery");
+      }
+      idle = await (await fetch("http://x/session/status", { unix: socket })).json();
+      accepted = await fetch("http://x/session/ses_continue1/prompt_async", {
+        method: "POST",
+        unix: socket,
+        body: JSON.stringify({ messageID: "msg_relay_" + "c".repeat(32), parts: [{ type: "text", text: "resume" }] }),
+      });
+      busy = await (await fetch("http://x/session/status", { unix: socket })).json();
+    } finally {
+      await cleanup();
+    }
+    console.log(JSON.stringify({ sessions: record.sessions, idle, accepted: accepted.status, busy }));
     process.exit(0);
   `, ["--continue"], { PATH: bin + ":" + process.env.PATH });
-  assert.deepEqual(result, [{ id: "ses_continue1", title: "Resumed", directory: "/tmp", updated: 9 }]);
+  assert.deepEqual(result, {
+    sessions: [{ id: "ses_continue1", title: "Resumed", directory: "/tmp", updated: 9 }],
+    idle: { ses_continue1: { type: "idle" } },
+    accepted: 204,
+    busy: { ses_continue1: { type: "busy" } },
+  });
+});
+
+test("V2 --continue never falls back when the newest session cannot be verified", { skip: !bun }, () => {
+  const cliSource = `#!/bin/sh
+[ "$AGENT_RELAY_MANAGED_SESSION_MARKER" = 1 ] || exit 9
+[ "$6" = 1000 ] || exit 8
+printf '%s\\n' '[{"id":"ses_newest12","title":"Newest","updated":10,"created":1,"projectId":"prj_abcd","directory":"/tmp"},{"id":"ses_older123","title":"Older","updated":9,"created":1,"projectId":"prj_abcd","directory":"/tmp"}]'
+`;
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-cli-fail-"));
+  fs.writeFileSync(path.join(bin, "opencode"), cliSource);
+  fs.chmodSync(path.join(bin, "opencode"), 0o755);
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=continue-fail")).default;
+    const calls = [];
+    const context = {
+      location: { directory: "/tmp", project: { id: "prj_abcd", directory: "/tmp", canonical: "/tmp" } },
+      shell: { hook: async () => ({ dispose: async () => {} }) },
+      session: {
+        get: async ({ sessionID }) => {
+          calls.push(sessionID);
+          if (sessionID === "ses_newest12") throw new Error("transient lookup failure");
+          return { id: sessionID, title: "Older", projectID: "prj_abcd", location: { directory: "/tmp" }, time: { created: 1, updated: 9 } };
+        },
+        context: async () => [],
+        prompt: async () => {},
+      },
+      event: { subscribe: async function* ({ signal }) { await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true })); } },
+    };
+    const cleanup = await plugin.setup(context);
+    try {
+      for (let attempt = 0; attempt < 120 && calls.length === 0; attempt++) await Bun.sleep(50);
+      if (calls.length === 0) throw new Error("timed out waiting for resumed session verification");
+      await Bun.sleep(50);
+      const record = JSON.parse(fs.readFileSync(path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".json"), "utf8"));
+      console.log(JSON.stringify({ calls, sessions: record.sessions }));
+    } finally {
+      await cleanup();
+    }
+    process.exit(0);
+  `, ["--continue"], { PATH: bin + ":" + process.env.PATH });
+  assert.deepEqual(result, { calls: ["ses_newest12"], sessions: [] });
 });
