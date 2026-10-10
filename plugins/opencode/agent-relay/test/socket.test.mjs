@@ -12,10 +12,10 @@ const index = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "ind
 // The plugin opens its socket only on Unix (it needs process.getuid) and under Bun.
 const bun = typeof process.getuid === "function" && spawnSync("bun", ["--version"]).status === 0;
 
-function underBun(script, argv = []) {
+function underBun(script, argv = [], env = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-bun-"));
   const out = execFileSync("bun", ["-e", script, "--", ...argv], {
-    env: { PATH: process.env.PATH, HOME: home },
+    env: { PATH: process.env.PATH, HOME: home, ...env },
     encoding: "utf8",
     timeout: 20000,
   });
@@ -186,4 +186,32 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
     env: { OPENCODE_SESSION_ID: "ses_abcd1234", AGENT_RELAY_OPENCODE_SESSION: "ses_abcd1234" },
     cleaned: [true, false],
   });
+});
+
+test("V2 --continue discovers an idle resumed session through the public CLI", { skip: !bun }, () => {
+  const cliSource = `#!/bin/sh
+[ "$AGENT_RELAY_MANAGED_SESSION_MARKER" = 1 ] || exit 9
+printf '%s\\n' '[{"id":"ses_continue1","title":"Resumed","updated":9,"created":1,"projectId":"prj_abcd","directory":"/tmp"}]'
+`;
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-cli-"));
+  fs.writeFileSync(path.join(bin, "opencode"), cliSource);
+  fs.chmodSync(path.join(bin, "opencode"), 0o755);
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=continue")).default;
+    const context = {
+      location: { directory: "/tmp", project: { id: "prj_abcd", directory: "/tmp", canonical: "/tmp" } },
+      shell: { hook: async () => ({ dispose: async () => {} }) },
+      session: { get: async () => { throw new Error("not needed"); }, context: async () => [], prompt: async () => {} },
+      event: { subscribe: async function* ({ signal }) { await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true })); } },
+    };
+    const cleanup = await plugin.setup(context);
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    const record = JSON.parse(fs.readFileSync(path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".json"), "utf8"));
+    await cleanup();
+    console.log(JSON.stringify(record.sessions));
+    process.exit(0);
+  `, ["--continue"], { PATH: bin + ":" + process.env.PATH });
+  assert.deepEqual(result, [{ id: "ses_continue1", title: "Resumed", directory: "/tmp", updated: 9 }]);
 });
