@@ -144,40 +144,56 @@ test("the V2 definition uses public APIs and preserves the desktop protocol", { 
       },
     };
     const cleanup = await plugin.setup(context);
-    await new Promise((resolve) => setTimeout(resolve, 100));
     const path = await import("node:path");
     const fs = await import("node:fs");
     const socket = path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".sock");
     const call = (pathname, options) => fetch("http://x" + pathname, { ...options, unix: socket });
-    const session = await (await call("/session/ses_abcd1234")).json();
-    const status = await (await call("/session/status")).json();
-    const messages = await (await call("/session/ses_abcd1234/message")).json();
-    const exact = await (await call("/session/ses_abcd1234/message/msg_answer1234")).json();
-    const accepted = await call("/session/ses_abcd1234/prompt_async", {
-      method: "POST",
-      body: JSON.stringify({ messageID: "msg_relay_" + "b".repeat(32), parts: [{ type: "text", text: "from relay" }] }),
-    });
-    const env = { OPENCODE_SESSION_ID: "ses_abcd1234" };
-    await shellHook({ env });
-    let secondHooks = 0;
-    const second = await plugin.setup({
-      ...context,
-      location: { ...context.location, directory: "/other" },
-      shell: { hook: async () => { secondHooks++; return { dispose: async () => {} }; } },
-    });
-    await cleanup();
-    console.log(JSON.stringify({
-      shape: [plugin.id, typeof plugin.setup, typeof plugin.server],
-      session: [session.id, session.directory, session.workspaceID],
-      status: status.ses_abcd1234.type,
-      user: [messages[0].info.role, messages[0].parts[0].text],
-      answer: [exact.info.parentID, exact.parts[0].text, exact.parts[1].metadata.providerExecuted, exact.parts.at(-1).type],
-      accepted: accepted.status,
-      prompt: prompts[0],
-      env,
-      second: [second === undefined, secondHooks],
-      cleaned: [shellDisposed, fs.existsSync(socket)],
-    }));
+    const waitForSession = async () => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (fs.existsSync(socket)) {
+          try {
+            const response = await call("/session/ses_abcd1234");
+            if (response.status === 200) return response.json();
+          } catch {}
+        }
+        await Bun.sleep(20);
+      }
+      throw new Error("timed out waiting for the V2 session endpoint");
+    };
+    let observed;
+    try {
+      const session = await waitForSession();
+      const status = await (await call("/session/status")).json();
+      const messages = await (await call("/session/ses_abcd1234/message")).json();
+      const exact = await (await call("/session/ses_abcd1234/message/msg_answer1234")).json();
+      const accepted = await call("/session/ses_abcd1234/prompt_async", {
+        method: "POST",
+        body: JSON.stringify({ messageID: "msg_relay_" + "b".repeat(32), parts: [{ type: "text", text: "from relay" }] }),
+      });
+      const env = { OPENCODE_SESSION_ID: "ses_abcd1234" };
+      await shellHook({ env });
+      let secondHooks = 0;
+      const second = await plugin.setup({
+        ...context,
+        location: { ...context.location, directory: "/other" },
+        shell: { hook: async () => { secondHooks++; return { dispose: async () => {} }; } },
+      });
+      observed = {
+        shape: [plugin.id, typeof plugin.setup, typeof plugin.server],
+        session: [session.id, session.directory, session.workspaceID],
+        status: status.ses_abcd1234.type,
+        user: [messages[0].info.role, messages[0].parts[0].text],
+        answer: [exact.info.parentID, exact.parts[0].text, exact.parts[1].metadata.providerExecuted, exact.parts.at(-1).type],
+        accepted: accepted.status,
+        prompt: prompts[0],
+        env,
+        second: [second === undefined, secondHooks],
+      };
+    } finally {
+      await cleanup();
+    }
+    observed.cleaned = [shellDisposed, fs.existsSync(socket)];
+    console.log(JSON.stringify(observed));
     process.exit(0);
   `);
   assert.deepEqual(result, {
