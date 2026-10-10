@@ -18,7 +18,7 @@ function run({ files = {}, env = {}, times = 1 }) {
   fs.mkdirSync(plugins, { recursive: true });
   for (const [name, contents] of Object.entries(files)) fs.writeFileSync(path.join(plugins, name), contents);
   const script = `
-    const { AgentRelay } = await import(${JSON.stringify(index)});
+    const { server: AgentRelay } = (await import(${JSON.stringify(index)})).default;
     const out = [];
     for (let i = 0; i < ${times}; i++) out.push(Object.keys(await AgentRelay({ client: {}, directory: "/w" })));
     console.log(JSON.stringify(out));`;
@@ -63,8 +63,8 @@ function runCopies(steps) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ar-opencode-"));
   fs.mkdirSync(path.join(home, ".config", "opencode", "plugins"), { recursive: true });
   const script = `
-    const a = (await import(${JSON.stringify(index)} + "?copy=a")).AgentRelay;
-    const b = (await import(${JSON.stringify(index)} + "?copy=b")).AgentRelay;
+    const a = (await import(${JSON.stringify(index)} + "?copy=a")).default.server;
+    const b = (await import(${JSON.stringify(index)} + "?copy=b")).default.server;
     const out = [];
     let hooks;
     for (const step of ${JSON.stringify(steps)}) {
@@ -93,7 +93,7 @@ test("a session the relay launched itself is left alone", () => {
 test("the shell hook tags only valid session ids", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ar-opencode-"));
   const script = `
-    const { AgentRelay } = await import(${JSON.stringify(index)});
+    const { server: AgentRelay } = (await import(${JSON.stringify(index)})).default;
     const hooks = await AgentRelay({ client: {}, directory: "/w" });
     const ok = { env: {} }, bad = { env: {} }, none = {};
     await hooks["shell.env"]({ sessionID: "ses_abcd1234" }, ok);
@@ -125,3 +125,10 @@ test("index.js keeps the desktop's allow-list", () => {
   assert.ok(!head.includes("AGENT_RELAY_OPENCODE_PLUGIN="));
 });
 
+test("exports one dual-loader definition", async () => {
+  const module = await import(index);
+  assert.deepEqual(Object.keys(module), ["default"]);
+  assert.equal(module.default.id, "agent-relay");
+  assert.equal(typeof module.default.setup, "function");
+  assert.equal(typeof module.default.server, "function");
+});

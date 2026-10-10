@@ -12,20 +12,28 @@ tokens.
 
 ## Install
 
-Add it to `opencode.json` (global `~/.config/opencode/opencode.json` or a
-project's):
+First, [install Agent Relay Desktop](https://github.com/AgentWorkforce/relay-desktop-releases/releases/latest),
+sign in, and keep it running. Then add the plugin to `opencode.json` (global
+`~/.config/opencode/opencode.json` or a project's).
+
+OpenCode V2:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@agent-relay/opencode-plugin"]
+  "plugins": ["@agent-relay/opencode-plugin"]
 }
 ```
 
-Then restart OpenCode. Requires the
-[Agent Relay desktop](https://agentrelay.com), signed in, to deliver messages;
-add the session in the desktop's Sessions list to register it as an agent.
-Tested with OpenCode 1.18.31.
+OpenCode V1 uses the singular key instead:
+
+```json
+{ "plugin": ["@agent-relay/opencode-plugin"] }
+```
+
+Restart OpenCode, then add the session in the desktop's Sessions list to
+register it as an agent. The same package supports OpenCode 1.18.35 and the
+OpenCode V2 plugin API (validated against 2.0.26).
 
 The desktop can also install this plugin itself (its *OpenCode sessions*
 setting writes `~/.config/opencode/plugins/agent-relay.js`). When that copy is
@@ -79,7 +87,6 @@ every request.
 speak the same protocol; do not edit it by hand.
 
 ```bash
-# a relay-desktop checkout that has AgentWorkforce/relay-desktop#363 (trunk now, main once promoted)
 node scripts/build.mjs <relay-desktop checkout>          # regenerate
 node scripts/build.mjs <relay-desktop checkout> --check  # verify it is current
 npm test

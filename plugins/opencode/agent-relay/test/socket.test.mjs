@@ -12,10 +12,10 @@ const index = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "ind
 // The plugin opens its socket only on Unix (it needs process.getuid) and under Bun.
 const bun = typeof process.getuid === "function" && spawnSync("bun", ["--version"]).status === 0;
 
-function underBun(script, argv = []) {
+function underBun(script, argv = [], env = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-bun-"));
   const out = execFileSync("bun", ["-e", script, "--", ...argv], {
-    env: { PATH: process.env.PATH, HOME: home },
+    env: { PATH: process.env.PATH, HOME: home, ...env },
     encoding: "utf8",
     timeout: 20000,
   });
@@ -23,7 +23,7 @@ function underBun(script, argv = []) {
 }
 
 const prelude = `
-  const { AgentRelay } = await import(${JSON.stringify(index)});
+  const { server: AgentRelay } = (await import(${JSON.stringify(index)})).default;
   const prompts = [];
   const fake = async (request) => {
     const url = new URL(request.url);
@@ -79,7 +79,7 @@ test("the dispose hook tears the instance down", { skip: !bun }, () => {
     const before = fs.existsSync(socket);
     await hooks.dispose();
     const after = [fs.existsSync(socket), fs.existsSync(socket.replace(/sock$/, "json")), process.listenerCount("exit")];
-    const next = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=d")).AgentRelay({ client, directory: "/w" }));
+    const next = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=d")).default.server({ client, directory: "/w" }));
     console.log(JSON.stringify({ before, after, next }));
     process.exit(0);`);
   assert.deepEqual(result, { before: true, after: [false, false, 0], next: ["shell.env", "dispose", "event"] });
@@ -87,9 +87,9 @@ test("the dispose hook tears the instance down", { skip: !bun }, () => {
 
 test("disposing the instance releases the claim for the next load", { skip: !bun }, () => {
   const result = underBun(`${prelude}
-    const before = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=b")).AgentRelay({ client, directory: "/w" }));
+    const before = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=b")).default.server({ client, directory: "/w" }));
     await hooks.event({ event: { type: "server.instance.disposed", properties: {} } });
-    const after = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=c")).AgentRelay({ client, directory: "/w" }));
+    const after = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=c")).default.server({ client, directory: "/w" }));
     console.log(JSON.stringify({ before, after }));
     process.exit(0);`);
   assert.deepEqual(result, { before: [], after: ["shell.env", "dispose", "event"] });
@@ -110,4 +110,161 @@ test("disposing stops the listener and removes the socket and record", { skip: !
     console.log(JSON.stringify({ before, after, refused, exitHooks: process.listenerCount("exit") }));
     process.exit(0);`);
   assert.deepEqual(result, { before: [true, true], after: [false, false], refused: true, exitHooks: 0 });
+});
+
+test("the V2 definition uses public APIs and preserves the desktop protocol", { skip: !bun }, () => {
+  const result = underBun(`
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=1")).default;
+    const prompts = [];
+    let shellHook;
+    let shellDisposed = false;
+    const context = {
+      location: { directory: "/w", workspaceID: "ws_abcd", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
+      shell: { hook: async (name, callback) => { shellHook = callback; return { dispose: async () => { shellDisposed = true; } }; } },
+      session: {
+        get: async ({ sessionID }) => ({
+          id: sessionID, projectID: "prj_abcd", title: "V2 session",
+          location: { directory: "/w" }, time: { created: 1, updated: 2 },
+        }),
+        context: async () => [
+          { id: "msg_relay_" + "a".repeat(32), type: "user", text: "hello", time: { created: 3 } },
+          { id: "msg_answer1234", type: "assistant", finish: "stop", time: { created: 4, completed: 5 }, content: [
+            { type: "text", text: "hi" },
+            { type: "tool", id: "tool_1", name: "websearch", executed: true, state: { status: "completed", input: {}, content: [{ type: "text", text: "done" }] }, time: { created: 4, completed: 5 } },
+          ] },
+        ],
+        prompt: async (input) => { prompts.push(input); },
+      },
+      event: {
+        subscribe: async function* ({ signal }) {
+          yield { type: "session.created", created: 1, data: { sessionID: "ses_abcd1234", projectID: "prj_abcd", location: { directory: "/w" }, title: "V2 session" } };
+          yield { type: "session.execution.started", created: 2, location: { directory: "/w" }, data: { sessionID: "ses_abcd1234" } };
+          await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+        },
+      },
+    };
+    const cleanup = await plugin.setup(context);
+    const path = await import("node:path");
+    const fs = await import("node:fs");
+    const socket = path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".sock");
+    const call = (pathname, options) => fetch("http://x" + pathname, { ...options, unix: socket });
+    const waitForSession = async () => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (fs.existsSync(socket)) {
+          try {
+            const response = await call("/session/ses_abcd1234");
+            if (response.status === 200) return response.json();
+          } catch {}
+        }
+        await Bun.sleep(20);
+      }
+      throw new Error("timed out waiting for the V2 session endpoint");
+    };
+    let observed;
+    try {
+      const session = await waitForSession();
+      const status = await (await call("/session/status")).json();
+      const messages = await (await call("/session/ses_abcd1234/message")).json();
+      const exact = await (await call("/session/ses_abcd1234/message/msg_answer1234")).json();
+      const accepted = await call("/session/ses_abcd1234/prompt_async", {
+        method: "POST",
+        body: JSON.stringify({ messageID: "msg_relay_" + "b".repeat(32), parts: [{ type: "text", text: "from relay" }] }),
+      });
+      const env = { OPENCODE_SESSION_ID: "ses_abcd1234" };
+      await shellHook({ env });
+      let secondHooks = 0;
+      const second = await plugin.setup({
+        ...context,
+        location: { ...context.location, directory: "/other" },
+        shell: { hook: async () => { secondHooks++; return { dispose: async () => {} }; } },
+      });
+      observed = {
+        shape: [plugin.id, typeof plugin.setup, typeof plugin.server],
+        session: [session.id, session.directory, session.workspaceID],
+        status: status.ses_abcd1234.type,
+        user: [messages[0].info.role, messages[0].parts[0].text],
+        answer: [exact.info.parentID, exact.parts[0].text, exact.parts[1].metadata.providerExecuted, exact.parts.at(-1).type],
+        accepted: accepted.status,
+        prompt: prompts[0],
+        env,
+        second: [second === undefined, secondHooks],
+      };
+    } finally {
+      await cleanup();
+    }
+    observed.cleaned = [shellDisposed, fs.existsSync(socket)];
+    console.log(JSON.stringify(observed));
+    process.exit(0);
+  `);
+  assert.deepEqual(result, {
+    shape: ["agent-relay", "function", "function"],
+    session: ["ses_abcd1234", "/w", "ws_abcd"],
+    status: "busy",
+    user: ["user", "hello"],
+    answer: ["msg_relay_" + "a".repeat(32), "hi", true, "step-finish"],
+    accepted: 204,
+    prompt: {
+      sessionID: "ses_abcd1234",
+      id: "msg_relay_" + "b".repeat(32),
+      text: "from relay",
+      delivery: "steer",
+    },
+    env: { OPENCODE_SESSION_ID: "ses_abcd1234", AGENT_RELAY_OPENCODE_SESSION: "ses_abcd1234" },
+    second: [true, 0],
+    cleaned: [true, false],
+  });
+});
+
+test("an unavailable private runtime stays shell-only and releases the V2 claim", { skip: !bun }, () => {
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const runtime = path.join(process.env.HOME, ".agentworkforce/desktop/opencode");
+    fs.mkdirSync(runtime, { recursive: true, mode: 0o755 });
+    fs.chmodSync(runtime, 0o755);
+    let hooks = 0, subscriptions = 0, disposals = 0;
+    const context = {
+      location: { directory: "/tmp", project: { id: "prj_abcd", directory: "/tmp", canonical: "/tmp" } },
+      shell: { hook: async () => { hooks++; return { dispose: async () => { disposals++; } }; } },
+      session: {},
+      event: { subscribe: () => { subscriptions++; throw new Error("must not subscribe"); } },
+    };
+    const first = (await import(${JSON.stringify(index)} + "?v2=unavailable-a")).default;
+    const second = (await import(${JSON.stringify(index)} + "?v2=unavailable-b")).default;
+    const cleanupA = await first.setup(context);
+    const cleanupB = await second.setup(context);
+    await cleanupA();
+    await cleanupB();
+    console.log(JSON.stringify({ hooks, subscriptions, disposals }));
+    process.exit(0);
+  `);
+  assert.deepEqual(result, { hooks: 2, subscriptions: 0, disposals: 2 });
+});
+
+test("V2 --continue discovers an idle resumed session through the public CLI", { skip: !bun }, () => {
+  const cliSource = `#!/bin/sh
+[ "$AGENT_RELAY_MANAGED_SESSION_MARKER" = 1 ] || exit 9
+printf '%s\\n' '[{"id":"ses_continue1","title":"Resumed","updated":9,"created":1,"projectId":"prj_abcd","directory":"/tmp"}]'
+`;
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "ar-oc-cli-"));
+  fs.writeFileSync(path.join(bin, "opencode"), cliSource);
+  fs.chmodSync(path.join(bin, "opencode"), 0o755);
+  const result = underBun(`
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=continue")).default;
+    const context = {
+      location: { directory: "/tmp", project: { id: "prj_abcd", directory: "/tmp", canonical: "/tmp" } },
+      shell: { hook: async () => ({ dispose: async () => {} }) },
+      session: { get: async () => { throw new Error("not needed"); }, context: async () => [], prompt: async () => {} },
+      event: { subscribe: async function* ({ signal }) { await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true })); } },
+    };
+    const cleanup = await plugin.setup(context);
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    const record = JSON.parse(fs.readFileSync(path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".json"), "utf8"));
+    await cleanup();
+    console.log(JSON.stringify(record.sessions));
+    process.exit(0);
+  `, ["--continue"], { PATH: bin + ":" + process.env.PATH });
+  assert.deepEqual(result, [{ id: "ses_continue1", title: "Resumed", directory: "/tmp", updated: 9 }]);
 });
