@@ -23,7 +23,7 @@ function underBun(script, argv = []) {
 }
 
 const prelude = `
-  const { AgentRelay } = await import(${JSON.stringify(index)});
+  const { server: AgentRelay } = (await import(${JSON.stringify(index)})).default;
   const prompts = [];
   const fake = async (request) => {
     const url = new URL(request.url);
@@ -79,7 +79,7 @@ test("the dispose hook tears the instance down", { skip: !bun }, () => {
     const before = fs.existsSync(socket);
     await hooks.dispose();
     const after = [fs.existsSync(socket), fs.existsSync(socket.replace(/sock$/, "json")), process.listenerCount("exit")];
-    const next = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=d")).AgentRelay({ client, directory: "/w" }));
+    const next = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=d")).default.server({ client, directory: "/w" }));
     console.log(JSON.stringify({ before, after, next }));
     process.exit(0);`);
   assert.deepEqual(result, { before: true, after: [false, false, 0], next: ["shell.env", "dispose", "event"] });
@@ -87,9 +87,9 @@ test("the dispose hook tears the instance down", { skip: !bun }, () => {
 
 test("disposing the instance releases the claim for the next load", { skip: !bun }, () => {
   const result = underBun(`${prelude}
-    const before = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=b")).AgentRelay({ client, directory: "/w" }));
+    const before = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=b")).default.server({ client, directory: "/w" }));
     await hooks.event({ event: { type: "server.instance.disposed", properties: {} } });
-    const after = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=c")).AgentRelay({ client, directory: "/w" }));
+    const after = Object.keys(await (await import(${JSON.stringify(index)} + "?copy=c")).default.server({ client, directory: "/w" }));
     console.log(JSON.stringify({ before, after }));
     process.exit(0);`);
   assert.deepEqual(result, { before: [], after: ["shell.env", "dispose", "event"] });
@@ -110,4 +110,80 @@ test("disposing stops the listener and removes the socket and record", { skip: !
     console.log(JSON.stringify({ before, after, refused, exitHooks: process.listenerCount("exit") }));
     process.exit(0);`);
   assert.deepEqual(result, { before: [true, true], after: [false, false], refused: true, exitHooks: 0 });
+});
+
+test("the V2 definition uses public APIs and preserves the desktop protocol", { skip: !bun }, () => {
+  const result = underBun(`
+    const plugin = (await import(${JSON.stringify(index)} + "?v2=1")).default;
+    const prompts = [];
+    let shellHook;
+    let shellDisposed = false;
+    const context = {
+      location: { directory: "/w", workspaceID: "ws_abcd", project: { id: "prj_abcd", directory: "/w", canonical: "/w" } },
+      shell: { hook: async (name, callback) => { shellHook = callback; return { dispose: async () => { shellDisposed = true; } }; } },
+      session: {
+        get: async ({ sessionID }) => ({
+          id: sessionID, projectID: "prj_abcd", title: "V2 session",
+          location: { directory: "/w" }, time: { created: 1, updated: 2 },
+        }),
+        context: async () => [
+          { id: "msg_relay_" + "a".repeat(32), type: "user", text: "hello", time: { created: 3 } },
+          { id: "msg_answer1234", type: "assistant", finish: "stop", time: { created: 4, completed: 5 }, content: [{ type: "text", text: "hi" }] },
+        ],
+        prompt: async (input) => { prompts.push(input); },
+      },
+      event: {
+        subscribe: async function* ({ signal }) {
+          yield { type: "session.created", created: 1, data: { sessionID: "ses_abcd1234", projectID: "prj_abcd", location: { directory: "/w" }, title: "V2 session" } };
+          yield { type: "session.status", created: 2, data: { sessionID: "ses_abcd1234", status: { type: "idle" } } };
+          await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+        },
+      },
+    };
+    const cleanup = await plugin.setup(context);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const path = await import("node:path");
+    const fs = await import("node:fs");
+    const socket = path.join(process.env.HOME, ".agentworkforce/desktop/opencode", process.pid + ".sock");
+    const call = (pathname, options) => fetch("http://x" + pathname, { ...options, unix: socket });
+    const session = await (await call("/session/ses_abcd1234")).json();
+    const status = await (await call("/session/status")).json();
+    const messages = await (await call("/session/ses_abcd1234/message")).json();
+    const exact = await (await call("/session/ses_abcd1234/message/msg_answer1234")).json();
+    const accepted = await call("/session/ses_abcd1234/prompt_async", {
+      method: "POST",
+      body: JSON.stringify({ messageID: "msg_relay_" + "b".repeat(32), parts: [{ type: "text", text: "from relay" }] }),
+    });
+    const env = { OPENCODE_SESSION_ID: "ses_abcd1234" };
+    await shellHook({ env });
+    await cleanup();
+    console.log(JSON.stringify({
+      shape: [plugin.id, typeof plugin.setup, typeof plugin.server],
+      session: [session.id, session.directory, session.workspaceID],
+      status: status.ses_abcd1234.type,
+      user: [messages[0].info.role, messages[0].parts[0].text],
+      answer: [exact.info.parentID, exact.parts[0].text, exact.parts.at(-1).type],
+      accepted: accepted.status,
+      prompt: prompts[0],
+      env,
+      cleaned: [shellDisposed, fs.existsSync(socket)],
+    }));
+    process.exit(0);
+  `);
+  assert.deepEqual(result, {
+    shape: ["agent-relay", "function", "function"],
+    session: ["ses_abcd1234", "/w", "ws_abcd"],
+    status: "idle",
+    user: ["user", "hello"],
+    answer: ["msg_relay_" + "a".repeat(32), "hi", "step-finish"],
+    accepted: 204,
+    prompt: {
+      sessionID: "ses_abcd1234",
+      id: "msg_relay_" + "b".repeat(32),
+      text: "from relay",
+      delivery: "steer",
+    },
+    env: { OPENCODE_SESSION_ID: "ses_abcd1234", AGENT_RELAY_OPENCODE_SESSION: "ses_abcd1234" },
+    cleaned: [true, false],
+  });
 });

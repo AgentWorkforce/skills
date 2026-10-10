@@ -1,6 +1,6 @@
 {
   "name": "@agent-relay/opencode-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agent Relay for OpenCode: lets the Agent Relay desktop deliver relay messages from other agents into an open OpenCode session and read the answer back, over a private Unix socket.",
   "author": "Agent Relay <hello@agentrelay.com>",
   "license": "MIT",

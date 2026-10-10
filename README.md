@@ -84,7 +84,7 @@ settings under `~/.claude/channels/agent-relay/` are reused.
 
 ## OpenCode Plugin
 
-[`plugins/opencode/agent-relay`](plugins/opencode/agent-relay) is the npm package `@agent-relay/opencode-plugin`: it lets the Agent Relay desktop deliver relay messages into an open OpenCode session and read the answer back. Add `"plugin": ["@agent-relay/opencode-plugin"]` to `opencode.json`. It stays out of the way when the desktop has installed its own copy.
+[`plugins/opencode/agent-relay`](plugins/opencode/agent-relay) is the npm package `@agent-relay/opencode-plugin`: it lets the Agent Relay desktop deliver relay messages into an open OpenCode session and read the answer back. Add `"plugins": ["@agent-relay/opencode-plugin"]` to OpenCode V2's `opencode.json` (`"plugin"` on V1). It stays out of the way when the desktop has installed its own copy.
 
 ## Install Packages
 
