@@ -11,6 +11,50 @@ thread's relay agent: it posts relay messages into the thread through Capy's
 API with the workspace's Capy key, and the thread answers through Cloud's
 hosted relay MCP, which the Capy plugin connects.
 
+**Onboarding is one link.** A person pastes this page's link into any Capy
+thread:
+
+```text
+Set me up on Agent Relay: https://github.com/AgentWorkforce/skills/blob/main/skills/setting-up-capy-on-agent-relay/SKILL.md
+```
+
+## If you are Capy and were given this link
+
+Follow these steps in this thread, in order. Do them yourself; the person only
+clicks what you ask them to.
+
+1. **Propose the plugin.** Propose installing the plugin from GitHub:
+   repository `AgentWorkforce/skills`, ref `main`, path
+   `plugins/capy/agent-relay` (with `mcp_add`, source
+   `{ git: { repository: "AgentWorkforce/skills", ref: "main", path: "plugins/capy/agent-relay" } }`;
+   leave owner unset so the person chooses). If an `agent-relay` server is
+   already connected in this thread, skip to 3. If its tools ask for
+   `RELAY_API_KEY`, an old plugin is installed: tell them to remove it on
+   Capy's MCP & plugins page first. Then stop and wait.
+2. **Person:** they press **Add** on the card, then **Connect**, and sign in to
+   Agent Relay Cloud. If they have no Agent Relay account, they create one on
+   that sign-in page. The approval wakes you.
+3. **Bind this thread** with the plugin's `bind_capy_thread` tool, passing
+   this thread's id as `thread_id` (the plugin's `agent-relay` skill, now
+   loaded, has the details). On success
+   it returns this thread's relay agent name (like `capy-01m4svr4`); go to 4.
+   If it says the workspace has no Capy connection, walk them through step 1
+   below (they need to be an owner or admin of the Agent Relay workspace),
+   wait for "done", and bind again.
+4. **Ask** whether new Capy threads should join automatically. Only on a yes,
+   add the auto-join line from step 3 below to the organization drive's root
+   `AGENTS.md`.
+5. **Ask** whether any of their Capy threads run on their own computer; if so,
+   explain step 4 below and let them choose.
+6. **Prove it:** run step 5 below and tell them their agent name and where
+   the thread shows up.
+
+The rest of this page is the reference for those steps and for any agent
+(Claude Code, Codex, the Agent Relay agent) guiding a person through the same
+journey from outside Capy.
+
+## For agents guiding a person from outside Capy
+
 Drive the journey; do not paste this page at the person. Steps marked
 **person** are the only ones you cannot do for them: say exactly what to click
 and wait for them. Ask before every organization or device setting change.
@@ -51,18 +95,19 @@ The plugin is public: repository `AgentWorkforce/skills`, path
 `plugins/capy/agent-relay`. It is one MCP server
 (`https://agentrelay.com/cloud/api/v1/mcp/relay-events`, OAuth) and the
 `agent-relay` skill. Capy has no API to install plugins, so a person approves
-it once:
+it once. The simplest way is the onboarding link above: Capy reads this page
+and proposes the plugin itself. Or tell them to send, in any Capy thread:
 
-- Tell them to open any Capy thread and send:
-  `Install the Agent Relay plugin from GitHub AgentWorkforce/skills, path plugins/capy/agent-relay`.
-  Capy proposes it as a card; they press **Add**, then **Connect**, and sign in
-  to Agent Relay Cloud, choosing the same workspace as step 1.
-- Or they add it themselves on Capy's MCP & plugins page from GitHub with the
-  same repository and path.
+```text
+Install the Agent Relay plugin from GitHub AgentWorkforce/skills, path plugins/capy/agent-relay
+```
 
-They can remove it there at any time. Signing in replaces any key: the
-plugin needs no `RELAY_API_KEY`. If a thread's relay tools ask for one, the old
-0.1.0 plugin is installed; remove it and install this one.
+Capy shows a plugin card; they press **Add** (choosing who it's for), then
+**Connect**, and sign in to Agent Relay Cloud on the same workspace as step 1.
+No key is pasted: the plugin needs no `RELAY_API_KEY`. If a thread's relay
+tools ask for one, the old 0.1.0 plugin is installed; remove it on Capy's MCP &
+plugins page and install this one. They can remove the plugin there at any
+time.
 
 ## 3. Run the guided setup inside Capy (person sends one message)
 

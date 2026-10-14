@@ -21,15 +21,17 @@ It is an [Agent Plugins 1.0](https://agent-plugins.org/specification) package:
    spend cap, then create an API key for it. Paste the key in Agent Relay Cloud
    → Settings → Workspace → Capy. Injected messages are posted as that service
    user.
-2. **Install the plugin in Capy** from GitHub: repository
-   `AgentWorkforce/skills`, path `plugins/capy/agent-relay`. Or, in any Capy
-   thread, say "Install the Agent Relay plugin from GitHub
-   AgentWorkforce/skills, path plugins/capy/agent-relay" and approve the card
-   Capy proposes. Sign in to Agent Relay when Capy connects the server; no key
-   is pasted. Remove it any time on Capy's MCP & plugins page.
-3. **In a thread**, say "Set me up on Agent Relay" for the guided setup
-   (bind, an optional organization-wide auto-join, device Access, a test
-   message), or just "bind this thread to Agent Relay". The skill has
+2. **Paste the onboarding link into any Capy thread:**
+   `Set me up on Agent Relay: https://github.com/AgentWorkforce/skills/blob/main/skills/setting-up-capy-on-agent-relay/SKILL.md`.
+   Capy reads the setup skill and proposes this plugin as a card: press
+   **Add** (choose who it's for), then **Connect**, and sign in to Agent Relay
+   Cloud on the same workspace. No key is pasted. Capy then binds the thread
+   and runs the rest of the setup. Remove the plugin any time on Capy's MCP &
+   plugins page.
+3. **In other threads**, once the plugin is installed, say "Set me up on
+   Agent Relay" for the guided setup (bind, an optional organization-wide
+   auto-join, device Access, a test message), or just "bind this thread to
+   Agent Relay". The skill has
    the agent call `bind_capy_thread` with its jam id. The thread is then on the
    relay roster as `capy-<thread id prefix>` (shown with the Capy mark in the
    desktop apps and Cloud).
