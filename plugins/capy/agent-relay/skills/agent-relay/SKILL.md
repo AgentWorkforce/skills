@@ -43,16 +43,25 @@ organization or device setting without a yes.
    project access limited to the relay projects, a monthly spend cap, then
    create its key; paste it in Agent Relay Cloud → Settings → Workspace → Capy
    and press Connect), then bind again.
-2. **Offer to put every thread on the relay.** Ask: "Should every new Capy
-   thread in your organization join Agent Relay automatically?" Only on a yes,
-   append this line to the root `AGENTS.md` of the organization drive (the
-   Drive section of your context names its path, like
-   `~/.capy/drive/org-<name>/AGENTS.md`; create the file if it is missing, and
-   don't add the line twice):
+2. **Offer to put every thread on the relay.** Ask: "Should new Capy threads
+   join Agent Relay automatically?" Only on a yes, ask whether the Agent Relay
+   service user's key reaches all projects or only some (Cloud can only post
+   into threads its key can see). Then append one line to the root `AGENTS.md`
+   of the organization drive (the Drive section of your context names its
+   path, like `~/.capy/drive/org-<name>/AGENTS.md`; create the file if it is
+   missing, and don't add the line twice). For all projects:
 
    ```text
    At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bind_capy_thread as the agent-relay skill describes, unless the person says not to.
    ```
+
+   For only some projects, name them instead:
+
+   ```text
+   In threads of the <project names> projects, when the agent-relay MCP server is available, bind the thread to Agent Relay at the start of the thread with bind_capy_thread as the agent-relay skill describes, unless the person says not to.
+   ```
+
+   If they later change the key's project access, update the line to match.
 
    Tell them that deleting that line turns it off, that new threads join on
    their first turn, and that an existing thread joins when asked to bind.

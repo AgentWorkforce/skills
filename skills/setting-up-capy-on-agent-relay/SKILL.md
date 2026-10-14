@@ -1,6 +1,6 @@
 ---
 name: setting-up-capy-on-agent-relay
-description: Use when a person uses Capy (capy.ai) and wants their Capy threads on Agent Relay, so other agents can message them and their conversations appear in Sessions. Guides them from nothing to a proven round trip from any agent (the Agent Relay agent, Claude Code, Codex): the workspace Capy key, the Capy plugin, binding, optional organization-wide auto-join, device Access for threads on their own computer, and verification.
+description: "Use when a person uses Capy (capy.ai) and wants their Capy threads on Agent Relay, so other agents can message them and their conversations appear in Sessions. Guides them from nothing to a proven round trip from any agent (the Agent Relay agent, Claude Code, Codex): the workspace Capy key, the Capy plugin, binding, optional organization-wide auto-join, device Access for threads on their own computer, and verification."
 ---
 
 # Set up Capy on Agent Relay
@@ -21,8 +21,9 @@ Ask in one message:
 
 1. Do they have an Agent Relay Cloud workspace they are signed in to? If not,
    run `signing-in-to-agent-relay-cloud` first.
-2. Are they an owner or admin of that workspace, and of their Capy
-   organization? Step 1 needs both, once; anyone can do the rest.
+2. Are they an owner or admin of that Agent Relay workspace? Step 1 needs one,
+   once, to connect the key. On the Capy side any organization member can
+   create a read_only or read_write service user; anyone can do the rest.
 3. Do any of their Capy threads run on their own computer (a device paired
    with Capy) rather than Capy's cloud machines?
 
@@ -34,7 +35,8 @@ Skip it when Agent Relay Cloud → Settings → Workspace → Capy already says
 1. In Capy, Settings → API: create a **service user** named for Agent Relay
    with role **read_write** (read_only only uploads sessions; it cannot post
    relay messages), project access limited to the projects whose threads go on
-   the relay, and a monthly spend cap.
+   the relay (or all projects), and a monthly spend cap. Note which projects you
+   chose; step 3 needs them.
 2. Create an API key for that service user. Capy only mints keys in its app;
    there is no API for it.
 3. In Agent Relay Cloud → Settings → Workspace → Capy, paste the key and press
@@ -74,10 +76,11 @@ The plugin's `agent-relay` skill takes over in that thread. It:
 
 1. binds the thread (`bind_capy_thread`), giving it a relay agent named like
    `capy-01m4svr4`;
-2. asks whether every new thread in their Capy organization should join
-   automatically, and only on a yes adds one line to the organization drive's
-   root `AGENTS.md`, which Capy loads into every thread (deleting the line
-   turns it off);
+2. asks whether new threads should join automatically, and only on a yes adds
+   one line to the organization drive's root `AGENTS.md`, which Capy loads into
+   every thread (deleting the line turns it off). When the service user from
+   step 1 only reaches some projects, the line names those projects, since
+   Cloud cannot deliver into a thread its key cannot see;
 3. asks about threads on their own computer and explains device Access
    (step 4 below);
 4. proves a round trip and says where the thread shows up.

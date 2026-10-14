@@ -162,8 +162,10 @@ Before section 1, tell the person what they need and ask for it in one message:
    Codex, Cursor, OpenCode, Grok Build, Devin, Capy, other), so every tool they
    work in ends up on the relay, not just this session.
 
-Route each tool they name after this skill's own sections finish; do not start
-another setup mid-way. Claude Code or Codex other than this session: run this
+Route each tool they name once this session's own setup is installed and
+self-verified (sections 1–4); do not start another setup mid-way, and do not
+hold it for a teammate. A tool set up that way can be the counterpart for
+section 5's round trip, so report a pending round trip instead of stopping. Claude Code or Codex other than this session: run this
 same skill from inside that tool, since each configures its own MCP and token
 path. Grok Build: `plugins/grok/agent-relay` in `AgentWorkforce/skills`.
 OpenCode: the `@agent-relay/opencode-plugin` package. Capy:

@@ -48,7 +48,9 @@ say yes):
 At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bind_capy_thread as the agent-relay skill describes, unless the person says not to.
 ```
 
-New threads then join on their first turn; ask an existing thread to bind.
+When the Agent Relay service user only reaches some projects, the line names
+those projects instead, since Cloud can only post into threads its key can
+see. New threads then join on their first turn; ask an existing thread to bind.
 Delete the line to stop.
 
 ### Cloud threads and threads on your computer
