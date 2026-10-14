@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Covers verifying desktop setup, installing the agent-sessions cloud MCP before the session starts, confirming the handoff tools loaded, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
+description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Also installs the same MCP for Muse Code (tools only — the desktop admits only Claude/Codex sessions, so live handoff still needs a Claude/Codex-driven session). Covers verifying desktop setup, installing the agent-sessions cloud MCP before the session starts, confirming the handoff tools loaded, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
 ---
 
 # Set Up Agent Relay Session Handoff
@@ -126,8 +126,9 @@ three:
   literal `${…}`. **This expansion exists only in Claude Code ≥ 2.1.119** — an
   older client sends the placeholder literally and auth fails, so check the
   version first (section 3) and update Claude rather than inlining the token.
-- **The launching environment** — both CLIs read the token from an environment
-  variable (`${VAR}` for Claude, `--bearer-token-env-var` for Codex), so the
+- **The launching environment** — all three CLIs read the token from an environment
+  variable (`${VAR}` for Claude, `--bearer-token-env-var` for Codex, `${VAR}`
+  interpolation in Muse server configs), so the
   variable must exist in the environment that **launches the agent**, not in a
   transient shell-tool subprocess (which cannot alter its parent or a later
   process).
@@ -226,7 +227,9 @@ restart first, which then costs a second restart only if the MCP was added after
 ## 1. Confirm the host and this session
 
 Run every command from this agent's own shell tool, and only from a **genuine
-interactive** Claude Code or Codex session. The app identifies the caller from
+interactive** Claude Code or Codex session (Muse sessions are not admitted —
+use the section 3 Muse block only to install its MCP, then drive the rest from
+Claude/Codex). The app identifies the caller from
 kernel credentials and resolves its process ancestry against discovered live
 sessions, so a command from an unrelated terminal — or from a non-interactive
 `codex exec` / `claude -p` run — is rejected with `not_a_relay_session`. (This
@@ -462,8 +465,58 @@ codex mcp add agent-relay-sessions \
 codex mcp list | grep -F agent-relay-sessions
 ```
 
+Muse — there is no `mcp add` command; merge the server into the user-global
+`~/.config/muse/settings.json` under the `mcp_servers` block (snake_case —
+`mcpServers` is not read), so the server is enabled for **all** Muse projects.
+Confirm the person is OK with user-wide access before adding it, as with Codex.
+Muse interpolates `${VAR}` in server configs at launch, so store the
+placeholder, never the value. `mode: optional` keeps a down server to a warning
+instead of aborting the run. The snippet tolerates a missing file or directory,
+keeps `schema_version` (Muse requires it), and replaces the file atomically so
+an interrupted write cannot truncate a working config; malformed existing JSON
+still errors out instead of being overwritten:
+
+```sh
+python3 - <<'EOF'
+import json, os, stat, tempfile
+p = os.path.expanduser('~/.config/muse/settings.json')
+os.makedirs(os.path.dirname(p), exist_ok=True)
+mode = stat.S_IMODE(os.stat(p).st_mode) if os.path.exists(p) else 0o600
+try:
+    with open(p) as f:
+        d = json.load(f)
+except FileNotFoundError:
+    d = {}
+d.setdefault('schema_version', 1)
+d.setdefault('mcp_servers', {})['agent-relay-sessions'] = {
+    "transport": "streamable_http",
+    "url": "https://agentrelay.com/cloud/api/v1/mcp/shared-sessions",
+    "headers": {"Authorization": "Bearer ${AGENT_RELAY_SESSIONS_TOKEN}"},
+    "mode": "optional",
+    "enabled": True
+}
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
+try:
+    with os.fdopen(fd, 'w') as f:
+        json.dump(d, f, indent=2)
+    json.load(open(tmp))  # validate before replacing
+    os.replace(tmp, p)
+    os.chmod(p, mode)
+finally:
+    if os.path.exists(tmp):
+        os.unlink(tmp)
+EOF
+python3 -m json.tool ~/.config/muse/settings.json > /dev/null && echo config-ok
+```
+
+Scope limit: the desktop admits only Claude/Codex sessions (`POST /register`
+discovers the nearest live Codex or Claude ancestor), so a Muse-driven session
+cannot pass section 2's registration checks. The Muse block installs MCP tools
+only; drive the rest of this skill — and any promised two-way handoff — from a
+Claude/Codex session.
+
 Because MCPs load at startup, the running session must be **restarted** to pick
-up the server — and because both CLIs read the token from the environment at
+up the server — and because all three CLIs read the token from the environment at
 launch, the restarted process must **inherit** `AGENT_RELAY_SESSIONS_TOKEN`.
 That is why the variable belongs in the shell profile / launcher, not a transient
 shell-tool subprocess: an `export` in this agent's shell tool cannot reach the
@@ -482,6 +535,8 @@ this agent:
 ```sh
 # Claude Code: the tools surface as mcp__agent-relay-sessions__*
 claude mcp list | grep -F agent-relay-sessions
+# Muse has no mcp list; run /mcp in an interactive session and check
+# agent-relay-sessions appears with its tools connected
 ```
 
 Then call `list_relay_agents` through the MCP (an MCP tool call, not a shell
@@ -557,10 +612,12 @@ count a roster listing as a proven handoff.
 - **`not_a_relay_session` from `/setup/*`:** the caller is not inside a discovered
   interactive session. Run it from this agent's own shell inside an **interactive**
   Claude Code or Codex session — a non-interactive `codex exec` or `claude -p` run
-  is not admitted, and neither is an unrelated terminal. In tmux/SSH, confirm the
+  is not admitted, and neither is an unrelated terminal, nor (currently) any Muse
+  session. In tmux/SSH, confirm the
   agent process and shell share the pane's process tree.
 - **No handoff tools in the session:** the MCP was added after the session
-  started, or at the wrong scope. Reinstall at project scope (section 3) and
+  started, or at the wrong scope. Reinstall at the right scope for the CLI
+  (section 3 — project scope for Claude, user-global for Codex and Muse) and
   **restart** the session; MCPs load only at startup.
 - **`list_relay_agents` auth error:** the token is wrong, expired, or from a
   different workspace. Because the MCP config stores only a **reference** to
@@ -586,8 +643,9 @@ count a roster listing as a proven handoff.
   `invalid_enabled`, its settings-file check before any `{"enabled":true}`. A managed Claude policy can block this; report it
   rather than editing managed settings.
 - **Remove the MCP:** `claude mcp remove agent-relay-sessions` /
-  `codex mcp remove agent-relay-sessions`. This removes only the handoff tools;
-  it does not sign the desktop out or stop uploads.
+  `codex mcp remove agent-relay-sessions` / delete the `agent-relay-sessions`
+  key under `mcp_servers` in `~/.config/muse/settings.json`. This removes only
+  the handoff tools; it does not sign the desktop out or stop uploads.
 
 ## Relationship to the other skills
 
