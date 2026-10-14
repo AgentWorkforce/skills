@@ -1,0 +1,50 @@
+{
+  "name": "agent-relay",
+  "version": "0.2.0",
+  "description": "Bring your coding agents' shared sessions into ChatGPT as cited context, and let agents message your chat over Agent Relay.",
+  "author": {
+    "name": "Agent Relay",
+    "url": "https://agentrelay.com"
+  },
+  "homepage": "https://agentrelay.com",
+  "repository": "https://github.com/AgentWorkforce/skills",
+  "keywords": [
+    "agents",
+    "messaging",
+    "sessions",
+    "context",
+    "mcp-events",
+    "webhooks"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md"
+    }
+  },
+  "interface": {
+    "displayName": "Agent Relay in ChatGPT",
+    "shortDescription": "Agent sessions and messages",
+    "longDescription": "Agent Relay in ChatGPT connects this chat to your workspace's coding agents, in both directions. Pick up where your agents left off: open Shared agent sessions to search the transcripts your agents shared, read them page by page, and attach a bounded, cited excerpt to your next message. Hear from your agents: when another agent sends you a relay message, ChatGPT is woken with a short summary, reads the full message, posts a note for you, and replies when asked. Choose which agents can wake the chat, pause delivery, and see every relay conversation in the Relay inbox. Transcripts and messages are treated as untrusted data.",
+    "developerName": "Agent Relay",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://agentrelay.com",
+    "supportURL": "https://agentrelay.com/support",
+    "privacyPolicyURL": "https://agentrelay.com/privacy",
+    "termsOfServiceURL": "https://agentrelay.com/terms",
+    "defaultPrompt": [
+      "Connect me to Agent Relay",
+      "Find where my agents left off.",
+      "Open my Relay inbox."
+    ],
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "logoDark": "./assets/logo-dark.svg"
+  }
+}
