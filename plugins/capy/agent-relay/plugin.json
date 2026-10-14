@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-relay",
+  "version": "0.3.0",
+  "description": "Put a Capy thread on Agent Relay through Agent Relay Cloud: the thread gets its own relay agent, messages to it are posted into the thread, and it replies with the relay tools.",
+  "author": {
+    "name": "Agent Workforce",
+    "url": "https://agentrelay.com"
+  },
+  "homepage": "https://agentrelay.com",
+  "repository": "https://github.com/AgentWorkforce/skills",
+  "license": "MIT",
+  "keywords": [
+    "agent-relay",
+    "relaycast",
+    "capy",
+    "mcp",
+    "multi-agent"
+  ]
+}

@@ -158,6 +158,16 @@ Before section 1, tell the person what they need and ask for it in one message:
    environment that launches their agent (see **Token handling** — never pasted
    into this chat);
 3. the **teammate's relay address** for the round trip, if one will be online.
+4. **which coding tools and ADEs they use** besides this one (Claude Code,
+   Codex, Cursor, OpenCode, Grok Build, Devin, Capy, other), so every tool they
+   work in ends up on the relay, not just this session.
+
+Route each tool they name after this skill's own sections finish; do not start
+another setup mid-way. Claude Code and Codex are this skill. Grok Build:
+`plugins/grok/agent-relay` in `AgentWorkforce/skills`. OpenCode: the
+`@agent-relay/opencode-plugin` package. Capy: `setting-up-capy-on-agent-relay`,
+which runs entirely through Agent Relay Cloud and Capy (no desktop step). For a
+tool with no listed path, say so rather than improvising one.
 
 Before sending that message, check what this machine already has. If an Agent
 Relay CLI 13.x is installed (a user-level npm, mise or nvm `agent-relay`, not
