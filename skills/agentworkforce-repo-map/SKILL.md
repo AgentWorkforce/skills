@@ -1,94 +1,48 @@
 ---
 name: agentworkforce-repo-map
-description: Canonical map of all AgentWorkforce GitHub org repos, their roles, responsibilities, and key signals. Read this before routing any issue or deciding which repo to open a PR in. Use as a seed index — always verify against the live org with `gh repo list AgentWorkforce` since new repos are created frequently.
+description: Route an AgentWorkforce change to its owning GitHub repository when the request spans products or repository ownership is unclear. Use current repo evidence before filing an issue or PR.
 ---
 
 # AgentWorkforce Repo Map
 
-This skill is the canonical reference for which repo owns what in the AgentWorkforce GitHub organization. Read it before routing an issue, spawning an agent, or opening a PR.
+Use this map to find candidate owners, then verify the relevant README, paths, and recent changes in the live repositories. It is a routing aid, not an exhaustive organization inventory or a reason to move work out of a repository the person already chose.
 
-## How to verify against the live org
+## Verify a candidate
 
-```bash
-# List all repos with descriptions
-gh repo list AgentWorkforce --limit 100 --json name,description
-
-# Read a specific repo's README
-gh api repos/AgentWorkforce/{repo}/contents/README.md --jq '.content' | base64 -d
-
-# Read package.json
-gh api repos/AgentWorkforce/{repo}/contents/package.json --jq '.content' | base64 -d
-
-# List top-level directory structure
-gh api repos/AgentWorkforce/{repo}/contents --jq '[.[] | {name, type}]'
+```sh
+gh repo view AgentWorkforce/<repo> --json description,url,defaultBranchRef
+gh api repos/AgentWorkforce/<repo>/contents --jq '[.[] | {name,type}]'
 ```
 
-## Core repos
+Read the candidate's README or the code path named in the issue. If the repo is not in this map, use `gh repo list AgentWorkforce --limit 200 --json name,description` to find a candidate. A local checkout can help, but may be behind the default branch. Use issue links, package names, stack traces, and current file ownership to settle an ambiguous route.
 
-### `pear`
-**Role**: Desktop application — the primary user-facing product.
-**Stack**: Electron, TypeScript, React, relayfile mount client.
-**Owns**: Claude Code session UI, renderer process, PTY I/O, relayfile mount integration, integration event rendering (Slack/Linear/GitHub panels), Pear app settings, local persona installation.
-**Key signals in issues**: "pear", "desktop", "renderer", "mount", "PTY", "session", "UI", "Electron", "integration panel", "local", "writeback path", "integration-remote-paths".
+## Candidate owners
 
-### `cloud`
-**Role**: Backend — Cloudflare Workers API and integration orchestration.
-**Stack**: Cloudflare Workers, TypeScript, D1, KV, Durable Objects, Nango, Hono.
-**Owns**: REST API, Slack/Linear/GitHub webhook consumers, Nango connection management, picker options, worker dispatch, relay worker identity, conversation sandbox, proactive agent triggers.
-**Key signals in issues**: "cloud", "API", "worker", "Slack", "Linear", "webhook", "Nango", "cf-", "KV", "D1", "Durable Object", "picker", "integration event", "cloud worker".
+| Surface | Start with | Boundary to check |
+| --- | --- | --- |
+| Native desktop app, local session registration, bundled probe, uploads UI | `relay-desktop` | Cloud sign-in or server-side upload handling belongs elsewhere. `pear` is a separate pair-programming product. |
+| Hosted Cloud API, OAuth, MCP, integration connections, Cloud app | `cloud` | A provider's file mapping may live in `relayfile-adapters`; a native UI change may live in `relay-desktop`. |
+| Agent Relay CLI, SDK, local node and broker orchestration, protocol-facing integration | `relay` | Realtime messaging engine and hosted gateway have their own repos below. |
+| Channels, DMs, threads, messaging SDK and store | `relaycast` | Hosted gateway deployment, Durable Objects, and persistence are in `relaycast-cloud`. |
+| Hosted Relaycast gateway and fleet messaging infrastructure | `relaycast-cloud` | Client and core messaging contracts may be in `relaycast` or `relay`. |
+| Local coding-session capture, indexing, search, resume, and history MCP | `relayhistory` | Hosted Sessions ingestion, recall, and storage are in `relayhistory-cloud`. |
+| Hosted Sessions ingestion, transcripts, recall, and derived memory | `relayhistory-cloud` | Native capture and upload controls are in `relay-desktop`. |
+| Relayfile VFS, mount, event delivery, writeback queue, and sync engine | `relayfile` | Provider-specific paths, webhook normalization, and writeback rules are in `relayfile-adapters`. |
+| GitHub, Linear, Slack, Notion, or other provider adapters | `relayfile-adapters` | Connection setup or hosted UI may be in `cloud`. |
+| Scoped VFS tokens and path permissions | `relayauth` | File operations and adapter behavior are in `relayfile` and `relayfile-adapters`. |
+| Current Relayflows surface, executor, `flows` CLI, and flow examples | `flows` | Hosted deployment and trigger UI may also touch `cloud`. `relayflows` contains an older workflow engine; use it for work on that codebase only. |
+| Deployable persona schema, runtime, and `agentworkforce` CLI | `workforce` | Individual agent implementations and examples are in `agents`. |
+| Individual proactive agent definitions and handlers | `agents` | Shared runtime or persona tooling is in `workforce`. |
+| Skills, commands, plugins, and `prpm.json` package metadata | `skills` | A product bug described by a skill still belongs in the product repo. |
+| Public marketing site and documentation pages | `agentrelay.com` | Cloud application behavior belongs in `cloud`. |
+| `arelay.to` onboarding agent and its knowledge bundle | `relay-agent` | Source skills and docs may be maintained in `skills` or `agentrelay.com`. |
+| Pear pair-programming experience | `pear` | Agent Relay Desktop issues belong in `relay-desktop`. |
 
-### `agents`
-**Role**: Autonomous agent harnesses deployed as persistent workers.
-**Stack**: TypeScript, agent-relay SDK, relayfile.
-**Owns**: pr-reviewer agent, merge-on-green logic, agent harness framework, agents deployed as long-running relay workers.
-**Key signals in issues**: "pr-reviewer", "merge-on-green", "agent harness", "autonomous agent", "review bot", "persistent agent", "relay worker".
+## Split work by the failing boundary
 
-### `workforce`
-**Role**: Tooling for building, installing, and running agent personas.
-**Stack**: TypeScript, Node.js monorepo (pnpm workspaces).
-**Owns**: persona packages (`@agentworkforce/persona-*`), CLI (`agentworkforce install`), runtime, deploy tooling, workload router, persona-kit, harness-kit.
-**Key signals in issues**: "persona", "CLI", "runtime", "deploy", "workforce", "install", "agentworkforce", "persona-kit", "harness", "workload router".
+- **Desktop message or session problem:** check `relay-desktop` for app/probe behavior, `relay` for relay integration, `relaycast-cloud` for hosted delivery, and `relayhistory-cloud` for hosted session ingestion. Route the change to the layer that fails.
+- **Integration problem:** check `cloud` for OAuth and connection management, `relayfile-adapters` for provider mapping or writeback, and `relayfile` for VFS or delivery mechanics.
+- **Flow problem:** check `flows` for the current flow definition and runtime, and `cloud` for hosted deployment or trigger wiring. Check `relayflows` only when the affected package is from that older repo.
+- **Agent problem:** check `agents` for one agent's behavior, `workforce` for shared persona/runtime behavior, and `skills` for instructions the agent consumes.
 
-### `relay`
-**Role**: The core relay product — server, broker, SDK, protocol.
-**Stack**: Go (server), TypeScript (SDK).
-**Owns**: relay server, broker, `@agent-relay/sdk`, relay protocol, agent registration, message routing, workspace management.
-**Key signals in issues**: "relay", "broker", "SDK", "@agent-relay/sdk", "relay server", "subscription", "workspace", "agent registration", "message routing".
-
-### `relayfile-adapters`
-**Role**: TypeScript packages that sync external providers into the relayfile mount.
-**Stack**: TypeScript, Cloudflare Workers.
-**Owns**: provider adapters (Linear, Slack, GitHub, Notion), writeback contract implementation, mount sync, event emission, adapter publish/deploy pipeline.
-**Key signals in issues**: "relayfile", "adapter", "sync", "provider", "writeback protocol", "mount sync", "event emission", "relayfile-adapter", "@relayfile/".
-
-### `skills`
-**Role**: Skill packs consumed by agent personas at runtime.
-**Stack**: Markdown (SKILL.md files), PRPM package manager.
-**Owns**: `@agent-relay/` and `@agent-workforce/` skill namespaces, skill authoring tooling, skill discovery.
-**Key signals in issues**: "skill", "SKILL.md", "skill pack", "@agent-relay/skill", "@agent-workforce/skill", "skills repo".
-
-## Routing rules
-
-| Issue surface | Primary repo | Secondary repo (if applicable) |
-|---|---|---|
-| Desktop UI, session rendering, local mount | `pear` | — |
-| Slack/Linear webhook, API endpoint, Nango | `cloud` | — |
-| PR reviewer, merge automation, agent harness | `agents` | — |
-| Persona authoring, CLI, runtime deploy | `workforce` | — |
-| Relay protocol, broker, SDK | `relay` | — |
-| Writeback contract, provider sync | `relayfile-adapters` | — |
-| Skill content | `skills` | — |
-| Slack feature end-to-end | `cloud` + `pear` | cloud = webhook/dispatch, pear = mount/render |
-| New integration (e.g. Jira) | `relayfile-adapters` + `cloud` | adapter = sync, cloud = Nango connection |
-| New persona | `workforce` | — |
-
-## Multi-repo issues
-
-When an issue spans multiple repos, spawn one implementer per repo in parallel. Common patterns:
-- **New Slack integration feature**: `cloud` (webhook + API) + `pear` (mount rendering)
-- **New external provider**: `relayfile-adapters` (adapter) + `cloud` (Nango connection setup)
-- **Agent behavior + UI**: `agents` (harness logic) + `pear` (rendering the agent's output)
-
-## Disambiguation
-
-If an issue is ambiguous, use `gh api repos/AgentWorkforce/{repo}/contents` to check directory structure of candidate repos before deciding. For example: if an issue mentions "writeback" it could be `pear` (path construction) or `relayfile-adapters` (sync protocol) — check which layer the bug is in.
+A change can legitimately span repositories. Identify the owning file or API in each repo before opening issues or PRs, and link related work rather than assuming one repo owns the whole feature.

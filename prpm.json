@@ -604,6 +604,22 @@
       ]
     },
     {
+      "name": "agentworkforce-repo-map",
+      "version": "1.0.0",
+      "description": "Route an AgentWorkforce change to its owning GitHub repository when the request spans products or repository ownership is unclear. Use current repo evidence before filing an issue or PR.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agentworkforce",
+        "repo-routing",
+        "triage",
+        "github"
+      ],
+      "files": [
+        "skills/agentworkforce-repo-map/SKILL.md"
+      ]
+    },
+    {
       "name": "factory-config",
       "version": "1.0.2",
       "description": "Use when creating, editing, or validating an Agent Relay Factory factory.config.json file, including repo routing, Linear state/team settings, GitHub issue ingestion, live mode, babysitter options, and Relayflows dispatch wiring boundaries",

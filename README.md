@@ -4,7 +4,7 @@ Skills, slash commands, and a Claude Code plugin for building multi-agent system
 
 Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.10.0`.
 
-## Published Skills
+## Skills
 
 | Skill | Version | Description |
 |-------|---------|-------------|
@@ -34,6 +34,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [multi-host-live-mount](skills/multi-host-live-mount/SKILL.md) | 1.0.1 | Mount one workspace on many hosts and place an agent in a live-mounted tree with nothing cloned — join, per-node scopes and credentials, and proof the remote mirror is current. |
 | [adding-swarm-patterns](skills/adding-swarm-patterns/SKILL.md) | 1.0.0 | Checklist for extending agent-relay with a new swarm pattern — TypeScript types, JSON schema, YAML template, and pattern/template docs. |
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.11 | Create or update a Workforce cloud persona with `persona.json`/`persona.ts`, `agent.ts`, integration scope and adapter config guidance, vendored examples, and production-correctness checks. |
+| [agentworkforce-repo-map](skills/agentworkforce-repo-map/SKILL.md) | 1.0.0 | Route an AgentWorkforce change to the current owning repository when product boundaries are unclear. |
 | [factory-config](skills/factory-config/SKILL.md) | 1.0.2 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, babysitter mode, and Relayflows dispatch wiring boundaries. |
 | [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 2.0.0 | OpenClaw-specific setup and completion reporting for a headless Agent Relay team; defers to `orchestrating-agent-relay` for broker, spawn, and coordination mechanics. |
 
