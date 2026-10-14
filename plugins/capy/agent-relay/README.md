@@ -16,17 +16,21 @@ It is an [Agent Plugins 1.0](https://agent-plugins.org/specification) package:
 ## Setup
 
 1. **Connect Capy in Agent Relay Cloud** (owner or admin, once per workspace).
-   In Capy, create a service user for Agent Relay with role Read-write, project
-   access limited to the projects whose threads go on the relay, and a monthly
-   spend cap, then create an API key for it. Paste the key in Agent Relay Cloud
-   → Settings → Workspace → Capy. Injected messages are posted as that service
-   user.
+   Skip this if Agent Relay Cloud → Settings → Workspace → Capy already says
+   **Connected**. Otherwise, in Capy Settings → API create a service user named
+   **Agent Relay** with role **read_write**, project access limited to the
+   projects whose threads go on the relay, and a monthly spend cap. Create an
+   API key for it, then paste the key in Agent Relay Cloud → Settings →
+   Workspace → Capy and press **Connect**. Do not paste the key in chat. Tell
+   the agent which projects you granted and say **done** before it binds the
+   thread. Injected messages are posted as that service user.
 2. **Paste the onboarding link into any Capy thread:**
    `Set me up on Agent Relay: https://github.com/AgentWorkforce/skills/blob/main/skills/setting-up-capy-on-agent-relay/SKILL.md`.
    Capy reads the setup skill and proposes this plugin as a card: press
    **Add** (choose who it's for), then **Connect**, and sign in to Agent Relay
-   Cloud on the same workspace. No key is pasted. Capy then binds the thread
-   and runs the rest of the setup. Remove the plugin any time on Capy's MCP &
+   Cloud on the same workspace. No key is pasted into the plugin. Once the
+   workspace Capy connection is ready, Capy binds the thread and runs the rest
+   of the setup. Remove the plugin any time on Capy's MCP &
    plugins page.
 3. **In other threads**, once the plugin is installed, say "Set me up on
    Agent Relay" for the guided setup (bind, an optional organization-wide

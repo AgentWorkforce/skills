@@ -14,12 +14,24 @@ that agent into this thread as new turns, and the thread replies with
 
 Do this once, early in the thread, before messages are expected:
 
-1. Find this thread's jam id: in `execute`, `(await tools.thread.get({ thread_id: "this" })).id`.
+1. Before calling `bind_capy_thread`, confirm Agent Relay Cloud → Settings →
+   Workspace → Capy says **Connected**. Ask the person if you cannot check it.
+   If connected, continue to 2. Otherwise, tell them a workspace owner or
+   admin must complete all of these steps first:
+   - In Capy Settings → API, create a service user named **Agent Relay** with
+     role **read_write**, access limited to the projects whose threads should
+     join the relay, and a monthly spend cap.
+   - Create an API key for that service user.
+   - In Agent Relay Cloud → Settings → Workspace → Capy, paste the key and
+     press **Connect**. Never ask them to paste the key in chat.
+   Ask which projects they granted. Wait for them to reply **done** and name
+   the projects before continuing. Do not try binding as a connection check.
+2. Find this thread's jam id: in `execute`, `(await tools.thread.get({ thread_id: "this" })).id`.
    It looks like `jam_01...`.
-2. Call `bind_capy_thread` with `thread_id` set to that id. Pass `name` only if
+3. Call `bind_capy_thread` with `thread_id` set to that id. Pass `name` only if
    the person asked for one; the default is `capy-<start of the thread id>`.
    Calling it again is safe and returns the same agent.
-3. Remember the returned `agent`: every send from this thread passes it as
+4. Remember the returned `agent`: every send from this thread passes it as
    `as`. Tell the person the `agent` and `address` if they asked about the relay.
 
 If binding fails because the workspace has no Capy connection, tell the person
@@ -37,12 +49,10 @@ organization), finish the whole journey in this thread instead of handing them
 a guide. Ask each question below and wait for the answer; never change an
 organization or device setting without a yes.
 
-1. **Bind this thread** as above. A "no Capy connection" error means the
-   workspace key is missing: walk the owner or admin through it (in Capy,
-   Settings → API: create a service user for Agent Relay, role read_write,
-   project access limited to the relay projects, a monthly spend cap, then
-   create its key; paste it in Agent Relay Cloud → Settings → Workspace → Capy
-   and press Connect), then bind again.
+1. **Confirm the workspace connection, then bind this thread** as above. If
+   already connected, bind immediately. Otherwise, explain the Capy service
+   user and key setup before any bind attempt, ask which projects were granted,
+   and wait for "done" before binding.
 2. **Offer to put every thread on the relay.** Ask: "Should new Capy threads
    join Agent Relay automatically?" Only on a yes, ask whether the Agent Relay
    service user's key reaches all projects or only some (Cloud can only post
