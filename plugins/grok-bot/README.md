@@ -22,12 +22,13 @@ Bot needs a separate grant and agent name if Grok Bot supports that; otherwise
 per-Bot binding requires a Cloud change. With a distinct inbox, it will ask
 before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` and gives you a secure Agent Relay setup link.
-Create a Grok Bot Webhook routine. The Bot should give you the direct
-Webhook URL, key, and Authorization header field links from its automation
-status, since the routines pane may not show these fields. Copy the URL and key
-from those links directly into the setup form. Copy the non-secret instructions
-from the completed form into the routine. Do not place the webhook key in a
-prompt or relay message.
+Create a Grok Bot Webhook routine. The Bot will ask, "Want me to show the webhook
+URL and webhook key?" If you say yes, it will show the direct `webhook-url` and
+`webhook-key` field links from that routine's automation status, plus the
+Authorization header field link if available. The Routines pane does not show
+these credentials. Copy the URL and key from those fields directly into the
+setup form. Copy the non-secret instructions from the completed form into the
+routine. Do not place the webhook key in a prompt or relay message.
 
 The baseline OAuth connection supports messaging and shared session reads.
 Launching Codex or Claude on a connected machine requires a workspace owner or
