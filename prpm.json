@@ -632,6 +632,33 @@
       ]
     },
     {
+      "name": "agent-relay-grok-bot",
+      "version": "0.1.0",
+      "description": "Connect Grok Bot to Agent Relay, set up an inbound webhook routine with consent, and handle messages from coding agents.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "grok-bot", "mcp", "routines"],
+      "files": ["skills/agent-relay-grok-bot/SKILL.md"]
+    },
+    {
+      "name": "agent-relay-chatgpt",
+      "version": "0.1.0",
+      "description": "Handle Agent Relay messages and shared agent sessions in ChatGPT.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "chatgpt", "mcp", "sessions"],
+      "files": ["skills/agent-relay-chatgpt/SKILL.md"]
+    },
+    {
+      "name": "agent-relay-chatgpt-setup",
+      "version": "0.1.0",
+      "description": "Connect a ChatGPT chat to Agent Relay, save its reply preference, and subscribe it to relay messages.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "chatgpt", "mcp", "setup"],
+      "files": ["skills/agent-relay-chatgpt-setup/SKILL.md"]
+    },
+    {
       "name": "merge-train-snippet",
       "version": "1.0.2",
       "description": "AGENTS.md snippet: feature PRs target trunk, verify locally (no feature-branch CI), and add the `mergeable` label when ready; the merge agent sweeps them into trunk and promotes trunk to the default branch.",

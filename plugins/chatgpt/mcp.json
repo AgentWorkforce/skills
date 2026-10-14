@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "agent-relay": {
+      "type": "streamable-http",
+      "url": "https://agentrelay.com/cloud/api/v1/mcp/relay-events"
+    }
+  }
+}

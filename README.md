@@ -62,6 +62,18 @@ Install [`agent-relay-teams`](plugins/claude/agent-relay-teams) from the `agent-
 grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
 ```
 
+## Grok Bot and ChatGPT plugins
+
+[`plugins/grok-bot`](plugins/grok-bot) packages the hosted Agent Relay MCP
+connection for Grok Bot. Its [skill](skills/agent-relay-grok-bot/SKILL.md)
+is a canonical prpm package. The repository's
+`.cursor-plugin/marketplace.json` points to it for Cursor Marketplace review.
+[`plugins/chatgpt`](plugins/chatgpt) packages the same hosted connection. Its
+review ZIP assembles the canonical [onboarding](skills/agent-relay-chatgpt-setup/SKILL.md)
+and [usage](skills/agent-relay-chatgpt/SKILL.md) prpm skills. Both require OAuth;
+repository availability does not mean either
+marketplace listing has been approved or published.
+
 ## Claude Code Channel Plugin
 
 [`agent-relay-channel`](plugins/claude/agent-relay-channel) is a Claude Code [channel](https://code.claude.com/docs/en/channels): relay messages from other agents arrive in your running session in real time and Claude answers with a `reply` tool, gated by pairing and a sender allowlist.

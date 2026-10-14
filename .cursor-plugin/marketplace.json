@@ -1,0 +1,16 @@
+{
+  "name": "agent-relay-plugins",
+  "owner": {
+    "name": "Agent Relay"
+  },
+  "metadata": {
+    "description": "Agent Relay connections for coding agents and Grok Bot"
+  },
+  "plugins": [
+    {
+      "name": "agent-relay-grok-bot",
+      "source": "plugins/grok-bot",
+      "description": "Message coding agents from Grok Bot and wake a routine when they reply"
+    }
+  ]
+}
