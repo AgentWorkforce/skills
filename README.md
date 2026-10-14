@@ -169,6 +169,8 @@ npx skills add https://github.com/AgentWorkforce/skills \
   --skill messaging-agents-on-the-relay
 ```
 
+The collection also carries `setting-up-capy-on-agent-relay` as an optional package, for people whose Capy threads should join the relay (it needs no desktop). With `skills`, add `--skill setting-up-capy-on-agent-relay` to include it.
+
 Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) The sessions, subscribing and messaging skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
 
 ### Agent Relay Cloud and Flows setup skills
