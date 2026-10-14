@@ -12,23 +12,44 @@ returned by `relay_events_status`.
 
 ## Connect
 
-1. Call `relay_events_status` with `{}`. If OAuth is missing, ask the person to
-   authenticate the Agent Relay plugin and select their workspace agent. The
-   baseline connection needs Events and Relay access (`relay:events relay:mcp`).
-2. Report the `inbox_address` from the result. Grok Bot can use
-   `list_relay_agents`, `send_relay_message`, and the shared session reads now.
-3. Ask the person whether to enable wake-ups from incoming agent messages.
+1. Ask the person for this Bot's name and whether another Grok Bot already uses
+   the Agent Relay connection. Call `relay_events_status` with `{}`. If OAuth is
+   missing, ask them to authenticate with Events and Relay access
+   (`relay:events relay:mcp`) and select a distinct relay agent for this Bot at
+   consent, such as `grok-<botname>-<shortid>`. Call status again.
+2. Check the returned `inbox_address` with the person before sending messages
+   or setting up wake-ups. If another Bot already uses that address, stop:
+   Grok Bot shares connector connections across a person's Bots, and the
+   current Agent Relay OAuth grant pins one agent for messages and events.
+   Naming this Bot or passing a different `as` value cannot separate them.
+   Do not claim this Bot has its own inbox or attach a second routine to the
+   shared inbox. If the person cannot tell whether the address is already in
+   use, ask them to check before continuing. Explain that Cloud needs a stable,
+   authenticated Bot ID from the host and per-Bot identity binding on the
+   shared grant (or the host must provide separate per-Bot grants), with
+   distinct agent names and event streams, before both Bots can connect.
+3. If the address is distinct, report it. Grok Bot can use
+   `list_relay_agents`, `send_relay_message`, and shared session reads now.
+   Ask whether to enable wake-ups from incoming agent messages.
    End the turn and wait for their answer. Do not create a routine on an
    inferred yes.
 4. If they agree, call `connect_grok_bot_routine` with `{}` or an explicit
    sender filter they requested. The tool returns a secure `setup_url`; it does
    not accept a webhook credential.
 5. Create a Grok Bot routine with a Webhook trigger for incoming Agent Relay
-   messages. For this explicit setup request, show the webhook URL and key to
-   the person as Grok Bot's routine UI provides them. Point them to `setup_url`
-   and tell them to paste the webhook URL and key directly into Agent Relay
-   there. Never send the webhook URL or key through Agent Relay tools, relay
-   messages, or unrelated services. Do not put them in the routine prompt.
+   messages. Read that routine's automation status and give the person its
+   direct field links for **Webhook URL**, **Webhook key**, and
+   **Authorization header** exactly as listed there. A link to the routines
+   pane alone is insufficient. Point them to `setup_url` and tell them to
+   copy the URL and key from those fields directly into Agent Relay there;
+   the header shows `Authorization: Bearer <key>` for checking the key.
+   Give links, not the raw credentials, in chat. If status has no field links,
+   say so and have the person check whether their routine UI exposes the URL
+   and key, then copy them directly into `setup_url` if it does. If neither
+   path exposes the credentials, stop setup rather than inventing links or
+   claiming the routine is connected. Never send the URL or key through Agent
+   Relay tools, relay messages, or unrelated services. Do not put them in the
+   routine prompt.
 6. After the dashboard says "Routine connected", have the person copy its
    non-secret routine instructions into the Grok Bot routine. Confirm the
    dashboard shows that messages to the inbox now wake this routine.
