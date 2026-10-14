@@ -20,6 +20,34 @@ Relayflows turns a coding-agent task into steps a journal can inspect, verify, a
 - Debugging a `REFUSED [...]` message from `flows check` or `flows run`.
 - Deciding between running a flow locally, deploying it to listen for tickets, or scheduling it on a cron.
 
+## Inputs and hosted authoring
+
+The flow body receives **two arguments**: `(f: Ctx, inputs: Input)`. `f` supplies journaled operations; it has no `inputs` property. Declare a concrete input type and read values from the second argument. Do not use `as any` or `@ts-ignore` to make an invented SDK property compile.
+
+```ts
+import { flow } from '@relayflows/surface';
+
+type Input = { task: string };
+export default flow<Input>('summarize', async (f, inputs) => {
+  if (!inputs.task.trim()) return f.done('declined');
+  const summary = await f.llm`Summarize this task: ${inputs.task}`;
+  console.log(summary);
+  f.done('success');
+});
+```
+
+For a hosted flow, use the host-supplied input schema, trigger configuration, and capabilities. A provider's raw webhook is not necessarily the flow's input: Cloud projects events into normalized records. Manual/API inputs and provider-event inputs are different contracts. If the exact event or required field is unspecified, ask for clarification instead of inventing a payload or falling back to an empty URL/undefined identifier. Keep the chosen event family through deployment: a PR reviewer needs a pull-request source, not an issue source.
+
+For provider reads, prefer connected, documented readers or mounted records. A repository checkout can supply a diff when the required refs are present. A public `diff_url` and unauthenticated `curl` are not a substitute for an authenticated integration, especially for private repositories. Shell commands remain appropriate for deterministic work; do not interpolate untrusted event fields into shell commands. Validate required inputs before recording effects.
+
+Use the published helper signatures. For example, GitHub comments take a target object and body, **two arguments**:
+
+```ts
+await f.github.comment({ owner: pr.owner, repo: pr.repo, number: pr.number }, reviewBody);
+```
+
+Before accepting generated source, check its SDK calls against declarations and its inputs against the selected host event. Compile-only checks cannot prove a listener supplies the expected input. Exercise the selected event with a representative fixture, including missing required input, without posting to a real provider. Correct contract errors before activation.
+
 ## The ladder
 
 Three step verbs, one per rung (`@relayflows/sdk`'s `StepType = 'deterministic' | 'llm' | 'agent'`):
