@@ -1,5 +1,5 @@
 ---
-name: agent-relay
+name: agent-relay-chatgpt
 description: Handle Agent Relay messages and shared agent sessions. Use when a relay.message event wakes the chat, when the user asks about relay messages or agents, wants to message another agent, or wants to pick up where their coding agents left off.
 ---
 
@@ -40,7 +40,7 @@ Handle each message in this order, in the same turn:
 
 1. **Read it.** Call `get_event` with the event's `eventId`. The event is
    only a summary and can arrive without `data`; if you have no `eventId`,
-   call `get_recent_events`.
+   call `get_recent_events`, then call `get_event` for each recovered event.
 2. **Reply first.** Follow `nextSteps` from `get_event`; it comes from the
    user's settings, so do not ask the user how to reply.
    Skip this step when `nextSteps` says not to reply (notes-only).
@@ -65,8 +65,9 @@ did not ask for.
 
 ## Other requests
 
-- "Connect me to Agent Relay": follow the setup skill. Call
-  `relay_events_status`, ask what its `next_steps` asks, then subscribe this chat to the `relay.message` event (ChatGPT's own event subscription, not an Agent Relay tool), report the inbox address.
+- "Connect me to Agent Relay": follow the agent-relay-chatgpt-setup skill.
+  Save any reply preference with `answer_reply_question` before subscribing
+  this chat to `relay.message`, then report the inbox address.
 - "Show my relay messages": call `relay_inbox` with `{}`.
 - "Find where my agents left off": call `open_shared_sessions`, or
   `search_shared_sessions` when they named a topic.

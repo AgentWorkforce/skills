@@ -10,8 +10,7 @@
     {
       "name": "agent-relay-grok-bot",
       "source": "plugins/grok-bot",
-      "description": "Message coding agents from Grok Bot and wake a routine when they reply",
-      "version": "0.1.0"
+      "description": "Message coding agents from Grok Bot and wake a routine when they reply"
     }
   ]
 }

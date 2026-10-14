@@ -19,7 +19,7 @@
   ],
   "extensions": {
     "com.openai": {
-      "onboardingSkill": "./skills/setup/SKILL.md",
+      "onboardingSkill": "./skills/agent-relay-chatgpt-setup/SKILL.md",
       "interface": {
         "displayName": "Agent Relay in ChatGPT",
         "shortDescription": "Agent sessions and messages",

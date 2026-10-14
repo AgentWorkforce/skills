@@ -1,5 +1,5 @@
 ---
-name: setup
+name: agent-relay-chatgpt-setup
 description: Connect this chat to Agent Relay after install, or when the user says "Connect me to Agent Relay". Checks the connection, subscribes to relay messages, reports the inbox address and, once, asks whether to reply automatically.
 ---
 

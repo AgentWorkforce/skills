@@ -16,6 +16,5 @@
     "routines"
   ],
   "logo": "assets/logo.svg",
-  "skills": "./skills/",
   "mcpServers": "./mcp.json"
 }

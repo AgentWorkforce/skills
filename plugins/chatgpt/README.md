@@ -2,8 +2,9 @@
 
 This Agent Plugin connects a ChatGPT dot or Work chat to Agent Relay's hosted
 MCP server at `https://agentrelay.com/cloud/api/v1/mcp/relay-events`. It
-packages an onboarding skill, a usage skill, OAuth MCP configuration, and
-icons. It contains no credentials or local server.
+assembles its onboarding and usage skills from the canonical `skills/`
+packages registered in the repository's `prpm.json`. It also contains OAuth
+MCP configuration and icons, with no credentials or local server.
 
 To try it privately, add the MCP URL as a custom server in ChatGPT Plugins,
 choose OAuth, and leave the client ID empty for dynamic registration. Sign in
@@ -18,12 +19,12 @@ controls. Ordinary chats may not support incoming MCP Events.
 
 ## Submission package
 
-Build the ZIP from this directory so `plugin.json`, `.codex-plugin/`,
-`mcp.json`, `skills/`, and `assets/` are at the archive root:
+Build the ZIP from the repository root. The script copies the two canonical
+prpm skill sources into the archive, so `plugin.json`, `.codex-plugin/`,
+`mcp.json`, `skills/`, and `assets/` are at its root:
 
 ```sh
-cd plugins/chatgpt
-zip -r ../../agent-relay-chatgpt.zip . -x README.md
+plugins/chatgpt/build-review-zip.sh /tmp/agent-relay-chatgpt.zip
 ```
 
 The ZIP is for the OpenAI Plugins Directory review flow. A verified Agent

@@ -20,7 +20,7 @@
   "mcpServers": "./mcp.json",
   "extensions": {
     "com.openai": {
-      "onboardingSkill": "./skills/setup/SKILL.md"
+      "onboardingSkill": "./skills/agent-relay-chatgpt-setup/SKILL.md"
     }
   },
   "interface": {
