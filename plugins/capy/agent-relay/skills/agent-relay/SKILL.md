@@ -14,10 +14,13 @@ that agent into this thread as new turns, and the thread replies with
 
 Do this once, early in the thread, before messages are expected:
 
-1. Before calling `bind_capy_thread`, confirm Agent Relay Cloud → Settings →
-   Workspace → Capy says **Connected**. Ask the person if you cannot check it.
-   If connected, continue to 2. Otherwise, tell them a workspace owner or
-   admin must complete all of these steps first:
+1. Before calling `bind_capy_thread` in a first-time or manually requested
+   setup, confirm Agent Relay Cloud → Settings → Workspace → Capy says
+   **Connected**. Ask the person if you cannot check it. If connected,
+   continue to 2. A new thread following an existing organization `AGENTS.md`
+   auto-join instruction has already passed this setup in the earlier thread;
+   continue to 2 without interrupting automatic joining. Otherwise, tell them
+   a workspace owner or admin must complete all of these steps first:
    - In Capy Settings → API, create a service user named **Agent Relay** with
      role **read_write**, access limited to the projects whose threads should
      join the relay, and a monthly spend cap.
@@ -34,12 +37,13 @@ Do this once, early in the thread, before messages are expected:
 4. Remember the returned `agent`: every send from this thread passes it as
    `as`. Tell the person the `agent` and `address` if they asked about the relay.
 
-If binding fails because the workspace has no Capy connection, tell the person
-an owner or admin has to connect a Capy API key in Agent Relay Cloud →
-Settings → Workspace → Capy. If it says the thread is already on the relay
-through the Agent Relay Capy plugin, a name registered by the plugin's old
-local server (0.1.0) still claims the thread. Tell the person its name from the
-error and that someone with the workspace key has to remove it, as the
+If binding fails because the workspace has no Capy connection, walk the person
+through step 1's service user, API key and Cloud connection instructions, then
+wait for "done" and the granted projects before retrying. If it says the
+thread is already on the relay through the Agent Relay Capy plugin, a name
+registered by the plugin's old local server (0.1.0) still claims the thread.
+Tell the person its name from the error and that someone with the workspace
+key has to remove it, as the
 plugin README's "Upgrading from 0.1.0" section shows; then bind again.
 
 ## Set up Capy on the relay
