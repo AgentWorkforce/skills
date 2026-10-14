@@ -46,9 +46,8 @@ clicks what you ask them to.
    "Set up Capy on the relay" section from step 2 on. It asks about auto-join
    (including whether the workspace key reaches all projects, which decides
    the exact `AGENTS.md` line), asks about threads on their own computer, and
-   proves a round trip. The proof needs a DM from a different agent (the
-   desktop app, another agent or another Capy thread); a message this thread
-   sends to itself does not come back in as a turn.
+   proves a round trip with a DM from a different agent (the desktop app,
+   another agent or another Capy thread).
 
 The rest of this page is the reference for those steps and for any agent
 (Claude Code, Codex, the Agent Relay agent) guiding a person through the same
