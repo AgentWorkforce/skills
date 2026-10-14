@@ -29,12 +29,21 @@ import { flow } from '@relayflows/surface';
 
 type Input = { task: string };
 export default flow<Input>('summarize', async (f, inputs) => {
-  if (!inputs.task.trim()) return f.done('declined');
-  const summary = await f.llm`Summarize this task: ${inputs.task}`;
+  if (!inputs || typeof inputs !== 'object' || Array.isArray(inputs) ||
+      typeof inputs.task !== 'string') return f.done('declined');
+  const task = inputs.task.trim();
+  if (!task) return f.done('declined');
+  const summary = await f.llm`Summarize this task: ${task}`;
   console.log(summary);
   f.done('success');
 });
 ```
+
+The `Input` annotation does not validate an invocation at runtime. Validate the
+input object and field types before calling string methods or recording effects.
+The example declines missing, non-string, empty, and whitespace-only tasks.
+Run `node --test scripts/validate-input-example.test.mjs` from this skill directory
+to exercise the exact documented callback with inert model and completion stubs.
 
 For a hosted flow, use the host-supplied input schema, trigger configuration, and capabilities. A provider's raw webhook is not necessarily the flow's input: Cloud projects events into normalized records. Manual/API inputs and provider-event inputs are different contracts. If the exact event or required field is unspecified, ask for clarification instead of inventing a payload or falling back to an empty URL/undefined identifier. Keep the chosen event family through deployment: a PR reviewer needs a pull-request source, not an issue source.
 
