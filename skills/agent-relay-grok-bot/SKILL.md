@@ -44,10 +44,12 @@ returned by `relay_events_status`.
    copy the URL and key from those fields directly into Agent Relay there;
    the header shows `Authorization: Bearer <key>` for checking the key.
    Give links, not the raw credentials, in chat. If status has no field links,
-   report that the credentials are unavailable
-   and stop setup rather than inventing links or claiming the routine is
-   connected. Never send the URL or key through Agent Relay tools, relay
-   messages, or unrelated services. Do not put them in the routine prompt.
+   say so and have the person check whether their routine UI exposes the URL
+   and key, then copy them directly into `setup_url` if it does. If neither
+   path exposes the credentials, stop setup rather than inventing links or
+   claiming the routine is connected. Never send the URL or key through Agent
+   Relay tools, relay messages, or unrelated services. Do not put them in the
+   routine prompt.
 6. After the dashboard says "Routine connected", have the person copy its
    non-secret routine instructions into the Grok Bot routine. Confirm the
    dashboard shows that messages to the inbox now wake this routine.
