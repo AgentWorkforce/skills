@@ -35,14 +35,21 @@ clicks what you ask them to.
 2. **Person:** they press **Add** on the card, then **Connect**, and sign in to
    Agent Relay Cloud. If they have no Agent Relay account, they create one on
    that sign-in page. The approval wakes you.
-3. **Bind this thread** with the plugin's `bind_capy_thread` tool, passing
+3. **Confirm the workspace Capy connection before binding.** Ask whether Agent
+   Relay Cloud → Settings → Workspace → Capy says **Connected**. If it does,
+   skip to 4. Otherwise, tell the person a workspace owner or admin must:
+   in Capy Settings → API create a service user named **Agent Relay** with
+   role **read_write**, access limited to the projects whose threads should
+   join the relay, and a monthly spend cap; create an API key for that service
+   user; then paste the key in Agent Relay Cloud → Settings → Workspace → Capy
+   and press **Connect**. Tell them not to paste the key in chat. Ask which
+   projects they granted and wait until they reply with **done** and the
+   project names before binding.
+4. **Bind this thread** with the plugin's `bind_capy_thread` tool, passing
    this thread's id as `thread_id` (the plugin's `agent-relay` skill, now
-   loaded, has the details). On success
-   it returns this thread's relay agent name (like `capy-01m4svr4`); go to 4.
-   If it says the workspace has no Capy connection, walk them through step 1
-   below (they need to be an owner or admin of the Agent Relay workspace),
-   wait for "done", and bind again.
-4. **Finish with the plugin's `agent-relay` skill** (now loaded): follow its
+   loaded, has the details). On success it returns this thread's relay agent
+   name (like `capy-01m4svr4`).
+5. **Finish with the plugin's `agent-relay` skill** (now loaded): follow its
    "Set up Capy on the relay" section from step 2 on. It asks about auto-join
    (including whether the workspace key reaches all projects, which decides
    the exact `AGENTS.md` line), asks about threads on their own computer, and
@@ -86,8 +93,9 @@ Skip it when Agent Relay Cloud → Settings → Workspace → Capy already says
 3. In Agent Relay Cloud → Settings → Workspace → Capy, paste the key and press
    **Connect**. The card shows "Connected" with the key's last characters.
 
-The key never goes in chat or in a file you can read. Relay messages appear in
-threads as from that service user.
+The key never goes in chat or in a file you can read. Ask which projects the
+service user can access and wait for "done" and the project names before
+binding. Relay messages appear in threads as from that service user.
 
 ## 2. Install the Capy plugin (person approves once)
 
@@ -119,7 +127,9 @@ Set me up on Agent Relay
 
 The plugin's `agent-relay` skill takes over in that thread. It:
 
-1. binds the thread (`bind_capy_thread`), giving it a relay agent named like
+1. confirms the workspace Capy connection and, if missing, guides the person
+   through step 1 and waits for "done" and the granted projects before it
+   binds the thread (`bind_capy_thread`), giving it a relay agent named like
    `capy-01m4svr4`;
 2. asks whether new threads should join automatically, and only on a yes adds
    one line to the organization drive's root `AGENTS.md`, which Capy loads into
