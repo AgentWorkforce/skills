@@ -27,10 +27,11 @@ clicks what you ask them to.
    repository `AgentWorkforce/skills`, ref `main`, path
    `plugins/capy/agent-relay` (with `mcp_add`, source
    `{ git: { repository: "AgentWorkforce/skills", ref: "main", path: "plugins/capy/agent-relay" } }`;
-   leave owner unset so the person chooses). If an `agent-relay` server is
-   already connected in this thread, skip to 3. If its tools ask for
-   `RELAY_API_KEY`, an old plugin is installed: tell them to remove it on
-   Capy's MCP & plugins page first. Then stop and wait.
+   leave owner unset so the person chooses), then stop and wait for Add and
+   Connect. If an `agent-relay` server is already connected and its tools do
+   not ask for `RELAY_API_KEY`, skip to 3. If they ask for `RELAY_API_KEY`, an
+   old plugin is installed: tell them to remove it on Capy's MCP & plugins
+   page, then propose this plugin again and wait.
 2. **Person:** they press **Add** on the card, then **Connect**, and sign in to
    Agent Relay Cloud. If they have no Agent Relay account, they create one on
    that sign-in page. The approval wakes you.
@@ -41,13 +42,13 @@ clicks what you ask them to.
    If it says the workspace has no Capy connection, walk them through step 1
    below (they need to be an owner or admin of the Agent Relay workspace),
    wait for "done", and bind again.
-4. **Ask** whether new Capy threads should join automatically. Only on a yes,
-   add the auto-join line from step 3 below to the organization drive's root
-   `AGENTS.md`.
-5. **Ask** whether any of their Capy threads run on their own computer; if so,
-   explain step 4 below and let them choose.
-6. **Prove it:** run step 5 below and tell them their agent name and where
-   the thread shows up.
+4. **Finish with the plugin's `agent-relay` skill** (now loaded): follow its
+   "Set up Capy on the relay" section from step 2 on. It asks about auto-join
+   (including whether the workspace key reaches all projects, which decides
+   the exact `AGENTS.md` line), asks about threads on their own computer, and
+   proves a round trip. The proof needs a DM from a different agent (the
+   desktop app, another agent or another Capy thread); a message this thread
+   sends to itself does not come back in as a turn.
 
 The rest of this page is the reference for those steps and for any agent
 (Claude Code, Codex, the Agent Relay agent) guiding a person through the same
