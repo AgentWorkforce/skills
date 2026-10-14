@@ -5,7 +5,7 @@ description: Route an AgentWorkforce change to its owning GitHub repository when
 
 # AgentWorkforce Repo Map
 
-Use this map to find candidate owners, then verify the relevant README, paths, and recent changes in the live repositories. It is a routing aid, not an exhaustive organization inventory or a reason to move work out of a repository the person already chose.
+Use this map to find candidate owners, then verify the relevant README, paths, and recent changes in the live repositories. It covers nonarchived public repositories with an owned surface as of October 14, 2026, plus the core product repositories already documented here. It is a routing aid, not a reason to move work out of a repository the person already chose. Private repositories may exist beyond this map; use an authenticated live lookup when the public candidates do not fit.
 
 ## Verify a candidate
 
@@ -14,7 +14,7 @@ gh repo view AgentWorkforce/<repo> --json description,url,defaultBranchRef
 gh api repos/AgentWorkforce/<repo>/contents --jq '[.[] | {name,type}]'
 ```
 
-Read the candidate's README or the code path named in the issue. If the repo is not in this map, use `gh repo list AgentWorkforce --limit 200 --json name,description` to find a candidate. A local checkout can help, but may be behind the default branch. Use issue links, package names, stack traces, and current file ownership to settle an ambiguous route.
+Read the candidate's README or the code path named in the issue. If the repo is not in this map, use `gh repo list AgentWorkforce --limit 500 --no-archived --json name,description,visibility,pushedAt --jq 'sort_by(.pushedAt) | reverse'` to find a candidate, including private repositories you are authorized to access. A local checkout can help, but may be behind the default branch. Use issue links, package names, stack traces, and current file ownership to settle an ambiguous route.
 
 ## Candidate owners
 
@@ -37,6 +37,84 @@ Read the candidate's README or the code path named in the issue. If the repo is 
 | Public marketing site and documentation pages | `agentrelay.com` | Cloud application behavior belongs in `cloud`. |
 | `arelay.to` onboarding agent and its knowledge bundle | `relay-agent` | Source skills and docs may be maintained in `skills` or `agentrelay.com`. |
 | Pear pair-programming experience | `pear` | Agent Relay Desktop issues belong in `relay-desktop`. |
+
+## Other public repositories
+
+These are narrower routing targets. Check the current default branch before opening work because a repository can change ownership or become inactive. A fork may mirror upstream code; confirm the change belongs in the AgentWorkforce fork before filing there.
+
+| Repository | Verified owned surface |
+| --- | --- |
+| `burn` | Local token and cost accounting for agent CLI sessions. |
+| `relay-desktop-releases` | Agent Relay Desktop downloads and release notes; app source is in `relay-desktop`. |
+| `helm-charts` | Helm charts for deploying AgentWorkforce services. |
+| `rust-oleum` | Rust code-quality ratchet and baseline checks. |
+| `relaycron` | Agent scheduling service, webhook delivery, and live-session wakeups. |
+| `proactive-agents` | Public guide and site about proactive agents. |
+| `trajectories` | Structured, portable records of agent work and decisions. |
+| `t3code` | Fork of the T3 Code agent control surface; check upstream ownership. |
+| `software-garden` | Agent Workforce Software Garden issue-to-PR automation. |
+| `sandbox` | Provider-agnostic sandbox runtime and orchestration library. |
+| `ricky` | Workflow reliability agent and workflow runner. |
+| `relayfile-providers` | Provider authentication, credential handling, API proxying, and webhook subscriptions for Relayfile. |
+| `herdr-relay-bridge` | Herdr session bridge into Agent Relay workspaces. |
+| `agent-assistant` | SDK primitives for assistant identity, context, turn execution, policy, and coordination. |
+| `proactive` | Packages for proactive agent behavior, events, and memory. |
+| `nxt-humans-flows` | NXT Humans Figma-to-email flow integration. |
+| `flows-cookbook` | Reusable Relayflows recipes and examples for the current `flows` runtime. |
+| `skip-releases` | Skip macOS downloads; application source is maintained separately. |
+| `homebrew-ai-hist` | Homebrew packaging for the `ai-hist` CLI. |
+| `software-garden-demo` | Garden simulator used to demonstrate Software Garden. |
+| `openkaren` | OpenKaren agent implementation. |
+| `herdr` | Fork of the Herdr terminal agent multiplexer; check upstream ownership. |
+| `relayfile-live-review` | Live code review demonstration using Relayfile sync. |
+| `ratify-agent-relay-evidence` | Agent Relay evidence and run records for Ratify Protocol trials. |
+| `relayscribe` | Native macOS meeting recorder, transcription, and ticket-to-PR workflow. |
+| `c2a` | Chat-to-Agents protocol draft and routing contract. |
+| `workflows` | Public Agent Relay repo-hygiene workflows and cookbooks. |
+| `agent-tool-spec` | Tool-use evaluation rubric, defect taxonomy, and report format. |
+| `collab-bench` | Agent collaboration benchmark configs and matrix-generation scripts. |
+| `ai` | Fork of the AI SDK for TypeScript; check upstream ownership. |
+| `agent-relay-openclaw` | OpenClaw bridge for Relay channels, threads, and DMs. |
+| `vibe-city` | VIBE CITY public funding and observation site. |
+| `oh-my-pi` | Fork of the pi terminal coding agent; check upstream ownership. |
+| `wash` | Claude Code plugin for reducing tool-output token use. |
+| `limit` | Terminal dashboard for coding-agent usage limits. |
+| `vibe-city-game` | VIBE CITY open-world game source. |
+| `credential-proxy` | JWT-authenticated proxy for LLM provider credentials. |
+| `code-storybook` | Read-only narrated codebase storybook specification and runtime. |
+| `agent-relay-personas` | Relay-specific Workforce persona definitions. |
+| `agent-relay-acp-bridge` | ACP bridge exposing Relay agents to compatible editors. |
+| `axiom` | Swift intent-preservation library and Relay bridge. |
+| `supportly` | Customer-service escalation multi-agent example. |
+| `relayfile-cli` | CLI-execution substrate for Relayfile-adjacent integrations. |
+| `relay-poc-tax-assistant` | Multi-agent tax-assistant proof of concept. |
+| `relay-dashboard` | Agent Relay fleet monitoring and messaging dashboard. |
+| `n8n-nodes-relayfile` | Relayfile community nodes for n8n. |
+| `relaycast-n8n-bridge` | Relaycast channel-to-n8n webhook bridge. |
+| `superset` | Fork of the Superset agent IDE; check upstream ownership. |
+| `relay-poc-smart-home` | Multi-framework smart-home Relay proof of concept. |
+| `relay-poc-shopping-assistant` | Multi-agent shopping-assistant proof of concept. |
+| `relay-poc-health-dashboard` | Multi-framework health dashboard Relay proof of concept. |
+| `relay-poc-content-pipeline` | Multi-agent content pipeline proof of concept. |
+| `relay-poc-code-review` | Multi-agent code-review proof of concept. |
+| `agent-harnesses` | Catalog of agent harnesses and supported models. |
+| `relayrank` | RelayRank content and SEO operating system. |
+| `relay-cross-framework-demo` | LangGraph-to-CrewAI communication demo over Relaycast. |
+| `planner` | Planning web UI for agent tasks. |
+| `sloppypaste` | Public site explaining sloppypasting. |
+| `agent-trace` | Fork of the Agent Trace format RFC; check upstream ownership. |
+| `relay-pulse` | Animated visualization of Relay messages. |
+| `relay-visualizer` | Interactive Agent Relay architecture and message-flow explainer. |
+| `moltslack` | Agent-first coordination workspace. |
+| `vscode-acp` | Fork of the VS Code ACP extension; check upstream ownership. |
+| `gitclawlab` | Agent-operated code hosting and deployment platform. |
+| `swarm-patterns` | Interactive agent swarm pattern visualizations. |
+| `relay-pty-visualizer` | Animated Relay-to-PTY delivery pipeline explainer. |
+| `tic-tac-toe` | CLI game demonstrating Relay-coordinated agents. |
+| `simple-swarm` | Relay SDK integration examples and tests. |
+| `.github` | AgentWorkforce GitHub organization profile. |
+
+The public `orchestrator` repository is nonarchived but empty, so it has no owned surface to route work to. This table does not enumerate additional private repositories. Use an authorized `gh repo list` result and inspect the candidate's README when work may belong there.
 
 ## Split work by the failing boundary
 
