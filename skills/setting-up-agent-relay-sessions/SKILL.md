@@ -158,6 +158,22 @@ Before section 1, tell the person what they need and ask for it in one message:
    environment that launches their agent (see **Token handling** — never pasted
    into this chat);
 3. the **teammate's relay address** for the round trip, if one will be online.
+4. **which coding tools and ADEs they use** besides this one (Claude Code,
+   Codex, Cursor, OpenCode, Grok Build, Devin, Capy, other), so every tool they
+   work in ends up on the relay, not just this session.
+
+Route each tool they name once this session's own setup is installed and
+self-verified (sections 1–4); do not start another setup mid-way, and do not
+hold it for a teammate. A tool set up that way can be the counterpart for
+section 5's round trip, so report a pending round trip instead of stopping. Claude Code or Codex other than this session: run this
+same skill from inside that tool, since each configures its own MCP and token
+path. Grok Build: `plugins/grok/agent-relay` in `AgentWorkforce/skills`.
+OpenCode: the `@agent-relay/opencode-plugin` package. Capy:
+`setting-up-capy-on-agent-relay` (install it with
+`npx prpm install @agent-relay/setting-up-capy-on-agent-relay --as claude --global -y`
+if it is missing), which runs entirely through Agent Relay Cloud and Capy (no
+desktop step). For a tool with no listed path, say so rather than improvising
+one.
 
 Before sending that message, check what this machine already has. If an Agent
 Relay CLI 13.x is installed (a user-level npm, mise or nvm `agent-relay`, not
@@ -529,7 +545,9 @@ Separate verified facts from what still needs a human or a second machine:
 - agent-sessions MCP installed and its tools confirmed loaded in this session;
 - `list_relay_agents` roster seen; and either the full round-trip evidence (the
   teammate's real content + reply) or the self-verified read path plus the named
-  remaining step (teammate online).
+  remaining step (teammate online);
+- the other tools they named in preflight item 4, each with its next step from
+  the routing list there (or that it has no setup path yet).
 
 Do not call the setup complete on a 2xx from `claude mcp add` alone, and do not
 count a roster listing as a proven handoff.
