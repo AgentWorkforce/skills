@@ -784,8 +784,8 @@
     {
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
-      "description": "Set up Agent Relay Desktop, live session handoff between teammates, subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
-      "version": "1.1.4",
+      "description": "Set up Agent Relay Desktop, live session handoff between teammates (including inviting them), subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
+      "version": "1.2.0",
       "category": "development",
       "tags": [
         "agent-relay",
@@ -819,6 +819,12 @@
           "version": "latest",
           "required": true,
           "reason": "Find other agents on the relay and message them over the session socket without tokens"
+        },
+        {
+          "packageId": "@agent-relay/signing-in-to-agent-relay-cloud",
+          "version": "latest",
+          "required": true,
+          "reason": "Cloud device-flow sign-in; the sessions skill uses its token to send teammate invites"
         },
         {
           "packageId": "@agent-relay/setting-up-capy-on-agent-relay",

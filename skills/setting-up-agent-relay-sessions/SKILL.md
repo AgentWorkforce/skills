@@ -37,13 +37,15 @@ The finished state is:
 ## Requires
 
 This skill builds on `setting-up-agent-relay-desktop` (verified install, sign-in,
-registration, agent-led defaults). If that skill is **not installed** in this
+registration, agent-led defaults). Section 5's teammate invites also use
+`signing-in-to-agent-relay-cloud` for a Cloud token; the commands below install
+it too, and section 5 says how to add it if it is missing. If that skill is **not installed** in this
 agent, stop, tell the person, and have them install the companions together,
 then restart the agent. Do not improvise the install or sign-in from memory.
 
 - prpm: `npx prpm install collections/agent-relay-setup --as claude --global -y`
-- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill setting-up-agent-relay-sessions`
-- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror both installed `SKILL.md` files into `~/.codex/skills/<name>/` with the loop in **Install this skill (and its dependency)** below.
+- skills.sh: `npx skills add https://github.com/AgentWorkforce/skills --skill setting-up-agent-relay-desktop --skill setting-up-agent-relay-sessions --skill signing-in-to-agent-relay-cloud`
+- Codex: do not use prpm's `--as codex` (it drops paragraphs and writes under `~/.agents/skills`, which Codex does not load as its global skill folder). Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` with the loop in **Install this skill (and its dependency)** below.
 
 ## The only human steps
 
@@ -85,11 +87,12 @@ updates it once.
 ## Install this skill (and its dependency) for Codex and Claude Code
 
 When the task includes installing this skill, install its canonical Claude
-package **and** the desktop skill it depends on, then mirror both unchanged
-`SKILL.md` files where Codex loads global skills:
+package, the desktop skill it depends on, and the Cloud sign-in skill section 5
+uses, then mirror the unchanged `SKILL.md` files where Codex loads global
+skills:
 
 ```sh
-for pkg in setting-up-agent-relay-sessions setting-up-agent-relay-desktop; do
+for pkg in setting-up-agent-relay-sessions setting-up-agent-relay-desktop signing-in-to-agent-relay-cloud; do
   npx prpm install "@agent-relay/$pkg" --as claude --global -y
   codex_skill="$HOME/.codex/skills/$pkg"
   mkdir -p "$codex_skill"
@@ -229,7 +232,8 @@ A missing token does **not** block sections 1–3: the MCP config stores only a
 now. Do the desktop work and add the MCP, then have the person restart the agent
 **once**, from an environment that exports the token, so that single restart both
 loads the MCP and supplies the credential. Sections 4 and 6 are gated on that
-restart. Section 5 is not: it uses the Cloud sign-in token, not this one. If the person would rather not defer, they can export the token and
+restart. Section 5 is not: it uses the Cloud sign-in token, not this one, so
+send any invites the person asked for before asking for that restart. If the person would rather not defer, they can export the token and
 restart first, which then costs a second restart only if the MCP was added after.
 
 ## 1. Confirm the host and this session
@@ -566,6 +570,12 @@ from a roster, a repo, git history, or a provider mount. Before sending, read
 the list back and wait for a yes: "I'll invite a@example.com and
 b@example.com as members of *<organization name>*. Send?"
 
+**This section does not depend on sections 3–4.** It uses neither the
+agent-sessions MCP nor `AGENT_RELAY_SESSIONS_TOKEN`, only the Cloud sign-in.
+Run it as soon as the person answers preflight item 5, and in any case before
+asking them to restart for section 3. A missing sessions token or a pending
+restart must never hold back invites they asked for.
+
 **What an invite grants.** Invites are scoped to the **organization**, not a
 single workspace. Accepting one makes the teammate a member of the
 organization, with access to every workspace in it. Tell the person that before
@@ -575,7 +585,11 @@ dashboard decision, and the API refuses `role: "owner"` from an agent.
 **Credential.** The invites API accepts a Cloud access token from the device
 flow in `signing-in-to-agent-relay-cloud`, held as `CLOUD_API_ACCESS_TOKEN` in
 that skill's private session. In the agent-driven signup, Part 1 already did
-this sign-in. If this skill runs on its own, sign in with that skill first.
+this sign-in. If this skill runs on its own, sign in with that skill first. If
+it is not installed, install it with
+`npx prpm install @agent-relay/signing-in-to-agent-relay-cloud --as claude --global -y`,
+then read `~/.claude/skills/signing-in-to-agent-relay-cloud/SKILL.md` and
+follow it directly. It is a plain HTTP device flow, so no restart is needed.
 `AGENT_RELAY_SESSIONS_TOKEN` will not work: it is an MCP-only token, and the
 invites API answers it with 401. Never print either token.
 
@@ -584,31 +598,50 @@ invites API answers it with 401. Never print either token.
 `owner`, do not try. Tell the person to ask an owner to invite their teammates
 from **Settings → Members** in the dashboard, then continue to section 6.
 
+**Never print an invite link into this session.** The uploader shares this
+session with the person's teammates, and every invite response carries an
+`acceptUrl`. So the response goes to a private temp file, and only the fields
+the person needs are printed.
+
 **Send.** Make one `POST /api/v1/invites` per address. Pass the token on stdin
 so it never reaches process argv. The body carries no secret:
 
 ```sh
-printf 'Authorization: Bearer %s\n' "$CLOUD_API_ACCESS_TOKEN" |
+resp=$(mktemp) && hdrs=$(mktemp) && chmod 600 "$resp" "$hdrs"
+code=$(printf 'Authorization: Bearer %s\n' "$CLOUD_API_ACCESS_TOKEN" |
   curl -sS --max-time 30 -X POST "${CLOUD_API_URL:-https://agentrelay.com/cloud}/api/v1/invites" \
     -H @- -H 'Content-Type: application/json' \
     --data '{"email":"teammate@example.com","role":"member"}' \
-    -w '\nHTTP %{http_code}\n'
+    -D "$hdrs" -o "$resp" -w '%{http_code}')
+# Print the outcome only; acceptUrl stays in the temp file, which is deleted.
+python3 -I - "$resp" "$code" <<'PY'
+import json, sys
+try:
+    body = json.load(open(sys.argv[1]))
+except ValueError:
+    body = {}
+invite = body.get("invite") or {}
+print("HTTP", sys.argv[2], "| email:", invite.get("email"),
+      "| delivery:", invite.get("emailDelivery"), "| expires:", invite.get("expiresAt"),
+      "| error:", body.get("error"), "| code:", body.get("code"))
+PY
+grep -i '^retry-after:' "$hdrs" || true
+rm -f "$resp" "$hdrs"
 ```
 
-A 200 returns
-`{"invite":{"id","email","role","expiresAt","acceptUrl","emailDelivery"}}`.
 Report each address by `emailDelivery`:
 
 | `emailDelivery` | Meaning | Tell the person |
 | --- | --- | --- |
 | `sent` | The email went out | "Invite emailed to …" |
-| `failed` | The invite exists, but the email was not sent | Give them `acceptUrl` to send to that teammate themselves |
-| `not_configured` | Email is off in this environment; nothing was sent | Same: hand over `acceptUrl` |
+| `failed` | The invite exists, but the email was not sent | Copy that teammate's link from **Settings → Members** in the dashboard, and send it to them directly |
+| `not_configured` | Email is off in this environment; nothing was sent | Same: copy the link from **Settings → Members** |
 
-Do not report an invite as emailed unless the response says `sent`. An
-`acceptUrl` only works when signed in with the invited email address, and it
-expires after 7 days (`expiresAt`). Show it to the person in this chat only.
-Never put it in a `send_relay_message` body or any shared artifact.
+Do not report an invite as emailed unless the response says `sent`. An invite
+link only works when signed in with the invited email address, and it expires
+after 7 days (`expiresAt`). The person copies it from the dashboard and sends
+it straight to that teammate: not in this session, a `send_relay_message`
+body, a shared channel, or any artifact.
 
 | Status | Meaning | Do |
 | --- | --- | --- |
@@ -621,7 +654,8 @@ Never put it in a `send_relay_message` body or any shared artifact.
 Re-inviting an address that already has a pending invite cancels the old link
 and sends a new one. Do not resend just to check whether the first one worked.
 To confirm, call `GET /api/v1/invites`, with the same auth, as an owner. It
-lists pending invites with their `acceptUrl`.
+lists pending invites. Its response also carries each `acceptUrl`, so filter it
+the same way and print only each invite's `email` and `expiresAt`.
 
 Invited teammates join by accepting the invite, then running this same
 onboarding on their own machine. Once one is online, they are the counterpart
@@ -680,8 +714,9 @@ Separate verified facts from what still needs a human or a second machine:
   delivery on, or the person's kept `crossSessionInbound` value and what it
   does (held for approval, or dropped), with the opt-in they were offered;
 - agent-sessions MCP installed and its tools confirmed loaded in this session;
-- teammate invites: each address with its `emailDelivery` outcome (and that
-  the person was handed the `acceptUrl` for any not `sent`), or that they
+- teammate invites: each address with its `emailDelivery` outcome (and, for
+  any not `sent`, that the person was pointed to **Settings → Members** to copy
+  the link), or that they
   declined, or that only an owner can invite and who to ask;
 - `list_relay_agents` roster seen; and either the full round-trip evidence (the
   teammate's real content + reply) or the self-verified read path plus the named
@@ -713,8 +748,8 @@ count a roster listing as a proven handoff.
   token itself is bad. On Claude, also confirm the client is ≥ 2.1.119 (older
   clients send the `${VAR}` placeholder literally).
 - **Invited teammate never got the email:** check the invite's
-  `emailDelivery`. If it is not `sent`, the email never left; give the person
-  the `acceptUrl` from `GET /api/v1/invites`. If it is `sent`, have the
+  `emailDelivery`. If it is not `sent`, the email never left; have the person
+  copy the link from **Settings → Members** and send it to that teammate. If it is `sent`, have the
   teammate check spam for mail from `noreply@agentrelay.com`. Only re-invite to
   replace an expired link.
 - **Teammate's address missing from the roster:** they are not on the **same**
