@@ -175,11 +175,11 @@ Claude install and Codex mirror as above, then confirm the final path:
 
 ```sh
 pkg=setting-up-capy-on-agent-relay
-npx prpm install "@agent-relay/$pkg" --as claude --global -y
-codex_skill="$HOME/.codex/skills/$pkg"
-mkdir -p "$codex_skill"
-install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md"
-cmp "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md"
+npx prpm install "@agent-relay/$pkg" --as claude --global -y &&
+  codex_skill="$HOME/.codex/skills/$pkg" &&
+  mkdir -p "$codex_skill" &&
+  install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md" &&
+  cmp "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md"
 ```
 
 Claude Code alone needs only the install line; Codex loads `~/.codex/skills`,
