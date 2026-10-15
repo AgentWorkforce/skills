@@ -490,7 +490,7 @@ report its name and id. Refusals, read from `.error.code`:
 | `not_signed_in` (409) | The desktop is signed out | Run `setting-up-agent-relay-desktop` section 3, then mint again |
 | `sessions_token_unavailable` (502) | Cloud did not issue a token | Retry once shortly; then report it as a blocker |
 | `sessions_token_limit` (409) | The workspace holds its maximum number of Sessions tokens | Ask the person to revoke a Sessions token they no longer use in the dashboard, then mint again |
-| 429 | Too many requests | Wait a minute and retry once; do not loop |
+| `sessions_token_rate_limited` (429) | Too many mints | Wait the seconds `.error.message` names, then retry once; do not loop |
 
 Each mint creates another token, so mint once and reuse the stored one. Shell
 variables do not survive between tool calls: run this section's blocks in one
