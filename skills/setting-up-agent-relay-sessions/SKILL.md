@@ -169,11 +169,22 @@ hold it for a teammate. A tool set up that way can be the counterpart for
 section 5's round trip, so report a pending round trip instead of stopping. Claude Code or Codex other than this session: run this
 same skill from inside that tool, since each configures its own MCP and token
 path. Grok Build: `plugins/grok/agent-relay` in `AgentWorkforce/skills`.
-OpenCode: the `@agent-relay/opencode-plugin` package. Capy:
-`setting-up-capy-on-agent-relay` (install it with
-`npx prpm install @agent-relay/setting-up-capy-on-agent-relay --as claude --global -y`
-if it is missing), which runs entirely through Agent Relay Cloud and Capy (no
-desktop step). For a tool with no listed path, say so rather than improvising
+OpenCode: the `@agent-relay/opencode-plugin` package. Capy: hand off to
+`setting-up-capy-on-agent-relay`, which runs entirely through Agent Relay Cloud
+and Capy (no desktop step). If that skill is missing, install it with the same
+Claude install and Codex mirror as above, and confirm the final path:
+
+```sh
+pkg=setting-up-capy-on-agent-relay
+npx prpm install "@agent-relay/$pkg" --as claude --global -y &&
+  codex_skill="$HOME/.codex/skills/$pkg" &&
+  mkdir -p "$codex_skill" &&
+  install -m 0644 "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md" &&
+  cmp "$HOME/.claude/skills/$pkg/SKILL.md" "$codex_skill/SKILL.md"
+```
+
+Claude Code alone needs only the install line: Codex loads `~/.codex/skills`,
+not `~/.claude/skills`. For a tool with no listed path, say so rather than improvising
 one.
 
 Before sending that message, check what this machine already has. If an Agent
