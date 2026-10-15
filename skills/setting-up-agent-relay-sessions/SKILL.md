@@ -143,20 +143,19 @@ avoids all three:
 Use the single variable name `AGENT_RELAY_SESSIONS_TOKEN` throughout:
 
 - **Storage:** a mode-0600 file at
-  `${XDG_CONFIG_HOME:-$HOME/.config}/agent-relay/sessions-token` (section 3
-  writes it), or the OS keychain if the person prefers it. A keychain write
-  takes the value on stdin (`security -i`), never as a `-w` argument.
+  `${XDG_CONFIG_HOME:-$HOME/.config}/agent-relay/sessions-token`, with the
+  workspace it was minted for beside it in `sessions-token.json`. Section 3
+  writes both; the file is the one source every launcher reads, so a fresh
+  mint reaches the next launch without touching anything else.
 - **Supply:** the environment that launches the agent exports it
-  **non-interactively** from storage. Put this line in the person's shell
+  **non-interactively** from that file. Put this line in the person's shell
   profile or a dedicated launcher they start the agent from, with their yes
-  (the agent can append it itself):
+  (the agent can add it itself), in place of any line that sets the variable
+  another way (the keychain, or a literal value):
 
   ```sh
   export AGENT_RELAY_SESSIONS_TOKEN="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/agent-relay/sessions-token" 2>/dev/null)"
   ```
-
-  From the macOS keychain instead:
-  `export AGENT_RELAY_SESSIONS_TOKEN="$(security find-generic-password -s agent-relay-sessions -w)"`.
 
 The agent never prints the value; verify presence only with
 `test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"` or `test -s` on the file.
@@ -242,10 +241,10 @@ test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo token=in-environment || echo t
 test -s "${XDG_CONFIG_HOME:-$HOME/.config}/agent-relay/sessions-token" && echo token=stored || echo token=not-stored
 ```
 
-A token already in this session's environment, or already stored, is reused;
-section 3 mints one only when neither exists, or when the tools answer with an
-auth error. Minting needs a signed-in desktop, so it happens in section 3, after
-section 2. The MCP config stores only a `${AGENT_RELAY_SESSIONS_TOKEN}`
+Section 3 reuses a stored token only when it was minted for the workspace the
+desktop is signed in to, and mints one otherwise, or when the tools answer with
+an auth error. Minting needs a signed-in desktop, so it happens in section 3,
+after section 2. The MCP config stores only a `${AGENT_RELAY_SESSIONS_TOKEN}`
 reference, never the value, so the person restarts the agent **once**, after
 section 3, from an environment that exports the token; that single restart both
 loads the MCP and supplies the credential. Sections 4 and 6 are gated on that
@@ -457,49 +456,98 @@ to and the MCP URL:
 {"ok":true,"data":{"token":"cld_at_…","workspace":{"id":"…","name":"…"},"mcp_url":"https://agentrelay.com/cloud/api/v1/mcp/shared-sessions"}}
 ```
 
-Skip the mint when preflight found a token in the environment or in storage;
-then set `sessions_mcp_url` to the URL above for this Cloud. Otherwise mint and
-write the token straight into its mode-0600 file without printing it. The
-response goes to a private temp file, and only the workspace and URL are shown:
+The token is bound to the workspace it was minted for. Next to the token file,
+a mode-0600 `sessions-token.json` records that workspace id and the `mcp_url`
+(no secret). The block reuses the stored token only when that workspace is the
+one `/setup/status` reports now, and mints otherwise, or when
+`sessions_force_mint=1` is set (section 4's auth-error recovery). A mint writes
+the token from a private temp file straight into storage without printing it,
+and shows only the workspace and URL:
 
 ```sh
-sessions_token_file="${XDG_CONFIG_HOME:-$HOME/.config}/agent-relay/sessions-token"
-mkdir -p "$(dirname "$sessions_token_file")"
-chmod 700 "$(dirname "$sessions_token_file")"
-sessions_resp=$(mktemp) && chmod 600 "$sessions_resp"
-relay_req POST /setup/sessions-token '{}' >"$sessions_resp"
-sessions_mcp_url=
-if jq -e '.ok == true and (.data.token | type == "string" and startswith("cld_at_"))' \
-    "$sessions_resp" >/dev/null 2>&1; then
-  (umask 077 && jq -j '.data.token' "$sessions_resp" >"$sessions_token_file.tmp") &&
-    mv "$sessions_token_file.tmp" "$sessions_token_file"
-  sessions_mcp_url=$(jq -r '.data.mcp_url' "$sessions_resp")
-  jq '{workspace: .data.workspace, mcp_url: .data.mcp_url}' "$sessions_resp"
-else
-  jq '{ok, error}' "$sessions_resp" >&2 || echo 'No readable reply from Agent Relay.' >&2
+sessions_dir="${XDG_CONFIG_HOME:-$HOME/.config}/agent-relay"
+sessions_token_file="$sessions_dir/sessions-token"
+sessions_meta_file="$sessions_dir/sessions-token.json"   # workspace id + mcp_url, no secret
+desktop_workspace=$(relay_req GET /setup/status | jq -r '.data.workspace.id // empty')
+if test -z "$desktop_workspace"; then
+  echo 'Could not read the signed-in workspace; finish section 2 first.' >&2
+  exit 1
 fi
-rm -f "$sessions_resp"
-test -s "$sessions_token_file" && echo token=stored
+sessions_mcp_url=
+if test -z "${sessions_force_mint:-}" && test -s "$sessions_token_file" &&
+   test "$(jq -r '.workspace_id // empty' "$sessions_meta_file" 2>/dev/null)" = "$desktop_workspace"; then
+  sessions_mcp_url=$(jq -r '.mcp_url // empty' "$sessions_meta_file")
+  echo "token=reused workspace=$desktop_workspace"
+else
+  mkdir -p "$sessions_dir" && chmod 700 "$sessions_dir"
+  sessions_resp=$(mktemp) && chmod 600 "$sessions_resp"
+  if ! relay_req POST /setup/sessions-token '{}' >"$sessions_resp"; then
+    echo 'The Agent Relay socket request failed; nothing was stored.' >&2
+  elif jq -e '.ok == true and (.data.token | type == "string" and startswith("cld_at_"))' \
+      "$sessions_resp" >/dev/null 2>&1; then
+    if (umask 077 &&
+        jq -j '.data.token' "$sessions_resp" >"$sessions_token_file.tmp" &&
+        jq '{workspace_id: .data.workspace.id, workspace_name: .data.workspace.name, mcp_url: .data.mcp_url}' \
+          "$sessions_resp" >"$sessions_meta_file.tmp") &&
+       mv "$sessions_token_file.tmp" "$sessions_token_file" &&
+       mv "$sessions_meta_file.tmp" "$sessions_meta_file"; then
+      sessions_mcp_url=$(jq -r '.mcp_url // empty' "$sessions_meta_file")
+      jq . "$sessions_meta_file"
+    else
+      echo 'Could not store the Sessions token; nothing was installed.' >&2
+    fi
+  else
+    # Only the code and message: never the whole reply.
+    jq -c '{code: .error.code, message: .error.message}' "$sessions_resp" >&2 ||
+      echo 'No readable reply from Agent Relay.' >&2
+  fi
+  rm -f "$sessions_resp" "$sessions_token_file.tmp" "$sessions_meta_file.tmp"
+fi
+if test -z "$sessions_mcp_url"; then
+  echo 'No Sessions token for this workspace; resolve the refusal below before adding the MCP.' >&2
+  exit 1
+fi
 ```
 
-The workspace in the reply is the one `/setup/status` reported in section 2;
-report its name and id. Refusals, read from `.error.code`:
+The minted workspace is the one `/setup/status` reported in section 2; report
+its name and id. Refusals, read from `.error.code`:
 
 | Code | Meaning | Do |
 | --- | --- | --- |
-| `not_signed_in` (409) | The desktop is signed out | Run `setting-up-agent-relay-desktop` section 3, then mint again |
+| `not_signed_in` (409) | The desktop is signed out | Run `setting-up-agent-relay-desktop` section 3, then run this block again |
 | `sessions_token_unavailable` (502) | Cloud did not issue a token | Retry once shortly; then report it as a blocker |
-| `sessions_token_limit` (409) | The workspace holds its maximum number of Sessions tokens | Ask the person to revoke a Sessions token they no longer use in the dashboard, then mint again |
+| `sessions_token_limit` (409) | The workspace holds its maximum number of Sessions tokens | Ask the person to revoke a Sessions token they no longer use in the dashboard, then run this block again |
 | `sessions_token_rate_limited` (429) | Too many mints | Wait the seconds `.error.message` names, then retry once; do not loop |
 
-Each mint creates another token, so mint once and reuse the stored one. Shell
-variables do not survive between tool calls: run this section's blocks in one
-shell, or set `sessions_mcp_url` again to the `mcp_url` the mint printed. Never
-mint again just to recover the URL.
+Each mint creates another token, so the block reuses a stored token for the same
+workspace. Shell variables do not survive between tool calls: run this
+section's blocks in one shell. In a new shell, run this block again; it reuses
+the stored token and restores `sessions_mcp_url` without minting.
 
-Then supply the token to the agent's next launch: with the person's yes, append
-the export line from **Token handling** to their shell profile or launcher,
-unless the environment already provides it.
+### Point the launcher at the stored token
+
+The launcher must export the token from the file the block just wrote, so a
+later mint takes effect on the next restart. Check whether this session was
+launched that way, without printing either value:
+
+```sh
+if test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" &&
+   test "$AGENT_RELAY_SESSIONS_TOKEN" = "$(cat "$sessions_token_file")"; then
+  echo launcher=current
+else
+  echo launcher=needs-update
+  # File names only: a matching line may hold a literal token.
+  grep -l AGENT_RELAY_SESSIONS_TOKEN ~/.zshrc ~/.zprofile ~/.bashrc ~/.bash_profile ~/.profile 2>/dev/null || true
+fi
+```
+
+On `needs-update`, with the person's yes, put the export line from **Token
+handling** in their shell profile or launcher. If a listed file already sets
+`AGENT_RELAY_SESSIONS_TOKEN` another way (the keychain, or a literal value),
+replace that line rather than adding a second one, without printing it. A
+line that already reads the `sessions-token` file needs no change: the restart
+picks up the new token. A launcher the person maintains elsewhere gets the same
+line from them.
 
 ### Add the MCP
 
@@ -617,8 +665,9 @@ Then call `list_relay_agents` through the MCP (an MCP tool call, not a shell
 command). A successful call that returns the workspace roster proves the MCP is
 loaded, the token is valid, and this session can see the shared workspace. If
 the call errors with auth, the token is wrong, revoked, or for another
-workspace: mint a fresh one with section 3's block (it overwrites the stored
-file), then restart the agent so it reads the new value.
+workspace: run section 3's token block with `sessions_force_mint=1` set (it
+overwrites the stored file), run its launcher check, then restart the agent so
+it reads the new value.
 
 ## 5. Offer to invite teammates
 
@@ -812,9 +861,10 @@ count a roster listing as a proven handoff.
   (section 3 — project scope for Claude, user-global for Codex and Muse) and
   **restart** the session; MCPs load only at startup.
 - **`list_relay_agents` auth error:** the token is wrong, revoked, or from a
-  different workspace. Mint a fresh one with section 3's
-  `POST /setup/sessions-token` block, which overwrites the stored file, and
-  **restart** the agent so it re-reads it. Because the MCP config stores only a
+  different workspace. Run section 3's token block with `sessions_force_mint=1`
+  set, which overwrites the stored file, then its launcher check: the launcher
+  must read that file, so replace a keychain or literal-value export with the
+  file export line. Then **restart** the agent so it re-reads it. Because the MCP config stores only a
   **reference** to `AGENT_RELAY_SESSIONS_TOKEN`, re-running `claude mcp add` /
   `codex mcp add` alone changes nothing. If the desktop is signed in to the
   wrong workspace, fix that first with `setting-up-agent-relay-desktop`
