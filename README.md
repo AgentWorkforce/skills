@@ -12,7 +12,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [writing-agent-relay-workflows](skills/writing-agent-relay-workflows/SKILL.md) | 2.0.0 | **DEPRECATED** - the superseded v1 `@relayflows/core` WorkflowBuilder engine. Use [`writing-relayflows`](skills/writing-relayflows/SKILL.md) for v2; keep this only to maintain an existing v1 workflow. |
 | [setting-up-relayfile](skills/setting-up-relayfile/SKILL.md) | 1.1.2 | Set up Relayfile mounts and writeback for provider files through local filesystem access. |
 | [setting-up-agent-relay-desktop](skills/setting-up-agent-relay-desktop/SKILL.md) | 1.1.10 | Install and configure Agent Relay Desktop end-to-end from a Codex or Claude session, including headless Linux, device login, registration, webhooks, integrations, and verification. |
-| [setting-up-agent-relay-sessions](skills/setting-up-agent-relay-sessions/SKILL.md) | 0.2.9 | Set a person up for live agent-to-agent session handoff end-to-end from a Codex or Claude session: reuse `setting-up-agent-relay-desktop` for the desktop leg, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, and prove a live round trip with a teammate (or self-verify the roster + own-session read path when no teammate is online yet). |
+| [setting-up-agent-relay-sessions](skills/setting-up-agent-relay-sessions/SKILL.md) | 0.3.0 | Set a person up for live agent-to-agent session handoff end-to-end from a Codex or Claude session: reuse `setting-up-agent-relay-desktop` for the desktop leg, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, offer to email-invite teammates (the agent sends the invites when the person owns the organization), and prove a live round trip with a teammate (or self-verify the roster + own-session read path when no teammate is online yet). |
 | [setting-up-capy-on-agent-relay](skills/setting-up-capy-on-agent-relay/SKILL.md) | 0.1.1 | Put a person's Capy threads on Agent Relay from any agent: the workspace Capy key, the public Capy plugin, guided setup in a Capy thread (bind, optional organization-wide auto-join, device Access), and a proven round trip. |
 | [signing-in-to-agent-relay-cloud](skills/signing-in-to-agent-relay-cloud/SKILL.md) | 0.1.0 | Sign a person in to Agent Relay Cloud through the OAuth device flow from an agent session: device grant, polling, refresh, whoami, and the CLI credential handoff, with no token printed. |
 | [setting-up-agent-relay-flows](skills/setting-up-agent-relay-flows/SKILL.md) | 0.1.0 | Choose a catalog flow and repository, connect tools and coding-agent credentials, activate the listener through the direct-source deploy API, and verify it is listening. Builds on `signing-in-to-agent-relay-cloud`. |
@@ -148,7 +148,7 @@ This collection includes:
 
 ### Agent Relay setup skills
 
-`setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions`, `subscribing-relay-webhooks-and-writebacks` and `messaging-agents-on-the-relay` build on each other (the other three all need a working, signed-in desktop). Install them together so the references resolve.
+`setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions`, `subscribing-relay-webhooks-and-writebacks` and `messaging-agents-on-the-relay` build on each other (the other three all need a working, signed-in desktop). The sessions skill's teammate-invite step also uses `signing-in-to-agent-relay-cloud` for a Cloud token, so the collection carries it too. Install them together so the references resolve.
 
 With `prpm`, install the `agent-relay-setup` collection for Claude Code:
 
@@ -161,7 +161,7 @@ For Codex, do **not** use `--as codex` for these skills: the conversion drops ex
 ```bash
 (
   set -e
-  for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks messaging-agents-on-the-relay; do
+  for pkg in setting-up-agent-relay-desktop setting-up-agent-relay-sessions subscribing-relay-webhooks-and-writebacks messaging-agents-on-the-relay signing-in-to-agent-relay-cloud; do
     src="$HOME/.claude/skills/$pkg/SKILL.md"
     test -f "$src" || { echo "missing $src: run the prpm --as claude install first" >&2; exit 1; }
     mkdir -p "$HOME/.codex/skills/$pkg"
@@ -171,14 +171,15 @@ For Codex, do **not** use `--as codex` for these skills: the conversion drops ex
 ) && echo "mirrored to ~/.codex/skills"
 ```
 
-With `skills` (which has no dependency or collection concept, so name all four):
+With `skills` (which has no dependency or collection concept, so name all five):
 
 ```bash
 npx skills add https://github.com/AgentWorkforce/skills \
   --skill setting-up-agent-relay-desktop \
   --skill setting-up-agent-relay-sessions \
   --skill subscribing-relay-webhooks-and-writebacks \
-  --skill messaging-agents-on-the-relay
+  --skill messaging-agents-on-the-relay \
+  --skill signing-in-to-agent-relay-cloud
 ```
 
 The collection also carries `setting-up-capy-on-agent-relay` as an optional package, for people whose Capy threads should join the relay (it needs no desktop). With `skills`, add `--skill setting-up-capy-on-agent-relay` to include it.
@@ -187,7 +188,7 @@ Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--
 
 ### Agent Relay Cloud and Flows setup skills
 
-`signing-in-to-agent-relay-cloud` and `setting-up-agent-relay-flows` are standalone packages, not members of `agent-relay-setup`, because Flows needs no desktop. `setting-up-agent-relay-flows` builds on `signing-in-to-agent-relay-cloud`, and its custom-flow path on `writing-relayflows`, so install the three together:
+`setting-up-agent-relay-flows` is a standalone package, not a member of `agent-relay-setup`, because Flows needs no desktop. `signing-in-to-agent-relay-cloud` is also published on its own (and is in `agent-relay-setup` for the sessions invite step). `setting-up-agent-relay-flows` builds on `signing-in-to-agent-relay-cloud`, and its custom-flow path on `writing-relayflows`, so install the three together:
 
 ```bash
 npx prpm install @agent-relay/signing-in-to-agent-relay-cloud --as claude --global -y
