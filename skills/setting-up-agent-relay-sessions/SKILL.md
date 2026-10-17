@@ -542,9 +542,22 @@ codex mcp get agent-relay-sessions
 ```
 
 Then call `list_relay_agents` through the MCP (an MCP tool call, not a shell
-command). A successful call that returns the workspace roster proves the MCP is
-loaded, OAuth is valid, and this session can see the shared workspace. If the
-call errors with auth, reconnect OAuth for the intended workspace (`/mcp`
+command). A successful roster proves the MCP and OAuth work, but not by itself
+that OAuth selected the same workspace as Desktop. Require the exact
+`agent@machine` address from section 2's `.data.session` in the roster and, when
+the roster declares its session, require that `session_id` to equal section 2's
+session id. If either disagrees, stop and reconnect OAuth to the Desktop's
+reported workspace.
+
+When the current Desktop session is included by the person's sharing mode,
+also call `get_shared_session_context` for that exact session id and require
+real content plus a dashboard citation. That is the strongest check that the
+Desktop uploader and hosted MCP read path meet in the same workspace. Under
+`new` or `selected`, the current session may legitimately be absent as section
+2 explains; report that read-path proof as pending instead of treating another
+workspace's valid roster as success.
+
+If a call errors with auth, reconnect OAuth for the intended workspace (`/mcp`
 Authenticate in Claude Code, `codex mcp login agent-relay-sessions`, or
 `muse mcp login agent-relay-sessions`) and refresh the session. Do not fall back
 to the dashboard history token.
@@ -764,9 +777,11 @@ count a roster listing as a proven handoff.
   never overrides a choice, and on an older build that answers
   `invalid_enabled`, its settings-file check before any `{"enabled":true}`. A managed Claude policy can block this; report it
   rather than editing managed settings.
-- **Remove the MCP:** `claude mcp remove agent-relay-sessions` /
+- **Remove the MCP:** remove Claude Code at the scope where it was installed:
+  `claude mcp remove --scope local agent-relay-sessions` (default setup) or
+  `claude mcp remove --scope user agent-relay-sessions` (user-wide setup);
   `codex mcp logout agent-relay-sessions && codex mcp remove agent-relay-sessions`
-  / `muse mcp logout agent-relay-sessions` and delete the
+  or `muse mcp logout agent-relay-sessions` and delete the
   `agent-relay-sessions` key under `mcpServers` in
   `~/.config/muse/settings.json`. This removes only the hosted handoff tools;
   it does not sign the Desktop out or stop uploads.
