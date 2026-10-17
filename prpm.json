@@ -113,8 +113,8 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.3.0",
-      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, offer to email-invite teammates through the Cloud invites API, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
+      "version": "0.4.0",
+      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end: verify Desktop separately, connect the hosted Shared Sessions MCP with personal OAuth in supported interactive clients, confirm the tools, offer teammate invites, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -806,7 +806,7 @@
           "packageId": "@agent-relay/setting-up-agent-relay-sessions",
           "version": "latest",
           "required": true,
-          "reason": "Live agent-to-agent session handoff: agent-sessions MCP, token handling and the round-trip proof"
+          "reason": "Live agent-to-agent session handoff: OAuth-first Shared Sessions MCP, authentication boundaries and the round-trip proof"
         },
         {
           "packageId": "@agent-relay/subscribing-relay-webhooks-and-writebacks",
