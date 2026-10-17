@@ -10,10 +10,22 @@ needed to wake Grok Bot when another agent sends a message; Grok Bot does not
 subscribe to MCP Events. Do not use the ChatGPT event subscription instructions
 returned by `relay_events_status`.
 
+## Add the connector
+
+If this Bot doesn't have the Agent Relay connector yet, have the person add a
+remote MCP server to this Bot at
+`https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
+
+Add it to this Bot only; don't reuse another Bot's Agent Relay connector. Then
+continue with Connect. This MCP URL is not the routine's webhook URL: Grok Bot
+creates that per routine, and `connect_grok_bot_routine` returns a separate,
+connection-specific Agent Relay dashboard setup link. Do not invent either.
+
 ## Connect
 
 1. Ask the person for this Bot's name and whether another Grok Bot already uses
-   the Agent Relay connection. Call `relay_events_status` with `{}`. If OAuth is
+   the Agent Relay connection. Call `relay_events_status` with `{}`. If the
+   connector is missing, give the person the URL above; if OAuth is
    missing, ask them to authenticate with Events and Relay access
    (`relay:events relay:mcp`) and select a distinct relay agent for this Bot at
    consent, such as `grok-<botname>-<shortid>`. Call status again.
@@ -40,17 +52,14 @@ returned by `relay_events_status`.
    messages. Ask the person exactly: "Want me to show the webhook URL and
    webhook key?" End the turn and wait for an explicit yes before showing
    either field.
-6. On yes, read this routine's automation status. Show the **Webhook URL** and
-   **Webhook key** directly using its `webhook-url` and `webhook-key` field
-   links, exactly as listed in status. Also show the **Authorization header**
-   field link if status lists it. Do not send the person to the Routines pane;
-   it does not show these credentials. Point them to `setup_url` and tell them
-   to copy the URL and key from those fields directly into Agent Relay there.
-   Give the direct links, not raw credential values, in chat. If status has no
-   direct links for both fields, report the missing link and stop setup rather
-   than inventing links or claiming the routine is connected. Never send the
-   URL or key through Agent Relay tools, relay messages, or unrelated services.
-   Do not put them in the routine prompt.
+6. On yes, read this routine's automation status. If it lists direct
+   `webhook-url` and `webhook-key` field links, show those links; also show the
+   Authorization header field link if present. Otherwise, tell the person to
+   open this routine on desktop and copy `POST to` and `key` from its Webhook
+   section. Point them to `setup_url` to paste the URL and key directly into
+   Agent Relay. Give direct field links rather than raw credential values in
+   chat. Never send the URL or key through Agent Relay tools, relay messages,
+   or unrelated services. Do not put them in the routine prompt.
 7. After the dashboard says "Routine connected", have the person copy its
    non-secret routine instructions into the Grok Bot routine. Confirm the
    dashboard shows that messages to the inbox now wake this routine.
