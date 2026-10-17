@@ -95,8 +95,8 @@
     },
     {
       "name": "setting-up-agent-relay-desktop",
-      "version": "1.1.10",
-      "description": "Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification.",
+      "version": "1.2.0",
+      "description": "Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, browser sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -113,8 +113,8 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.3.0",
-      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, offer to email-invite teammates through the Cloud invites API, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
+      "version": "0.4.0",
+      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), mint the Sessions MCP token from the desktop app, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, offer to invite teammates, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -785,7 +785,7 @@
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
       "description": "Set up Agent Relay Desktop, live session handoff between teammates (including inviting them), subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "category": "development",
       "tags": [
         "agent-relay",
@@ -806,7 +806,7 @@
           "packageId": "@agent-relay/setting-up-agent-relay-sessions",
           "version": "latest",
           "required": true,
-          "reason": "Live agent-to-agent session handoff: agent-sessions MCP, token handling and the round-trip proof"
+          "reason": "Live agent-to-agent session handoff: the Sessions MCP token from the desktop app, the agent-sessions MCP and the round-trip proof"
         },
         {
           "packageId": "@agent-relay/subscribing-relay-webhooks-and-writebacks",
@@ -824,7 +824,7 @@
           "packageId": "@agent-relay/signing-in-to-agent-relay-cloud",
           "version": "latest",
           "required": true,
-          "reason": "Cloud device-flow sign-in; the sessions skill uses its token to send teammate invites"
+          "reason": "Cloud device-flow sign-in for Flows and Cloud API work; with its token, the sessions skill sends teammate invites through the API"
         },
         {
           "packageId": "@agent-relay/setting-up-capy-on-agent-relay",
