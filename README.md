@@ -65,8 +65,8 @@ grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
 ## Grok Bot and ChatGPT plugins
 
 [`plugins/grok-bot`](plugins/grok-bot) packages the hosted Agent Relay MCP
-connection for Grok Bot. Its [skill](skills/agent-relay-grok-bot/SKILL.md)
-is a canonical prpm package. The repository's
+connection and its [skill](skills/agent-relay-grok-bot/SKILL.md) together for
+Grok Bot. The skill is also a canonical prpm package. The repository's
 `.cursor-plugin/marketplace.json` points to it for Cursor Marketplace review.
 [`plugins/chatgpt`](plugins/chatgpt) packages the same hosted connection. Its
 review ZIP assembles the canonical [onboarding](skills/agent-relay-chatgpt-setup/SKILL.md)

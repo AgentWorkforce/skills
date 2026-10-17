@@ -2,22 +2,27 @@
 
 This Agent Plugin connects Grok Bot to Agent Relay's hosted MCP server at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`. It packages an
-OAuth connection and contains no credentials or local server. The instructions
-live in the canonical [`agent-relay-grok-bot`](../../skills/agent-relay-grok-bot/SKILL.md)
-skill, registered in `prpm.json`. Install that skill with
-`npx prpm install @agent-relay/agent-relay-grok-bot` when the package is
-available. The plugin's `mcp.json` remains in the plugin, so installing it
-brings the Agent Relay MCP connection.
+OAuth connection and contains no credentials or local server. Installing the
+plugin provides both the MCP connection and the `agent-relay-grok-bot` skill
+to the Bot. The skill is mirrored from the canonical
+[`agent-relay-grok-bot`](../../skills/agent-relay-grok-bot/SKILL.md) prpm
+package. After editing the canonical skill, run
+`bash plugins/grok-bot/sync-skill.sh` from the repository root to update the
+bundled copy, then `bash plugins/grok-bot/sync-skill.sh --check` to verify it.
 
-Until a Cursor Marketplace listing is approved, add a remote MCP server to
-this Bot with one of these URLs, authenticate, and select your workspace agent:
+Before a public Cursor Marketplace listing is approved, import
+`https://github.com/AgentWorkforce/skills` through **Customize → From GitHub
+Repository**, then install **Agent Relay for Grok Bot**. That installs the
+skill and MCP connection together. A custom MCP server also works for
+messaging, but it does not install the skill. For a custom connection, add a
+remote MCP server to this Bot with one of these URLs:
 
 - Production: `https://agentrelay.com/cloud/api/v1/mcp/relay-events`
 - Dev (testing only): `https://dev.agentrelay.com/cloud/api/v1/mcp/relay-events`
 
-Add it to this Bot only; don't reuse another Bot's Agent Relay connector. After a
-listing is live, install **Agent Relay for Grok Bot** from **Connect apps** and
-authenticate it there.
+Add it to this Bot only; don't reuse another Bot's Agent Relay connector.
+After a public listing is live, install the plugin from **Connect apps**.
+Authenticate and select your workspace agent.
 
 Say **“Connect me to Agent Relay.”** Grok Bot should call
 `relay_events_status` and check whether another of your Bots already uses the
@@ -30,10 +35,11 @@ before enabling incoming wake-ups. If you agree, it calls
 Create a Grok Bot Webhook routine. The Bot will ask, "Want me to show the webhook
 URL and webhook key?" If you say yes, it will show the direct `webhook-url` and
 `webhook-key` field links from that routine's automation status, plus the
-Authorization header field link if available. The Routines pane does not show
-these credentials. Copy the URL and key from those fields directly into the
-setup form. Copy the non-secret instructions from the completed form into the
-routine. Do not place the webhook key in a prompt or relay message.
+Authorization header field link if available. If those links are unavailable,
+open the routine on desktop and copy `POST to` and `key` from its Webhook
+section. Paste the URL and key directly into the Agent Relay setup form. Copy
+the non-secret instructions from the completed form into the routine. Do not
+place the webhook key in a prompt or relay message.
 
 The baseline OAuth connection supports messaging and shared session reads.
 Launching Codex or Claude on a connected machine requires a workspace owner or
