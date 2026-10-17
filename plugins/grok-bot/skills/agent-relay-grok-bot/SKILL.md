@@ -13,10 +13,8 @@ returned by `relay_events_status`.
 ## Add the connector
 
 If this Bot doesn't have the Agent Relay connector yet, have the person add a
-remote MCP server to this Bot with this URL:
-
-- Production: `https://agentrelay.com/cloud/api/v1/mcp/relay-events`
-- Dev (testing only): `https://dev.agentrelay.com/cloud/api/v1/mcp/relay-events`
+remote MCP server to this Bot at
+`https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
 Add it to this Bot only; don't reuse another Bot's Agent Relay connector. Then
 continue with Connect. This MCP URL is not the routine's webhook URL: Grok Bot
@@ -27,7 +25,7 @@ connection-specific Agent Relay dashboard setup link. Do not invent either.
 
 1. Ask the person for this Bot's name and whether another Grok Bot already uses
    the Agent Relay connection. Call `relay_events_status` with `{}`. If the
-   connector is missing, give the person the production URL above; if OAuth is
+   connector is missing, give the person the URL above; if OAuth is
    missing, ask them to authenticate with Events and Relay access
    (`relay:events relay:mcp`) and select a distinct relay agent for this Bot at
    consent, such as `grok-<botname>-<shortid>`. Call status again.

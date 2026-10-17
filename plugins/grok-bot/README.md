@@ -15,10 +15,8 @@ Before a public Cursor Marketplace listing is approved, import
 Repository**, then install **Agent Relay for Grok Bot**. That installs the
 skill and MCP connection together. A custom MCP server also works for
 messaging, but it does not install the skill. For a custom connection, add a
-remote MCP server to this Bot with one of these URLs:
-
-- Production: `https://agentrelay.com/cloud/api/v1/mcp/relay-events`
-- Dev (testing only): `https://dev.agentrelay.com/cloud/api/v1/mcp/relay-events`
+remote MCP server to this Bot at
+`https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
 Add it to this Bot only; don't reuse another Bot's Agent Relay connector.
 After a public listing is live, install the plugin from **Connect apps**.
