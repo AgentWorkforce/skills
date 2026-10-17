@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session. Uses personal OAuth by default for the hosted Shared Sessions MCP in Codex, Claude Code, Muse, Cursor, ChatGPT, and other OAuth-capable clients; verifies the separate Desktop connection, confirms the handoff tools, offers teammate invites, and proves a live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish teammate onboarding.
+description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session. Uses personal OAuth by default for the hosted Shared Sessions MCP in Codex, Claude Code, Muse, Cursor, ChatGPT, and other OAuth-capable clients; verifies the separate Desktop connection, confirms the handoff tools, offers teammate invites, and proves a live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to a teammate", or finish teammate onboarding.
 ---
 
 # Set Up Agent Relay Session Handoff
