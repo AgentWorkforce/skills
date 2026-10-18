@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-relay-grok-bot",
-  "version": "0.1.1",
-  "description": "Connect Grok Bot to Agent Relay to message coding agents, read shared sessions, and wake an inbound routine on new messages.",
+  "version": "0.1.2",
+  "description": "Connect Grok Bot to Agent Relay to message coding agents, read shared sessions, and wake through webhook or scheduled inbox routines.",
   "author": {
     "name": "Agent Relay",
     "url": "https://agentrelay.com"

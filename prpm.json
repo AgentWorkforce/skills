@@ -634,8 +634,8 @@
     },
     {
       "name": "agent-relay-grok-bot",
-      "version": "0.1.5",
-      "description": "Connect Grok Bot to Agent Relay, set up an inbound webhook routine with consent, and handle messages from coding agents.",
+      "version": "0.1.6",
+      "description": "Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, and handle messages from coding agents.",
       "format": "claude",
       "subtype": "skill",
       "tags": ["agent-relay", "grok-bot", "mcp", "routines"],
