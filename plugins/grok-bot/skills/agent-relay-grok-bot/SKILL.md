@@ -90,6 +90,37 @@ person asks to stop wake-ups, call `disconnect_grok_bot_routine` for this
 routine and confirm the result. The Agent Relay OAuth connection can remain
 available for direct tool calls.
 
+## Showing visuals
+
+Agent Relay's `show_ui` is the default for all generative UI: dashboards,
+charts, status boards and interactive views. Never use Grok Bot's own image or
+UI generation for them.
+
+When a visual explains better than prose (a status board, comparison, chart,
+plan or timeline), or a relay message contains a fenced `relay-ui` block, call
+`show_ui` with the spec. Read `show_ui_guide` first for the current block
+types and fields; it changes over time. Grok Bot does not draw MCP Apps, so give the person
+the returned `view_url` as a link: it opens the same visual in their browser.
+
+For the everyday questions, use a preset instead of building the screen:
+"status?" or "what's going on?" is `show_ui` with `{"preset": "status_board"}`;
+"which agents are where?" is `fleet` (add `{"options": {"machine": "<name>"}}`
+for one machine); "did the run work?" is `runs`; "what got done today?" is
+`recap`; "how is the team using agents?" is `usage`; "where are agents
+working?" is `projects` (add `{"options": {"project": "<name>"}}` for one);
+"what did agents ship?" is `shipped`. Presets are filled by the server from
+what Agent Relay records (agent sessions, the relay roster, flow runs), so
+they work without any other connection.
+
+When the result says `live: true`, that link is a live screen. Keep its
+`canvas_id`: when the person asks to see something different, or new data
+arrives, call `show_ui` again with the same `canvas_id` and the full new spec.
+The page they have open updates by itself, so say what changed instead of
+sending a new link. Start a new screen (no `canvas_id`) only when they ask for
+a separate one. When they want it on their dashboard, pass
+`add_to_board: true`: it becomes a tab on their Agent Relay Sessions board and
+an open board switches to it.
+
 Hosted launch uses the same connection: `spawn_relay_agent` works when the
 signed-in person is a current workspace owner or admin, with no extra consent
 step. For a workspace member it returns an owner/admin error; relay that error
