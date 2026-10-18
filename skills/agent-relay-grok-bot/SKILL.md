@@ -17,26 +17,30 @@ remote MCP server to this Bot at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
 Give this Bot its own Agent Relay sign-in under its own connector account label,
-for example `integrationsgrok`. On the Agent Relay consent screen, enter this
-Bot's name as the agent name. Do not reuse another Bot's connection. Then
-continue with Connect. This MCP URL is not the routine's webhook URL: Grok Bot
-creates that per routine, and `connect_grok_bot_routine` returns a separate,
-connection-specific Agent Relay dashboard setup link. Do not invent either.
+for example `integrationsgrok`. Before authenticating, confirm the connector
+account is separately labeled for this Bot. If an existing account is shared,
+default or unclear, add a new separately labeled account for this Bot; never
+re-authenticate the existing account. On the consent screen for the new account,
+enter this Bot's name as the agent name. Then continue with Connect. This MCP URL
+is not the routine's webhook URL: Grok Bot creates that per routine, and
+`connect_grok_bot_routine` returns a separate, connection-specific Agent Relay
+dashboard setup link. Do not invent either.
 
 ## Connect
 
-1. Ask the person for this Bot's name. Call `relay_events_status` with `{}`. If
-   the connector is missing, give the person the URL above and have them add it
-   under a separate account label for this Bot, such as `integrationsgrok`. If
-   OAuth is missing, ask them to authenticate with Events and Relay access
-   (`relay:events relay:mcp`) and enter this Bot's name as the agent name on the
-   consent screen. Call status again.
-2. Confirm with the person that this account label and Agent Relay agent name
-   belong only to this Bot. If another Bot uses the connection, stop and have
-   them add a separate labeled connection for this Bot. Re-authenticating a
-   shared or default connector account moves every Bot that uses it to the new
-   identity, so never force re-authentication of a shared account or attach a
-   second routine to its inbox.
+1. Ask the person for this Bot's name and call `relay_events_status` with `{}`.
+   Before any authentication, confirm with the person that the connection is
+   this Bot's own separately labeled connector account. If the connector is
+   missing, give them the URL above and have them add it as a new account under
+   a separate label for this Bot, such as `integrationsgrok`. If an existing
+   account is shared, default or unclear, do not authenticate or re-authenticate
+   it; have the person add a new separately labeled Agent Relay account for this
+   Bot instead.
+2. Only after the person confirms the account is separately labeled for this
+   Bot, authenticate that account if OAuth is missing, with Events and Relay
+   access (`relay:events relay:mcp`). On its consent screen, enter this Bot's
+   name as the agent name. Call status again. Never re-authenticate an existing
+   shared account or attach a second routine to its inbox.
 3. Report the returned `inbox_address`. Grok Bot can use
    `list_relay_agents`, `send_relay_message`, and shared session reads now.
    Ask whether to enable wake-ups from incoming agent messages.
@@ -89,8 +93,8 @@ available for direct tool calls.
 
 ## Showing visuals
 
-For dashboards, charts, status boards and interactive views, use Agent Relay's
-`show_ui` and share its `view_url`; keep its `canvas_id` to update a live canvas.
+Use Agent Relay's `show_ui` for dashboards, charts, status boards and interactive
+views, and share its `view_url`; keep its `canvas_id` to update a live canvas.
 
 For a visual request such as a status board, comparison, chart, plan or
 timeline, or when a relay message contains a fenced `relay-ui` block, call

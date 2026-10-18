@@ -18,18 +18,21 @@ messaging, but it does not install the skill. For a custom connection, add a
 remote MCP server to this Bot at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
-Give each Bot its own Agent Relay sign-in. Add the connector to this Bot under
-its own account label (for example, `integrationsgrok`), then enter this Bot's
-name as the agent name on the Agent Relay consent screen. Do not reuse another
-Bot's connection. Re-authenticating a shared or default connector account moves
-every Bot that uses it to the newly selected identity, so never force
-re-authentication of a shared account; add a separate labeled account for this
-Bot. After a public listing is live, install the plugin from **Connect apps**.
+Give each Bot its own Agent Relay sign-in. Before authenticating, confirm the
+connector is this Bot's own separately labeled account (for example,
+`integrationsgrok`). If an existing account is shared, default or unclear, add a
+new separately labeled Agent Relay account for this Bot and authenticate that
+one. Enter this Bot's name as the agent name on its consent screen. Never
+re-authenticate an existing shared account. After a public listing is live,
+install the plugin from **Connect apps**.
 
 Say **“Connect me to Agent Relay.”** Grok Bot should call
-`relay_events_status` and report the inbox address for this Bot's labeled
-connection. Confirm that the account label and agent name belong only to this
-Bot. It will then ask before enabling incoming wake-ups. If you agree, it calls
+`relay_events_status`, then confirm the connector is this Bot's own separately
+labeled account before any authentication. If it is shared, default or unclear,
+add a new separately labeled account for this Bot; never re-authenticate the
+existing account. Authenticate only the confirmed new account, entering this
+Bot's name as the agent name on its consent screen. Grok Bot reports the inbox
+address and asks before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` and gives you a secure Agent Relay setup link.
 Create a Grok Bot Webhook routine. The Bot will ask, "Want me to show the webhook
 URL and webhook key?" If you say yes, it will show the direct `webhook-url` and
