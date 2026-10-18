@@ -486,12 +486,13 @@ try:
 except FileNotFoundError:
     d = {}
 d.setdefault('schema_version', 1)
-legacy = d.get('mcp_servers')
+servers = d.setdefault('mcpServers', {})
+legacy = d.pop('mcp_servers', None)  # Muse faults when both keys exist
 if isinstance(legacy, dict):
     legacy.pop('agent-relay-sessions', None)
-    if not legacy:
-        d.pop('mcp_servers', None)
-d.setdefault('mcpServers', {})['agent-relay-sessions'] = {
+    for name, entry in legacy.items():
+        servers.setdefault(name, entry)
+servers['agent-relay-sessions'] = {
     "transport": "streamable_http",
     "url": "https://agentrelay.com/cloud/api/v1/mcp/shared-sessions",
     "mode": "optional"
@@ -544,10 +545,14 @@ codex mcp get agent-relay-sessions
 Then call `list_relay_agents` through the MCP (an MCP tool call, not a shell
 command). A successful roster proves the MCP and OAuth work, but not by itself
 that OAuth selected the same workspace as Desktop. Require the exact
-`agent@machine` address from section 2's `.data.session` in the roster and, when
-the roster declares its session, require that `session_id` to equal section 2's
-session id. If either disagrees, stop and reconnect OAuth to the Desktop's
-reported workspace.
+`agent@machine` address from section 2's `.data.session` in the roster. If the
+address is missing, OAuth selected another workspace: stop and reconnect OAuth
+to the Desktop's reported workspace. If the address is present but the roster
+declares a different `session_id` than section 2's session id, the workspace is
+right and the roster entry belongs to an older session of the same agent:
+re-register this session with `setting-up-agent-relay-desktop`'s
+self-registration step and re-run section 2's check instead of reconnecting
+OAuth, which cannot change that entry.
 
 When the current Desktop session is included by the person's sharing mode,
 also call `get_shared_session_context` for that exact session id and require
