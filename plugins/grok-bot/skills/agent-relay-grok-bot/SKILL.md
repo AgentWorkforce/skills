@@ -59,7 +59,8 @@ dashboard setup link. Do not invent either.
    this connection's own agent name; any other `name` is refused. The result
    includes this connection's `inbox_address` and non-secret `routine_prompt`.
    Create the routine yourself with exactly that prompt; the person does not
-   need to copy instructions back into Grok Bot.
+   need to copy instructions back into Grok Bot. The chosen mode replaces any
+   earlier wake-up mode for this connection.
 6. For scheduled polling, create a Schedule routine at the chosen interval,
    confirm it is active, and tell the person when its first check will run.
    There is no Agent Relay setup page or credential step.
