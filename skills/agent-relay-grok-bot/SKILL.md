@@ -53,6 +53,7 @@ dashboard setup link. Do not invent either.
      interval, so a message may wait until the next run and every check uses a
      Grok Bot routine run. Suggest 15 minutes unless the person chooses another
      interval.
+   End the turn and wait for an explicit mode choice before creating a routine.
 5. Call `connect_grok_bot_routine` with `mode: "webhook"` or `mode: "polling"`,
    plus an explicit sender filter (`from`) if requested. Omit `name`, or use
    this connection's own agent name; any other `name` is refused. The result
