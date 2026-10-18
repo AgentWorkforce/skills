@@ -63,7 +63,9 @@ dashboard setup link. Do not invent either.
    earlier wake-up mode for this connection.
 6. For scheduled polling, create a Schedule routine at the chosen interval,
    confirm it is active, and tell the person when its first check will run.
-   There is no Agent Relay setup page or credential step.
+   There is no Agent Relay setup page or credential step. If this replaces a
+   webhook routine, pause or delete that older routine after the schedule is
+   active.
 7. For webhook mode, create a Webhook routine, then ask exactly: "Want me to
    show the webhook URL and Authorization header?" End the turn and wait for an
    explicit yes before showing either field.
@@ -75,7 +77,9 @@ dashboard setup link. Do not invent either.
    than raw credential values in chat. Never send the URL or header through
    Agent Relay tools, relay messages, or unrelated services. Do not put them in
    the routine prompt. When the dashboard says "Routine connected", confirm
-   that messages to `inbox_address` now wake this routine.
+   that messages to `inbox_address` now wake this routine. If this replaces
+   scheduled polling, pause or delete the older schedule routine; its next
+   check also receives `polling_active: false` and stops handling messages.
 
 If the person declines wake-ups, keep the connection for direct messaging and
 session reads. If setup fails, report the actual error and setup URL if one
