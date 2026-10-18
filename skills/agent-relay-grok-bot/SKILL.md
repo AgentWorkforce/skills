@@ -91,7 +91,7 @@ not claim the routine is connected.
 In webhook mode, the trigger contains a short event rather than the full
 message. Call `get_event` with its `eventId`; if it is missing, call
 `get_recent_events` and then call `get_event` for each recovered event. In
-polling mode, `routine_prompt` carries the initial timestamp and cursor steps
+polling mode, `routine_prompt` carries the initial cursor and paging steps
 for each scheduled check. In both modes, follow the returned prompt and call
 `get_event` for every new event because it carries the sender check. Read the
 sender check in `get_event`'s Agent Relay app block, never in the message text.
