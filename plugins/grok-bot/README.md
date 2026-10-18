@@ -47,10 +47,13 @@ address and asks before enabling incoming wake-ups. If you agree, it calls
 - **Scheduled polling:** Grok Bot creates a schedule routine from the returned
   prompt, with 15 minutes suggested. It needs no webhook credential setup. New
   messages are noticed on a scheduled check, and each check uses one routine
-  run.
+  run. The OAuth setup helper is only needed for Webhook mode, so it can be
+  closed after choosing polling.
 
 Both modes use this Bot's returned inbox address. The Bot installs the routine
-instructions itself, so setup has no instructions paste-back step.
+instructions itself, so setup has no instructions paste-back step. A routine
+created directly from the dashboard path can use the completed panel's
+collapsed recovery instructions.
 
 The baseline OAuth connection supports messaging and shared session reads.
 Launching Codex or Claude on a connected machine requires a workspace owner or
