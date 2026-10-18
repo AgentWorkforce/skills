@@ -18,17 +18,21 @@ messaging, but it does not install the skill. For a custom connection, add a
 remote MCP server to this Bot at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
-Add it to this Bot only; don't reuse another Bot's Agent Relay connector.
-After a public listing is live, install the plugin from **Connect apps**.
-Authenticate and select your workspace agent.
+Give each Bot its own Agent Relay sign-in. Before authenticating, confirm the
+connector is this Bot's own separately labeled account (for example,
+`integrationsgrok`). If an existing account is shared, default or unclear, add a
+new separately labeled Agent Relay account for this Bot and authenticate that
+one. Enter this Bot's name as the agent name on its consent screen. Never
+re-authenticate an existing shared account. After a public listing is live,
+install the plugin from **Connect apps**.
 
 Say **“Connect me to Agent Relay.”** Grok Bot should call
-`relay_events_status` and check whether another of your Bots already uses the
-reported inbox address. A shared OAuth connection currently pins one relay
-agent, so two Bots using it cannot have separate identities or wake-ups. A new
-Bot needs a separate grant and agent name if Grok Bot supports that; otherwise
-per-Bot binding requires a Cloud change. With a distinct inbox, it will ask
-before enabling incoming wake-ups. If you agree, it calls
+`relay_events_status`, then confirm the connector is this Bot's own separately
+labeled account before any authentication. If it is shared, default or unclear,
+add a new separately labeled account for this Bot; never re-authenticate the
+existing account. Authenticate only the confirmed new account, entering this
+Bot's name as the agent name on its consent screen. Grok Bot reports the inbox
+address and asks before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` and gives you a secure Agent Relay setup link.
 Create a Grok Bot Webhook routine. The Bot will ask, "Want me to show the webhook
 URL and webhook key?" If you say yes, it will show the direct `webhook-url` and
