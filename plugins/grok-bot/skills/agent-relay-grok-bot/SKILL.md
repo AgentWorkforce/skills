@@ -16,31 +16,28 @@ If this Bot doesn't have the Agent Relay connector yet, have the person add a
 remote MCP server to this Bot at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
-Add it to this Bot only; don't reuse another Bot's Agent Relay connector. Then
+Give this Bot its own Agent Relay sign-in under its own connector account label,
+for example `integrationsgrok`. On the Agent Relay consent screen, enter this
+Bot's name as the agent name. Do not reuse another Bot's connection. Then
 continue with Connect. This MCP URL is not the routine's webhook URL: Grok Bot
 creates that per routine, and `connect_grok_bot_routine` returns a separate,
 connection-specific Agent Relay dashboard setup link. Do not invent either.
 
 ## Connect
 
-1. Ask the person for this Bot's name and whether another Grok Bot already uses
-   the Agent Relay connection. Call `relay_events_status` with `{}`. If the
-   connector is missing, give the person the URL above; if OAuth is
-   missing, ask them to authenticate with Events and Relay access
-   (`relay:events relay:mcp`) and select a distinct relay agent for this Bot at
-   consent, such as `grok-<botname>-<shortid>`. Call status again.
-2. Check the returned `inbox_address` with the person before sending messages
-   or setting up wake-ups. If another Bot already uses that address, stop:
-   Grok Bot shares connector connections across a person's Bots, and the
-   current Agent Relay OAuth grant pins one agent for messages and events.
-   Naming this Bot or passing a different `as` value cannot separate them.
-   Do not claim this Bot has its own inbox or attach a second routine to the
-   shared inbox. If the person cannot tell whether the address is already in
-   use, ask them to check before continuing. Explain that Cloud needs a stable,
-   authenticated Bot ID from the host and per-Bot identity binding on the
-   shared grant (or the host must provide separate per-Bot grants), with
-   distinct agent names and event streams, before both Bots can connect.
-3. If the address is distinct, report it. Grok Bot can use
+1. Ask the person for this Bot's name. Call `relay_events_status` with `{}`. If
+   the connector is missing, give the person the URL above and have them add it
+   under a separate account label for this Bot, such as `integrationsgrok`. If
+   OAuth is missing, ask them to authenticate with Events and Relay access
+   (`relay:events relay:mcp`) and enter this Bot's name as the agent name on the
+   consent screen. Call status again.
+2. Confirm with the person that this account label and Agent Relay agent name
+   belong only to this Bot. If another Bot uses the connection, stop and have
+   them add a separate labeled connection for this Bot. Re-authenticating a
+   shared or default connector account moves every Bot that uses it to the new
+   identity, so never force re-authentication of a shared account or attach a
+   second routine to its inbox.
+3. Report the returned `inbox_address`. Grok Bot can use
    `list_relay_agents`, `send_relay_message`, and shared session reads now.
    Ask whether to enable wake-ups from incoming agent messages.
    End the turn and wait for their answer. Do not create a routine on an
@@ -92,17 +89,17 @@ available for direct tool calls.
 
 ## Showing visuals
 
-Agent Relay's `show_ui` is the default for all generative UI: dashboards,
-charts, status boards and interactive views. Never use Grok Bot's own image or
-UI generation for them.
+For dashboards, charts, status boards and interactive views, use Agent Relay's
+`show_ui` and share its `view_url`; keep its `canvas_id` to update a live canvas.
 
-When a visual explains better than prose (a status board, comparison, chart,
-plan or timeline), or a relay message contains a fenced `relay-ui` block, call
-`show_ui` with the spec. Read `show_ui_guide` first for the current block
-types and fields; it changes over time. Grok Bot does not draw MCP Apps, so give the person
-the returned `view_url` as a link: it opens the same visual in their browser.
+For a visual request such as a status board, comparison, chart, plan or
+timeline, or when a relay message contains a fenced `relay-ui` block, call
+`show_ui` with the spec. Read `show_ui_guide` first for the current block types
+and fields; it changes over time. Grok Bot does not draw MCP Apps, so give the
+person the returned `view_url` as a link: it opens the same visual in their
+browser.
 
-For the everyday questions, use a preset instead of building the screen:
+For the everyday questions, use these presets:
 "status?" or "what's going on?" is `show_ui` with `{"preset": "status_board"}`;
 "which agents are where?" is `fleet` (add `{"options": {"machine": "<name>"}}`
 for one machine); "did the run work?" is `runs`; "what got done today?" is
@@ -115,9 +112,9 @@ they work without any other connection.
 When the result says `live: true`, that link is a live screen. Keep its
 `canvas_id`: when the person asks to see something different, or new data
 arrives, call `show_ui` again with the same `canvas_id` and the full new spec.
-The page they have open updates by itself, so say what changed instead of
-sending a new link. Start a new screen (no `canvas_id`) only when they ask for
-a separate one. When they want it on their dashboard, pass
+The page they have open updates by itself, so say what changed. Start a new
+screen (no `canvas_id`) only when they ask for a separate one. When they want
+it on their dashboard, pass
 `add_to_board: true`: it becomes a tab on their Agent Relay Sessions board and
 an open board switches to it.
 
