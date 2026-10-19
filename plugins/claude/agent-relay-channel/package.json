@@ -2,7 +2,7 @@
   "name": "agent-relay-channel",
   "version": "0.1.1",
   "private": true,
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "start": "bun -e \"if (Bun.semver.order(Bun.version, '1.4.0') < 0) { console.error('The Agent Relay channel needs Bun 1.4.0 or later (its bun.lock is lockfile v2); found ' + Bun.version); process.exit(1) }\" && bun install --frozen-lockfile --no-summary && bun server.ts",

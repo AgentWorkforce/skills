@@ -4,7 +4,7 @@
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": "https://github.com/AgentWorkforce/skills",
   "homepage": "https://agentrelay.com",
   "packages": [
