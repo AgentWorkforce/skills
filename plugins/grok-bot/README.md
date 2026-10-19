@@ -10,6 +10,18 @@ package. After editing the canonical skill, run
 `bash plugins/grok-bot/sync-skill.sh` from the repository root to update the
 bundled copy, then `bash plugins/grok-bot/sync-skill.sh --check` to verify it.
 
+## Contents
+
+| Path | What it is |
+|---|---|
+| `.cursor-plugin/plugin.json` | Cursor plugin manifest |
+| `plugin.json` | Agent Plugins manifest |
+| `mcp.json` | Hosted Agent Relay MCP connection. It contains no credentials. |
+| `skills/agent-relay-grok-bot/SKILL.md` | Bundled skill, mirrored from the canonical prpm package |
+| `assets/agent-relay-mark.png` | Official Agent Relay mark, referenced by the manifests |
+
+## Install
+
 Before a public Cursor Marketplace listing is approved, import
 `https://github.com/AgentWorkforce/skills` through **Customize → From GitHub
 Repository**, then install **Agent Relay for Grok Bot**. That installs the
