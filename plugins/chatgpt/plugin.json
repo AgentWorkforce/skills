@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-relay",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bring your coding agents' shared sessions into ChatGPT as cited context, and let agents message your chat over Agent Relay.",
   "author": {
     "name": "Agent Relay",
@@ -40,9 +40,9 @@
           "Find where my agents left off.",
           "Open my Relay inbox."
         ],
-        "composerIcon": "./assets/icon.svg",
-        "logo": "./assets/logo.svg",
-        "logoDark": "./assets/logo-dark.svg"
+        "composerIcon": "./assets/agent-relay-mark-circle.png",
+        "logo": "./assets/agent-relay-mark-circle.png",
+        "logoDark": "./assets/agent-relay-mark-light-circle.png"
       }
     }
   }
