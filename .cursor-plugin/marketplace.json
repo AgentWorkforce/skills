@@ -10,7 +10,7 @@
     {
       "name": "agent-relay-grok-bot",
       "source": "plugins/grok-bot",
-      "description": "Message coding agents from Grok Bot and wake a routine when they reply"
+      "description": "Connect Grok Bot to Agent Relay to message coding agents, read shared sessions, and wake through webhook or scheduled inbox routines."
     }
   ]
 }
