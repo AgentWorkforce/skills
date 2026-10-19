@@ -1,6 +1,6 @@
 {
   "name": "agent-relay-grok-bot",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Connect Grok Bot to Agent Relay to message coding agents, read shared sessions, and wake through webhook or scheduled inbox routines.",
   "author": {
     "name": "Agent Relay",
@@ -8,6 +8,7 @@
   },
   "homepage": "https://agentrelay.com",
   "repository": "https://github.com/AgentWorkforce/skills",
+  "license": "MIT",
   "keywords": [
     "agents",
     "grok-bot",
@@ -15,7 +16,7 @@
     "mcp",
     "routines"
   ],
-  "logo": "assets/logo.svg",
+  "logo": "assets/agent-relay-mark.png",
   "skills": "./skills/",
   "mcpServers": "./mcp.json"
 }
