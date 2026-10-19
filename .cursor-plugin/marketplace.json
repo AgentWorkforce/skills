@@ -10,14 +10,7 @@
     {
       "name": "agent-relay-grok-bot",
       "source": "plugins/grok-bot",
-      "description": "Connect Grok Bot to Agent Relay to message coding agents, read shared sessions, and wake through webhook or scheduled inbox routines.",
-      "version": "0.1.3",
-      "author": {
-        "name": "Agent Relay",
-        "url": "https://agentrelay.com"
-      },
-      "license": "MIT",
-      "logo": "assets/agent-relay-mark.png"
+      "description": "Connect Grok Bot to Agent Relay to message coding agents, read shared sessions, and wake through webhook or scheduled inbox routines."
     }
   ]
 }
