@@ -33,15 +33,27 @@ add a new separately labeled account for this Bot; never re-authenticate the
 existing account. Authenticate only the confirmed new account, entering this
 Bot's name as the agent name on its consent screen. Grok Bot reports the inbox
 address and asks before enabling incoming wake-ups. If you agree, it calls
-`connect_grok_bot_routine` and gives you a secure Agent Relay setup link.
-Create a Grok Bot Webhook routine. The Bot will ask, "Want me to show the webhook
-URL and webhook key?" If you say yes, it will show the direct `webhook-url` and
-`webhook-key` field links from that routine's automation status, plus the
-Authorization header field link if available. If those links are unavailable,
-open the routine on desktop and copy `POST to` and `key` from its Webhook
-section. Paste the URL and key directly into the Agent Relay setup form. Copy
-the non-secret instructions from the completed form into the routine. Do not
-place the webhook key in a prompt or relay message.
+`connect_grok_bot_routine` after you choose a wake-up mode:
+
+- **Webhook:** the tool returns the non-secret instructions, and Grok Bot
+  creates the inbound Webhook routine with them. The secure Agent Relay setup
+  page opens from OAuth approval and remains available as `setup_url`. With
+  your permission, Grok Bot shows the routine's `webhook-url` and Authorization
+  `header` field links. Paste the URL and full header together into the setup
+  page's single masked field. When field links are unavailable, open the
+  routine on desktop and copy `POST to` and `header` from its Webhook section.
+  The webhook values go directly to Agent Relay and stay out of the routine
+  prompt and relay messages.
+- **Scheduled polling:** Grok Bot creates a schedule routine from the returned
+  prompt, with 15 minutes suggested. It needs no webhook credential setup. New
+  messages are noticed on a scheduled check, and each check uses one routine
+  run. The OAuth setup helper is only needed for Webhook mode, so it can be
+  closed after choosing polling.
+
+Both modes use this Bot's returned inbox address. The Bot installs the routine
+instructions itself, so setup has no instructions paste-back step. A routine
+created directly from the dashboard path can use the completed panel's
+collapsed recovery instructions.
 
 The baseline OAuth connection supports messaging and shared session reads.
 Launching Codex or Claude on a connected machine requires a workspace owner or
