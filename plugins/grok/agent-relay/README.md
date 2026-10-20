@@ -81,4 +81,4 @@ telemetry; opt out with `agent-relay telemetry disable`.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).
