@@ -20,35 +20,62 @@ Give this Bot its own Agent Relay sign-in under its own connector account label,
 for example `integrationsgrok`. Before authenticating, confirm the connector
 account is separately labeled for this Bot. If an existing account is shared,
 default or unclear, add a new separately labeled account for this Bot; never
-re-authenticate the existing account. On the consent screen for the new account,
-enter this Bot's name as the agent name. Then continue with Connect. This MCP URL
+re-authenticate the existing account. Before starting OAuth, prepare this Bot's
+agent name using the name handoff below. Then continue with Connect. This MCP URL
 is not the routine's webhook URL: Grok Bot creates that per routine, and
 `connect_grok_bot_routine` returns a separate, connection-specific Agent Relay
 dashboard setup link. Do not invent either.
 
+## Prepare the agent name
+
+Use this Bot's known name; ask only if its Agent Relay name is not known yet.
+Before starting authentication, give the person a link to
+`https://agentrelay.com/cloud/oauth/connect/grok?agent_name=<URL-encoded Bot name>`.
+For example, a Bot named `ycearlyaccessgrok` uses
+`https://agentrelay.com/cloud/oauth/connect/grok?agent_name=ycearlyaccessgrok`.
+Ask them to open it in the same browser that will open OAuth and click **Use
+this name**. Wait for them to confirm the page says it is ready before starting
+authentication. Do not open it only on your cloud computer: the suggestion must
+be saved in the person's OAuth browser. The suggestion lasts 10 minutes; finish
+one Bot's connection before preparing another. It grants no access.
+
+Then authenticate the separately labeled account. Ask the person to review the
+prefilled agent name and workspace before approving. If OAuth opens in another
+browser, the suggestion expires, or authentication was already started, have
+them enter this Bot's name in the consent screen manually. Do not claim the
+connector account label itself will prefill the name.
+
 ## Connect
 
-1. Ask the person for this Bot's name and call `relay_events_status` with `{}`.
+1. Use this Bot's known name (ask only if unknown).
    Before any authentication, confirm with the person that the connection is
    this Bot's own separately labeled connector account. If the connector is
-   missing, give them the URL above and have them add it as a new account under
-   a separate label for this Bot, such as `integrationsgrok`. If an existing
+   missing, give them `https://agentrelay.com/cloud/api/v1/mcp/relay-events`
+   and have them add it as a new account under a separate label for this Bot,
+   such as `integrationsgrok`. If an existing
    account is shared, default or unclear, do not authenticate or re-authenticate
    it; have the person add a new separately labeled Agent Relay account for this
    Bot instead.
 2. Only after the person confirms the account is separately labeled for this
-   Bot, authenticate that account if OAuth is missing, with Events and Relay
-   access (`relay:events relay:mcp`). On its consent screen, enter this Bot's
-   name as the agent name. Call status again. Never re-authenticate an existing
+   Bot, prepare the agent name using the handoff above if authentication is
+   needed or the connection status is unknown. Do this before the first MCP
+   call that might open an OAuth card. Then call `relay_events_status` with
+   `{}` and authenticate that account if OAuth is missing, with Events and Relay access
+   (`relay:events relay:mcp`). Have the person review this Bot's prefilled name
+   on the consent screen. Call status again. Never re-authenticate an existing
    shared account or attach a second routine to its inbox.
 3. Report the returned `inbox_address`. Grok Bot can use
    `list_relay_agents`, `send_relay_message`, and shared session reads now.
    Ask whether to enable wake-ups from incoming agent messages.
    End the turn and wait for their answer. Do not create a routine on an
    inferred yes.
-4. If they agree, offer two modes and wait for their choice:
-   - **Webhook:** messages normally start the routine promptly. It uses one
-     secure paste in Agent Relay after the routine is created.
+4. If they agree, recommend **Webhook** and wait for their choice. Say that
+   webhook is the recommended mode because incoming messages wake the Bot
+   promptly without waiting for a polling interval. Present these choices with
+   Webhook first and marked **Recommended**; keep polling as an alternative:
+   - **Webhook (Recommended):** messages normally start the routine promptly.
+     It needs the routine URL and Authorization header pasted into two separate
+     fields in Agent Relay after the routine is created.
    - **Scheduled polling:** no credential setup. It checks on the chosen
      interval, so a message may wait until the next run and every check uses a
      Grok Bot routine run. Suggest 15 minutes unless the person chooses another
@@ -72,8 +99,9 @@ dashboard setup link. Do not invent either.
 8. On yes, read this routine's automation status. Show direct `webhook-url` and
    Authorization `header` field links when available. Otherwise, tell the
    person to open this routine on desktop and copy `POST to` and `header` from
-   its Webhook section. Point them to `setup_url`; Agent Relay accepts the URL
-   and full header together in one masked field. Give direct field links rather
+   its Webhook section. Point them to `setup_url`; Agent Relay has separate
+   **Webhook URL** and masked **Authorization header** fields. Have the person
+   paste each value into its matching field. Give direct field links rather
    than raw credential values in chat. Never send the URL or header through
    Agent Relay tools, relay messages, or unrelated services. Do not put them in
    the routine prompt. When the dashboard says "Routine connected", confirm
