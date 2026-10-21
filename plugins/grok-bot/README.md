@@ -34,7 +34,7 @@ Give each Bot its own Agent Relay sign-in. Before authenticating, confirm the
 connector is this Bot's own separately labeled account (for example,
 `integrationsgrok`). If an existing account is shared, default or unclear, add a
 new separately labeled Agent Relay account for this Bot and authenticate that
-one. Enter this Bot's name as the agent name on its consent screen. Never
+one. Prepare this Bot's name with the handoff below, then review it on the consent screen. Never
 re-authenticate an existing shared account. After a public listing is live,
 install the plugin from **Connect apps**.
 
@@ -47,12 +47,12 @@ Bot's name as the agent name on its consent screen. Grok Bot reports the inbox
 address and asks before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` after you choose a wake-up mode:
 
-- **Webhook:** the tool returns the non-secret instructions, and Grok Bot
+- **Webhook (Recommended):** the tool returns the non-secret instructions, and Grok Bot
   creates the inbound Webhook routine with them. The secure Agent Relay setup
   page opens from OAuth approval and remains available as `setup_url`. With
   your permission, Grok Bot shows the routine's `webhook-url` and Authorization
-  `header` field links. Paste the URL and full header together into the setup
-  page's single masked field. When field links are unavailable, open the
+  `header` field links. Paste the URL into **Webhook URL** and the full header into the
+  separate, masked **Authorization header** field. When field links are unavailable, open the
   routine on desktop and copy `POST to` and `header` from its Webhook section.
   The webhook values go directly to Agent Relay and stay out of the routine
   prompt and relay messages.
@@ -74,3 +74,17 @@ admin. The linked skill describes the permission and reply rules for a woken rou
 This package is listed by the repository's root
 `.cursor-plugin/marketplace.json`. Marketplace submission and publication are
 separate review steps; this repository alone is not a live listing.
+
+## Agent name prefill and wake-up recommendation
+
+Before OAuth, the skill links to
+`https://agentrelay.com/cloud/oauth/connect/grok?agent_name=<URL-encoded Bot name>`.
+The person opens it in the browser used for OAuth and clicks **Use this name**.
+Cloud keeps an editable name suggestion for 10 minutes and clears that handoff
+after approval or denial. Finish one Bot's connection before preparing another.
+If a different browser is used or the suggestion expires, enter the name manually.
+The connector's local account label is not itself an OAuth name hint.
+
+Recommend **Webhook** for prompt incoming-message wake-ups. Scheduled polling
+remains available when the person prefers interval-based checks without webhook
+credential setup. Ask for the mode choice before creating a routine.
