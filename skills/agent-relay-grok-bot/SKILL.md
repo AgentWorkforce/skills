@@ -50,8 +50,9 @@ connector account label itself will prefill the name.
 1. Use this Bot's known name (ask only if unknown).
    Before any authentication, confirm with the person that the connection is
    this Bot's own separately labeled connector account. If the connector is
-   missing, give them the URL above and have them add it as a new account under
-   a separate label for this Bot, such as `integrationsgrok`. If an existing
+   missing, give them `https://agentrelay.com/cloud/api/v1/mcp/relay-events`
+   and have them add it as a new account under a separate label for this Bot,
+   such as `integrationsgrok`. If an existing
    account is shared, default or unclear, do not authenticate or re-authenticate
    it; have the person add a new separately labeled Agent Relay account for this
    Bot instead.

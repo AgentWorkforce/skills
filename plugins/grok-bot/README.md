@@ -38,13 +38,17 @@ one. Prepare this Bot's name with the handoff below, then review it on the conse
 re-authenticate an existing shared account. After a public listing is live,
 install the plugin from **Connect apps**.
 
-Say **“Connect me to Agent Relay.”** Grok Bot should call
-`relay_events_status`, then confirm the connector is this Bot's own separately
-labeled account before any authentication. If it is shared, default or unclear,
-add a new separately labeled account for this Bot; never re-authenticate the
-existing account. Authenticate only the confirmed new account, entering this
-Bot's name as the agent name on its consent screen. Grok Bot reports the inbox
-address and asks before enabling incoming wake-ups. If you agree, it calls
+Say **“Connect me to Agent Relay.”** Before any MCP call that might open OAuth,
+Grok Bot should confirm the connector is this Bot's own separately labeled
+account. If it is shared, default or unclear, add a new separately labeled
+account for this Bot; never re-authenticate the existing account. If
+authentication is needed or the connection status is unknown, complete the
+[agent name handoff](#agent-name-prefill-and-wake-up-recommendation) and wait for
+the person to confirm the page says it is ready. Only then call
+`relay_events_status` and authenticate the confirmed account if needed,
+reviewing this Bot's prefilled name and workspace on the consent screen. Call
+status again after authentication. Grok Bot reports the inbox address and asks
+before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` after you choose a wake-up mode:
 
 - **Webhook (Recommended):** the tool returns the non-secret instructions, and Grok Bot
