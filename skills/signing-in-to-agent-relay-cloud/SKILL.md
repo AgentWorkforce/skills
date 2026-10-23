@@ -34,6 +34,8 @@ and check every response status before proceeding.
 
 An agent-driven signup guide also passes its product as `signup_source`
 (`"teams"` or `"flows"`); keep the value the guide names. Omit it otherwise.
+It records where the account came from and does not affect admission: any
+verified Google account can sign up.
 
 Expect HTTP 201 with `device_code`, `user_code`, `verification_uri_complete`,
 `verification_uri`, `interval` (seconds), and `expires_in` (seconds). Keep
@@ -42,8 +44,9 @@ browser with the OS URL opener (for example macOS `open`, with the URL passed as
 a separate argument, never interpolated into shell code), or give them the link
 if no opener is available. Show the `user_code` so they can compare it. The page
 lets them sign in with Google, review the requesting device, and Approve or
-Deny. A signup marker in the returned URL creates the right account type;
-preserve it through sign-in. Do not call `/auth/device/approve` yourself.
+Deny. A person without an account creates one on that page. Preserve the
+signup marker in the returned URL through sign-in so the new account is
+attributed to the guide. Do not call `/auth/device/approve` yourself.
 
 For a fresh signup, you can open `/api/auth/google/start?next=<encoded-return-path>`
 on the same Cloud base first (in production,

@@ -95,7 +95,7 @@
     },
     {
       "name": "setting-up-agent-relay-desktop",
-      "version": "1.1.10",
+      "version": "1.3.0",
       "description": "Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification.",
       "format": "claude",
       "subtype": "skill",
@@ -113,7 +113,7 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.3.0",
+      "version": "0.5.0",
       "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, offer to email-invite teammates through the Cloud invites API, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
@@ -131,7 +131,7 @@
     },
     {
       "name": "setting-up-capy-on-agent-relay",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "description": "Use when a person uses Capy (capy.ai) and wants their Capy threads on Agent Relay: connect the workspace Capy key, install the public Capy plugin, run the guided setup in a Capy thread (bind, optional organization-wide auto-join, device Access for threads on their own computer) and prove a round trip.",
       "format": "claude",
       "subtype": "skill",
@@ -148,7 +148,7 @@
     },
     {
       "name": "signing-in-to-agent-relay-cloud",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Sign a person in to Agent Relay Cloud from a running agent session through the OAuth device flow: start the grant, let the human approve it, poll for tokens, refresh them, read the account and workspace from whoami, and hand the session to the official CLI without printing a token.",
       "format": "claude",
       "subtype": "skill",
@@ -533,7 +533,7 @@
     },
     {
       "name": "creating-cloud-persona",
-      "version": "1.0.11",
+      "version": "1.0.12",
       "description": "Use when creating or updating a Workforce cloud persona (persona.json/persona.ts + agent.ts) for the current deploy/runtime shape: defineAgent(...) triggers/schedules/watch or team-dispatcher launch, flat runtime fields, integrations with scope and adapter config passthrough, memory, onEvent, provider IO via @relayfile/relay-helpers, vendored production examples, production-correctness checks, and the agent-driven login then deploy flow.",
       "format": "claude",
       "subtype": "skill",

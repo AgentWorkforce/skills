@@ -15,7 +15,7 @@ that agent into this thread as new turns, and the thread replies with
 Do this once, early in the thread, before messages are expected:
 
 1. Before calling `bind_capy_thread` in a first-time or manually requested
-   setup, confirm Agent Relay Cloud → Settings → Workspace → Capy says
+   setup, confirm Agent Relay Cloud → Settings → Connections → Capy says
    **Connected**. Ask the person if you cannot check it. If connected,
    continue to 2. A new thread following an existing organization `AGENTS.md`
    auto-join instruction has already passed this setup in the earlier thread;
@@ -25,7 +25,7 @@ Do this once, early in the thread, before messages are expected:
      role **read_write**, access limited to the projects whose threads should
      join the relay, and a monthly spend cap.
    - Create an API key for that service user.
-   - In Agent Relay Cloud → Settings → Workspace → Capy, paste the key and
+   - In Agent Relay Cloud → Settings → Connections → Capy, paste the key and
      press **Connect**. Never ask them to paste the key in chat.
    Ask which projects they granted. Wait for them to reply **done** and name
    the projects before continuing. Do not try binding as a connection check.
