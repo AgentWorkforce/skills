@@ -30,9 +30,11 @@ install another language runtime.
    generating another. Keep each agent wait bounded and communicate progress.
    The browser owns account creation/workspace selection for a new user.
 5. ready_to_test means this session is registered and reports direct delivery;
-   it does not mean a message was received. A connect request authorizes setup,
-   but ask before sending the optional self-test unless the person already
-   requested verification. Run `python3 <skill-dir>/scripts/desktop_setup.py test`.
+   it does not mean a message was received. Complete the requested connection
+   with the self-test: run
+   `python3 <skill-dir>/scripts/desktop_setup.py test`.
+   This sends only to the current session; do not contact another agent as a
+   setup test unless the person asked for that.
    Record its exact marker, end the turn, and wait for Relay's separately
    injected message. Only its arrival in this session verifies delivery.
    A returned marker/send receipt is not evidence of arrival. Do not reply to
