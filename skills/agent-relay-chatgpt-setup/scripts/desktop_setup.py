@@ -20,6 +20,7 @@ import tarfile
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 import uuid
 
 RELEASE_API = "https://api.github.com/repos/AgentWorkforce/relay-desktop-releases/releases/latest"
@@ -221,10 +222,18 @@ class Desktop:
         # Native probe preserves Codex identity on macOS (Apple curl does not).
         probe = self.home / ".local/bin/agent-relay-probe"
         if probe.is_file() and route in ("/setup/status", "/register", "/send"):
+            native_route = route
+            native_body = json.dumps(payload) if payload is not None else ""
+            if route == "/send":
+                # The native probe's supported send form uses query recipients
+                # and a plain-text body. Adding any query to the JSON form
+                # changes how Desktop parses that request.
+                native_route = "/send?" + urllib.parse.urlencode({"address": payload["address"]})
+                native_body = payload["text"]
             try:
                 result = subprocess.run([str(probe), "relay", "socket-request", "--socket", str(path),
-                                         "--method", method, "--path", route + ("?plugin_setup=1" if route == "/send" else "")],
-                                        input=json.dumps(payload) if payload is not None else "",
+                                         "--method", method, "--path", native_route],
+                                        input=native_body,
                                         text=True, capture_output=True, timeout=65)
                 # Even a refused request carries a structured response on stdout.
                 # Keep its safe error code so recovery can distinguish policy,
