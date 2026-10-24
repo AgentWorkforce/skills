@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-desktop
-description: Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, new-session uploads, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification. Use when a human asks an agent to install, configure, or finish desktop relay setup without walking through the app UI.
+description: Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, session sharing, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification. Use when a human asks an agent to install, configure, or finish desktop relay setup without walking through the app UI.
 ---
 
 # Set Up Agent Relay Desktop
@@ -18,8 +18,10 @@ The finished state is:
 
 - the current release is installed and running;
 - sign-in is complete;
-- sharing mode is `new` (new sessions upload automatically), unless an existing
-  install already uses another mode and the human chose to keep it (section 4);
+- sharing mode is `selected` (**Only sessions I choose**): nothing uploads
+  until a session is chosen, and registering a session or turning on its
+  **Receive messages** uploads that session. An existing install that already
+  uses another mode keeps it when the human chooses to (section 4);
 - auto-activate is on, with every existing live session and every future session on the relay;
 - Claude Code direct delivery is on (`crossSessionInbound` is `accept`),
   unless the human already set `crossSessionInbound` themselves (for example
@@ -507,28 +509,28 @@ done
 ## 4. Apply the agent-led defaults and register this session
 
 Read the current sharing mode before changing it. `/setup/status` reports it as
-`.data.sharing_mode` (`new`, `all`, or `selected`; `new` when nothing is
-uploading yet). The probe reports the same field, `sharing_mode`, in
-`agent-relay-probe status --account <account-id> --workspace <workspace-id> --json`.
+`.data.sharing_mode` (`selected`, `new`, or `all`). The probe reports the
+same field, `sharing_mode`, in `agent-relay-probe status --account <account-id> --workspace <workspace-id> --json`.
 
 ```sh
 relay_prior_mode=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   http://relay/setup/status | jq -r '.data.sharing_mode // empty')
 case "$relay_prior_mode" in
-  new|all|selected) printf 'sharing_mode=%s\n' "$relay_prior_mode" ;;
+  selected|new|all) printf 'sharing_mode=%s\n' "$relay_prior_mode" ;;
   *) printf 'Could not read the sharing mode; ask the human before changing sharing.\n' >&2
      exit 1 ;;
 esac
 ```
 
-Continue only with a verified `new`, `all`, or `selected`. If the status read
+Continue only with a verified `selected`, `new`, or `all`. If the status read
 fails or reports no mode, retry once; if it is still unknown, stop and ask the
 human how to proceed rather than sending any sharing request.
 
-On a fresh install, or when it already reports `new`, keep `new`. When an
-existing install reports `all` (which also uploads past sessions, so it is
-broader than this skill's default) or `selected`, tell the human the current
-mode and ask whether to keep it or change it to `new`. Never change it silently.
+On a fresh install, or when it already reports `selected`, keep `selected`.
+When an existing install reports `new` (uploads every new session) or `all`
+(also uploads past sessions), both broader than this skill's default, tell the
+human the current mode and ask whether to keep it or change it to `selected`.
+Never change it silently.
 Only when the human explicitly chooses a different mode, set
 `relay_sharing_mode` to that answer at the top of the next block; left unset,
 the block keeps the mode the app reports, so nothing changes without an answer.
@@ -536,7 +538,8 @@ Remember the chosen mode: section 8 checks it again, and shell variables do not
 survive between separate tool calls.
 
 Then set and verify all three agent-led defaults even when the app's `/setup/*`
-bootstrap already applied them. Sharing mode `new` uploads every new session;
+bootstrap already applied them. Sharing mode `selected` uploads only the
+sessions the human chooses, and a registered session counts as chosen;
 auto-activation puts every existing live session and every future session on
 the relay; direct delivery sets Claude Code `crossSessionInbound` to `accept`
 by default, the same default the app's first-run setup applies.
@@ -562,7 +565,7 @@ if test -z "${relay_sharing_mode:-}"; then
     http://relay/setup/status | jq -r '.data.sharing_mode // empty')
 fi
 case "$relay_sharing_mode" in
-  new|all|selected) ;;
+  selected|new|all) ;;
   *) printf 'Sharing mode unknown; ask the human before changing sharing.\n' >&2
      exit 1 ;;
 esac
@@ -1003,8 +1006,8 @@ curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status |
 ```
 
 Require all three defaults before declaring setup complete. Set
-`relay_sharing_mode` again to the mode chosen in section 4 (`new`, or the
-existing mode the human kept); the check refuses to guess it. This block runs
+`relay_sharing_mode` again to the mode chosen in section 4 (`selected`, or
+the existing mode the human kept); the check refuses to guess it. This block runs
 in a fresh shell after the turns of sections 5–7, so it also derives the
 kept direct-delivery choice again: from status's
 `direct_delivery_user_choice`, or from the settings file on a build older
@@ -1050,7 +1053,7 @@ printf '%s\n' "$final_status" | \
 ```
 
 Report the exact version, `signed_in`, signed-in workspace id and name, sharing
-mode (`new`, or the existing mode the human kept), auto-activate `true`,
+mode (`selected`, or the existing mode the human kept), auto-activate `true`,
 direct-delivery `true` (or the human's kept `crossSessionInbound` value),
 uploader health, session address, direct-delivery state, webhook test marker,
 subscriptions, real GitHub event evidence, and polling-coexistence result.

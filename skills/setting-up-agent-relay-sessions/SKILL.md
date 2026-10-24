@@ -30,9 +30,10 @@ The finished state is:
 - a live round trip is proven when a teammate is online: this agent messages the
   teammate's agent, **reads the teammate's real session back** with
   `get_shared_session_context`, and the teammate reads this session and replies.
-  When no teammate is online yet, the fallback is the roster plus this person's
-  own uploaded session reading back cleanly — reported as self-verified, not as a
-  proven two-way handoff.
+  When no teammate is online yet, the roster plus this person's own uploaded
+  session reading back cleanly completes setup, reported as **self-verified**
+  rather than as a proven two-way handoff, with the teammate round trip named as
+  the next step once one joins (section 5's invites bring them in).
 
 ## Requires
 
@@ -57,8 +58,9 @@ desktop install and sign-in run:
 
 1. **Approve one Google device-login link** — only when no reusable `agent-relay`
    CLI/desktop login exists. A reused login needs zero clicks.
-2. **Provide one Bearer token** minted in the dashboard's **"Connect your agent"**
-   card. No setup route returns this token by design. **Do not have the person
+2. **Provide one Bearer token** minted in the dashboard's **Agent access** sheet
+   (the **Agent access** entry in the Sessions sidebar, or the **Sessions MCP**
+   button). No setup route returns this token by design. **Do not have the person
    paste it into this conversation** — the uploader shares this session's prompts
    with teammates, so a pasted secret would become teammate-readable. Instead the
    person puts it into the **environment that launches their agent** (or an OS
@@ -162,7 +164,7 @@ The agent never prints the value; verify presence only with
 Before section 1, tell the person what they need and ask for it in one message:
 
 1. the **shared workspace id** (or the teammate/admin who invited them);
-2. a **Bearer token** minted in the dashboard's "Connect your agent" card for
+2. a **Bearer token** minted in the dashboard's **Agent access** sheet for
    that workspace, stored by *them* as `AGENT_RELAY_SESSIONS_TOKEN` in the
    environment that launches their agent (see **Token handling** — never pasted
    into this chat);
@@ -199,7 +201,7 @@ not `~/.claude/skills`. For a tool with no listed path, say so rather than impro
 one.
 
 Before sending that message, check what this machine already has. If an Agent
-Relay CLI 13.x is installed (a user-level npm, mise or nvm `agent-relay`, not
+Relay CLI 13.0.0 or newer is installed (a user-level npm, mise or nvm `agent-relay`, not
 the `.deb`'s `/usr/bin/agent-relay` Desktop launcher), run these read-only
 checks. Without one, section 2 reads the signed-in workspace from
 `/setup/status` instead. The CLI is optional for this skill: detect it as
@@ -213,13 +215,15 @@ relay_cli_version=
 if test -n "$relay_cli"; then
   relay_cli_version=$("$relay_cli" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 fi
-# Gate only these optional checks on 13.x; keep relay_cli itself, which
+# Gate only these optional checks on >= 13; keep relay_cli itself, which
 # setting-up-agent-relay-desktop section 6 uses with its own version handling.
 relay_cli_checks=
-case "$relay_cli_version" in
-  13.*) relay_cli_checks=1 ;;
-  *) test -n "$relay_cli" && printf 'agent-relay %s is not 13.x; read the workspace from /setup/status instead.\n' "${relay_cli_version:-unknown}" >&2 ;;
-esac
+relay_cli_major=${relay_cli_version%%.*}
+if test -n "$relay_cli_major" && test "$relay_cli_major" -ge 13; then
+  relay_cli_checks=1
+elif test -n "$relay_cli"; then
+  printf 'agent-relay %s is older than 13.0.0; read the workspace from /setup/status instead.\n' "${relay_cli_version:-unknown}" >&2
+fi
 if test -n "$relay_cli_checks"; then
   "$relay_cli" cloud whoami       # signed in, and as whom
   "$relay_cli" workspace active   # the active Cloud workspace (keys stay masked)
@@ -430,13 +434,12 @@ anyone can read this session — this is the single most common reason a live
 handoff silently fails.
 
 `sharing_mode` decides which sessions upload at all, and a healthy uploader
-does not prove that **this** session is among them. `all` includes it. `new`
-includes sessions that started after `new` was enabled, so a session that was
-already running when the desktop was set up may not be uploaded. Under
-`selected`, only the sessions the person chose upload. Unless the mode is
-`all`, tell the person that this session may not be shared yet, and ask them to
-select it in the app or to continue from a new session; do not change the
-sharing mode or select sessions on their behalf. Section 5's round trip is the
+does not prove that **this** session is among them. A registered session
+uploads in every mode: under `selected` (**Only sessions I choose**, the
+default), registering it or turning on its **Receive messages** chooses it.
+If `/setup/status` does not show this session registered, tell the person that
+it may not be shared yet; do not change the sharing mode or select sessions on
+their behalf. Section 6's round trip is the
 proof: if the teammate cannot read this session there, this is the first
 thing to check.
 
@@ -709,9 +712,11 @@ without a second person:
 2. `search_shared_sessions` / `get_shared_session_context` return this person's
    **own** recently uploaded session (real prompts/events plus a dashboard
    citation link) — the uploader→read path works.
-3. Record that the two-party round trip still needs the teammate online, and
-   name it as the remaining step rather than claiming the handoff is proven.
-   Setup is not complete until the full round trip succeeds.
+3. Setup is complete and reported as **self-verified**: the roster and this
+   session's own read path work, and the two-party round trip is not yet
+   proven. Name the teammate round trip as the next step once a teammate joins
+   (section 5's invites bring one in); never report a self-verified setup as a
+   proven handoff.
 
 Never paste the Bearer token or any session token into a `send_relay_message`
 body or any artifact.
@@ -730,8 +735,8 @@ Separate verified facts from what still needs a human or a second machine:
   the link), or that they
   declined, or that only an owner can invite and who to ask;
 - `list_relay_agents` roster seen; and either the full round-trip evidence (the
-  teammate's real content + reply) or the self-verified read path plus the named
-  remaining step (teammate online);
+  teammate's real content + reply), or the self-verified read path with the
+  teammate round trip named as the next step;
 - the other tools they named in preflight item 4, each with its next step from
   the routing list there (or that it has no setup path yet).
 
@@ -755,13 +760,13 @@ count a roster listing as a proven handoff.
   `AGENT_RELAY_SESSIONS_TOKEN`, fixing it means updating the **value in the
   launch environment** (keychain / 0600 file) and **restarting** the agent so it
   re-reads it — re-running `claude mcp add` / `codex mcp add` alone changes
-  nothing. Re-mint from the intended workspace's "Connect your agent" card if the
+  nothing. Re-mint from the intended workspace's **Agent access** sheet if the
   token itself is bad. On Claude, also confirm the client is ≥ 2.1.119 (older
   clients send the `${VAR}` placeholder literally).
 - **Invited teammate never got the email:** check the invite's
   `emailDelivery`. If it is not `sent`, the email never left; have the person
   copy the link from **Settings → Members** and send it to that teammate. If it is `sent`, have the
-  teammate check spam for mail from `noreply@agentrelay.com`. Only re-invite to
+  teammate check spam for mail from `noreply@mail.agentrelay.com`. Only re-invite to
   replace an expired link.
 - **Teammate's address missing from the roster:** they are not on the **same**
   workspace, or their session is not on the relay. Have them register their

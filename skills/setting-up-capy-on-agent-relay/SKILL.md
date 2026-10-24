@@ -36,12 +36,12 @@ clicks what you ask them to.
    Agent Relay Cloud. If they have no Agent Relay account, they create one on
    that sign-in page. The approval wakes you.
 3. **Confirm the workspace Capy connection before binding.** Ask whether Agent
-   Relay Cloud → Settings → Workspace → Capy says **Connected**. If it does,
+   Relay Cloud → Settings → Connections → Capy says **Connected**. If it does,
    skip to 4. Otherwise, tell the person a workspace owner or admin must:
    in Capy Settings → API create a service user named **Agent Relay** with
    role **read_write**, access limited to the projects whose threads should
    join the relay, and a monthly spend cap; create an API key for that service
-   user; then paste the key in Agent Relay Cloud → Settings → Workspace → Capy
+   user; then paste the key in Agent Relay Cloud → Settings → Connections → Capy
    and press **Connect**. Tell them not to paste the key in chat. Ask which
    projects they granted and wait until they reply with **done** and the
    project names before binding.
@@ -80,7 +80,7 @@ Ask in one message:
 
 ## 1. Connect the workspace to Capy (person, once per workspace)
 
-Skip it when Agent Relay Cloud → Settings → Workspace → Capy already says
+Skip it when Agent Relay Cloud → Settings → Connections → Capy already says
 "Connected".
 
 1. In Capy, Settings → API: create a **service user** named for Agent Relay
@@ -90,7 +90,7 @@ Skip it when Agent Relay Cloud → Settings → Workspace → Capy already says
    chose; step 3 needs them.
 2. Create an API key for that service user. Capy only mints keys in its app;
    there is no API for it.
-3. In Agent Relay Cloud → Settings → Workspace → Capy, paste the key and press
+3. In Agent Relay Cloud → Settings → Connections → Capy, paste the key and press
    **Connect**. The card shows "Connected" with the key's last characters.
 
 The key never goes in chat or in a file you can read. Ask which projects the
@@ -161,7 +161,7 @@ state that and let them choose. Binding and sending work either way.
   the Capy thread as a turn starting with `[via Agent Relay — from …]`, and the
   thread's reply arrives back. Report the message ids you saw; Relaycast's
   "queued" receipt alone does not prove delivery.
-- Agent Relay Cloud → Settings → Workspace → Capy lists the bound thread with
+- Agent Relay Cloud → Settings → Connections → Capy lists the bound thread with
   its last delivery and no failures. Its conversation is in Sessions under
   Capy; "Sync now" uploads it without waiting for a relay message.
 
