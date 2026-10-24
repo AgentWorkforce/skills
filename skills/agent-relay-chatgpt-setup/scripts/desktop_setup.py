@@ -41,10 +41,36 @@ def run(args, **kwargs):
         raise SetupError("command_failed", "Could not complete {}. Inspect that command locally; setup can be resumed.".format(Path(str(args[0])).name))
 
 
+def validate_download_url(url):
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme != "https" or parsed.hostname not in (
+            "api.github.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com")
+            or parsed.username is not None or parsed.password is not None or parsed.port not in (None, 443)):
+        raise SetupError("untrusted_download", "The release download left GitHub's HTTPS release hosts; refusing installation.")
+
+
+class GitHubRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, url):
+        validate_download_url(url)
+        return super().redirect_request(request, fp, code, message, headers, url)
+
+
 def download(url, destination):
+    validate_download_url(url)
     request = urllib.request.Request(url, headers={"User-Agent": "Agent-Relay-Plugin-Setup"})
-    with urllib.request.urlopen(request, timeout=60) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output)
+    opener = urllib.request.build_opener(GitHubRedirectHandler())
+    with opener.open(request, timeout=60) as response:
+        validate_download_url(response.geturl())
+        with destination.open("wb") as output:
+            shutil.copyfileobj(response, output)
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def verified_release(directory, system, architecture):
@@ -66,17 +92,14 @@ def verified_release(directory, system, architecture):
     artifact, checksum = directory / name, directory / (name + ".sha256")
     for asset_name, target in ((name, artifact), (name + ".sha256", checksum)):
         url = assets[asset_name]
-        if not url.startswith("https://github.com/AgentWorkforce/relay-desktop-releases/releases/download/{}/".format(tag)):
+        expected = "https://github.com/AgentWorkforce/relay-desktop-releases/releases/download/{}/{}".format(tag, asset_name)
+        if url != expected:
             raise SetupError("invalid_release", "The release asset is outside the official release.")
         download(url, target)
     digest = checksum.read_text().split()
     if not digest or not re.fullmatch(r"[a-fA-F0-9]{64}", digest[0]):
         raise SetupError("invalid_checksum", "The published checksum is invalid; refusing installation.")
-    actual = hashlib.sha256()
-    with artifact.open("rb") as source:
-        for block in iter(lambda: source.read(1024 * 1024), b""):
-            actual.update(block)
-    if actual.hexdigest() != digest[0].lower():
+    if file_sha256(artifact) != digest[0].lower():
         raise SetupError("checksum_mismatch", "The Relay download failed checksum verification; refusing installation.")
     return artifact, tag
 
@@ -150,9 +173,28 @@ def install_macos(artifact, home):
     run(["open", destination])
 
 
+def linux_unit_state(home):
+    target = home / ".config/systemd/user/agent-relay.service"
+    if target.exists() or target.is_symlink():
+        return "loaded"
+    if not shutil.which("systemctl"):
+        raise SetupError("unsupported_linux", "Local setup needs a working systemd user service.")
+    try:
+        result = subprocess.run(["systemctl", "--user", "show", "agent-relay.service", "--property=LoadState", "--value"],
+                                capture_output=True, text=True, timeout=15)
+    except (subprocess.SubprocessError, OSError):
+        raise SetupError("service_state_unknown", "The Relay service inspection timed out or failed. Repair the user service manager before installing; no unit was replaced.")
+    load_state = result.stdout.strip()
+    if load_state in ("loaded", "masked") or (load_state == "not-found" and result.returncode in (0, 1, 4)):
+        return load_state
+    raise SetupError("service_state_unknown", "Could not inspect the existing Relay service. Repair the user service manager before installing; no unit was replaced.")
+
+
 def install_linux(artifact, tag, home):
     if not shutil.which("systemctl") or platform.libc_ver()[0] != "glibc":
         raise SetupError("unsupported_linux", "Local setup needs a glibc Linux host with a working systemd user service. No installation was attempted.")
+    if linux_unit_state(home) != "not-found":
+        raise SetupError("existing_service", "An existing Relay service owns this installation. Update it through its package manager or preserve its unit policy explicitly; no unit was replaced.")
     run(["systemctl", "--user", "show-environment"])
     with tempfile.TemporaryDirectory(prefix="relay-extract-") as temporary:
         extracted = Path(temporary)
@@ -169,15 +211,37 @@ def install_linux(artifact, tag, home):
         text, replacements = re.subn(r"^ExecStart=/usr/", "ExecStart={}/usr/".format(prefix), text, flags=re.MULTILINE)
         if replacements != 1 or " --headless" not in text:
             raise SetupError("invalid_service", "The supplied release has no supported headless user service.")
+        digest = file_sha256(artifact)
+        marker = prefix / ".plugin-artifact.sha256"
         if prefix.exists():
-            raise SetupError("existing_release", "This release is already installed. Start or repair its service instead of overwriting it.")
-        prefix.mkdir(parents=True)
-        shutil.copytree(source, prefix / "usr", symlinks=True)
+            if not marker.is_file() or marker.read_text() != digest:
+                raise SetupError("existing_release", "An existing release was not completed by this installer. Inspect it before retrying; it was not overwritten.")
+        else:
+            prefix.parent.mkdir(parents=True, exist_ok=True)
+            # Do not expose the final version directory until the entire copy
+            # succeeds. A disk-full failure leaves nothing that blocks a retry.
+            with tempfile.TemporaryDirectory(prefix=".relay-stage-", dir=prefix.parent) as staging:
+                incoming = Path(staging) / "release"
+                shutil.copytree(source, incoming / "usr", symlinks=True)
+                (incoming / marker.name).write_text(digest)
+                incoming.rename(prefix)
         target = home / ".config/systemd/user/agent-relay.service"
         target.parent.mkdir(parents=True, exist_ok=True)
-        staging = target.with_suffix(".service.tmp")
-        staging.write_text(text)
-        staging.replace(target)
+        # A hard-link publishes a complete unit atomically and refuses to
+        # replace a unit created by the user while the download was running.
+        temporary_unit = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", prefix=".relay-unit-", dir=target.parent, delete=False) as staging:
+                temporary_unit = Path(staging.name)
+                staging.write(text)
+                staging.flush()
+                os.fsync(staging.fileno())
+                os.fchmod(staging.fileno(), 0o644)
+            os.link(temporary_unit, target)
+        finally:
+            if temporary_unit is not None:
+                temporary_unit.unlink()
+
     run(["systemctl", "--user", "daemon-reload"])
     run(["systemctl", "--user", "enable", "--now", "agent-relay.service"])
     run(["systemctl", "--user", "restart", "agent-relay.service"])
@@ -196,13 +260,23 @@ def find_socket(home):
         candidates.append(Path(os.environ.get("XDG_RUNTIME_DIR", "/run/user/{}".format(os.getuid()))) / "agent-relay/relay.sock")
     for candidate in candidates:
         if candidate.is_socket() and candidate.stat().st_uid == os.getuid():
-            return candidate
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                    listener.settimeout(1)
+                    listener.connect(str(candidate))
+                return candidate
+            except (ConnectionRefusedError, FileNotFoundError):
+                # A stale socket file is normal after an unclean shutdown.
+                # Start its installed owner; never unlink it or reinstall.
+                continue
+            except OSError:
+                raise SetupError("runtime_unavailable", "Relay's socket cannot be reached. Inspect the existing runtime before installing or changing it.")
     return None
 
 
 class UnixConnection(http.client.HTTPConnection):
     def __init__(self, path):
-        super().__init__("relay", timeout=30)
+        super().__init__("relay", timeout=60)
         self.path = path
 
     def connect(self):
@@ -243,6 +317,8 @@ class Desktop:
                 raise SetupError("runtime_unavailable", "The Relay probe could not answer. Inspect the running core and resume; do not reinstall or reset sign-in.")
         else:
             # Python retains the calling session's environment/process ancestry.
+            # Released probes may reject /setup/sign-in before contacting the
+            # core; keep that route here, not in the native route allowlist.
             # The local core authenticates it; we never supply a session id.
             connection = UnixConnection(path)
             try:
@@ -280,8 +356,8 @@ class Desktop:
         elif not update and system == "Linux":
             # A packaged or per-user install owns this unit. Never replace it
             # merely because its socket is slow or its user service is broken.
-            result = subprocess.run(["systemctl", "--user", "cat", "agent-relay.service"], capture_output=True) if shutil.which("systemctl") else None
-            if result is not None and result.returncode == 0:
+            load_state = linux_unit_state(self.home)
+            if load_state != "not-found":
                 run(["systemctl", "--user", "start", "agent-relay.service"])
                 existing = True
         if not existing:
@@ -313,12 +389,14 @@ def public_status(data):
     return result
 
 
-def connect(desktop, workspace=None, update=False, headless=False):
+def connect(desktop, workspace=None, update=False, headless=False, retry_sign_in=False):
     desktop.ensure_running(update)
     state = desktop.request("GET", "/setup/status")
     actual = (state.get("workspace") or {}).get("id")
     if workspace and actual and actual != workspace:
         raise SetupError("workspace_mismatch", "Desktop is connected to another workspace. Select the intended workspace in Relay and resume; setup did not switch it.")
+    if state.get("sign_in") in ("denied", "expired", "error") and not retry_sign_in:
+        raise SetupError("sign_in_failed", "Relay sign-in ended or failed. Inspect its local sign-in message first, then explicitly retry with --retry-sign-in if sign-in is still wanted.")
     if state.get("sign_in") != "signed_in":
         if state.get("sign_in") not in ("preparing", "pending_approval"):
             payload = {"flow": "device" if headless else "browser"}
@@ -358,6 +436,7 @@ def main():
     parser.add_argument("action", choices=("status", "connect", "test"))
     parser.add_argument("--workspace", help="Expected Cloud workspace UUID; setup refuses a mismatch")
     parser.add_argument("--update", action="store_true", help="Explicitly update an incompatible installed runtime")
+    parser.add_argument("--retry-sign-in", action="store_true", help="Retry a terminal login failure after inspecting its cause")
     parser.add_argument("--headless", action="store_true", help="Use device approval instead of local browser sign-in")
     args = parser.parse_args()
     try:
@@ -365,7 +444,7 @@ def main():
         if args.action == "status":
             result = {"stage": "detected", **public_status(desktop.request("GET", "/setup/status")), "live_delivery": "unverified"}
         elif args.action == "connect":
-            result = connect(desktop, args.workspace, args.update, args.headless or bool(os.environ.get("SSH_CONNECTION")) or platform.system() == "Linux")
+            result = connect(desktop, args.workspace, args.update, args.headless or bool(os.environ.get("SSH_CONNECTION")) or platform.system() == "Linux", args.retry_sign_in)
         else:
             result = test_delivery(desktop)
         print(json.dumps({"ok": True, **result}))

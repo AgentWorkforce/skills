@@ -42,8 +42,9 @@ widen history sharing to complete plugin setup.
    - Authentication missing: finish the plugin's connection/sign-in flow and
      retry; do not ask for credentials in chat. Do not repeatedly reconnect a
      signed-in account to fix a missing host capability.
-2. **Reply preference, on the event path only.** Ask the question next_steps
-   names and save the answer with `answer_reply_question`, passing
+2. **Reply preference, on the event path only.** Ask the question named by
+   `next_steps` in the latest `relay_events_status` result, then save the answer
+   with `answer_reply_question`, passing
    `delivery:"events"`. Ask once in this chat, wait for the answer, then resume.
    A saved no is not asked again; a saved yes may need confirmation in this new
    chat because the host requires it. Preserve the sender scope in the question
@@ -54,7 +55,10 @@ widen history sharing to complete plugin setup.
    a new subscription here; do not move another chat's subscription. If the
    attempt fails, explain the actual error, keep the preference, and offer
    manual access instead of declaring setup incomplete.
-4. **Verify and report.** Report "Connected; live messages are awaiting a test."
+4. **Verify and report.** Check settings.delivery_paused first. If true, report
+   "Connected; live delivery is paused. You can check messages on request."
+   Keep the pause until the person asks to resume; do not invite a test while
+   paused. Otherwise report "Connected; live messages are awaiting a test."
    Confirm a real event was received and handled in this chat before saying
    live delivery or automatic replies are active. A callback 200 is insufficient.
    Do not contact another agent or send a test message without the user's
@@ -71,11 +75,17 @@ sessions here. Live message delivery in this chat is not enabled [or: has not
 been verified]. Your saved reply preference is unchanged."
 
 Offer **Check inbox now** and **Enable live messages** as next actions in prose
-or in an available host UI. Do not claim buttons were rendered. To check, call
-`get_recent_events`; use its returned cursor for later checks and deduplicate
-by eventId. Before replying to a recovered message, call `get_event` for its
-eventId so the server checks sender trust and saved reply settings. Do not create a schedule, poll indefinitely, or promise this
-chat will wake while idle. `relay_inbox` can show conversations; if the host
+or in an available host UI. Do not claim buttons were rendered. For the first
+manual check without a saved cursor, call `get_recent_events` with since:"0"
+to read the retained backlog oldest first; omitting since returns only the
+latest window and can skip older messages. Page forward using each returned
+cursor until a short/empty page, up to 100 messages in one requested check.
+Save the last processed cursor; if more remain, say so and resume from that
+cursor on the next check. Deduplicate by eventId. A backlog is retained history,
+not proof that every message is unread or requires another reply. Before
+replying to a recovered message, call `get_event` for its eventId so the server
+checks sender trust and saved reply settings. Do not create a schedule, poll
+indefinitely, or promise this chat will wake while idle. `relay_inbox` can show conversations; if the host
 cannot render it, use the read tools. Shared-session search stays available
 when those tools are exposed.
 

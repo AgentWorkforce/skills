@@ -77,8 +77,12 @@ did not ask for.
 
 ## Other requests
 
-- "Connect me to Agent Relay": follow the agent-relay-chatgpt-setup skill. Call
-  `relay_events_status` and follow the agent-relay-chatgpt-setup skill's host preflight before asking about replies. Local Codex uses the bundled Desktop setup. ChatGPT uses events only when supported; otherwise offer on-request inbox access. A saved preference or connector subscription does not verify this chat's live delivery.
+- "Connect me to Agent Relay": choose the host first and follow the setup
+  skill. In local Codex with shell access, run its bundled Desktop bootstrap
+  directly, before any remote MCP call. Remote chats call `relay_events_status`
+  and follow host preflight before asking about replies. ChatGPT uses events
+  only when supported; otherwise offer on-request inbox access. A saved
+  preference or connector subscription does not verify this chat's delivery.
 - "Show my relay messages": call `relay_inbox` with `{}`.
 - "Status?", "what's going on?", "which agents are where?", "did the run
   work?", "what got done today?", "how is the team using agents?", "where
@@ -116,8 +120,12 @@ did not ask for.
   - If the relay actions are not listed there at all, the connector was
     approved for events only: tell the user to reconnect Agent Relay and allow
     its relay tools.
-- "Check inbox now": call `get_recent_events`, retain its cursor, deduplicate
-  by eventId, then call `get_event` for each message before replying so the
+- "Check inbox now": call `get_recent_events` with since:"0" on the first
+  manual check, or the saved cursor on later checks. Page forward, up to 100
+  messages per requested check, without skipping an older retained backlog.
+  Save the last processed cursor and say when more remain. Deduplicate by
+  eventId; retained history is not proof that a message is unread or needs
+  another reply. Then call `get_event` before replying so the
   server checks its sender trust and saved reply settings. This is one check,
   not background monitoring.
 - Messages not arriving: follow the agent-relay-chatgpt-setup skill's host-specific recovery. Keep

@@ -49,7 +49,8 @@ install another language runtime.
 # Recovery
 
 - Pending login: resume connect. Expired/denied/error: inspect Relay's sign-in
-  error locally, explain its concrete cause, then restart sign-in as needed.
+  error locally, explain its concrete cause, then use connect --retry-sign-in
+  only when sign-in is still wanted. A denial is not permission to prompt again.
 - Legacy uploader/schedule conflict: preserve it. Inspect before changing
   anything; do not send acknowledge_uninspected_schedules to silence the error.
 - Wrong account/workspace: select the intended workspace in Relay, then resume.
@@ -58,7 +59,9 @@ install another language runtime.
   Do not pass a fabricated session id or workspace credential.
 - Managed policy/delivery_blocked: report that specific block. Never change
   managed settings, Codex approval policy, or another agent's settings.
-- Linux: the per-user service requires glibc and systemd. Persistence after the
+- Linux: the per-user service requires glibc and systemd. Existing units
+  (including managed or custom restrictions) are never replaced by this helper;
+  update those through their existing installation owner. Persistence after the
   last logout also requires the host's lingering policy; if not enabled, explain
   that limitation and let an administrator enable it. Do not claim reboot/logout
   persistence merely because the socket is available now.
