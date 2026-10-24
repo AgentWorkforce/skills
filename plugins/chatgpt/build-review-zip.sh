@@ -11,9 +11,11 @@ trap 'rm -rf "$stage"' EXIT
 
 cp "$plugin_dir/plugin.json" "$plugin_dir/mcp.json" "$stage/"
 cp -R "$plugin_dir/.codex-plugin" "$plugin_dir/assets" "$stage/"
-mkdir -p "$stage/skills/agent-relay-chatgpt-setup" "$stage/skills/agent-relay-chatgpt"
-cp "$repo_dir/skills/agent-relay-chatgpt-setup/SKILL.md" "$stage/skills/agent-relay-chatgpt-setup/SKILL.md"
-cp "$repo_dir/skills/agent-relay-chatgpt/SKILL.md" "$stage/skills/agent-relay-chatgpt/SKILL.md"
+mkdir -p "$stage/skills"
+cp -R "$repo_dir/skills/agent-relay-chatgpt-setup" "$repo_dir/skills/agent-relay-chatgpt" "$stage/skills/"
+# Never ship interpreter caches from a local validation run.
+find "$stage" -type d -name __pycache__ -prune -exec rm -rf {} +
+find "$stage" -type f -name '*.pyc' -delete
 
 rm -f "$output"
 (cd "$stage" && zip -qr "$output" .)

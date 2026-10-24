@@ -643,21 +643,37 @@
     },
     {
       "name": "agent-relay-chatgpt",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Handle Agent Relay messages and shared agent sessions in ChatGPT.",
       "format": "claude",
       "subtype": "skill",
-      "tags": ["agent-relay", "chatgpt", "mcp", "sessions"],
-      "files": ["skills/agent-relay-chatgpt/SKILL.md"]
+      "tags": [
+        "agent-relay",
+        "chatgpt",
+        "mcp",
+        "sessions"
+      ],
+      "files": [
+        "skills/agent-relay-chatgpt/SKILL.md"
+      ]
     },
     {
       "name": "agent-relay-chatgpt-setup",
-      "version": "0.1.0",
-      "description": "Connect a ChatGPT chat to Agent Relay, save its reply preference, and subscribe it to relay messages.",
+      "version": "0.2.0",
+      "description": "Connect Agent Relay with host-aware setup: local Codex Desktop bootstrap, supported ChatGPT event subscriptions, or on-request inbox access.",
       "format": "claude",
       "subtype": "skill",
-      "tags": ["agent-relay", "chatgpt", "mcp", "setup"],
-      "files": ["skills/agent-relay-chatgpt-setup/SKILL.md"]
+      "tags": [
+        "agent-relay",
+        "chatgpt",
+        "mcp",
+        "setup"
+      ],
+      "files": [
+        "skills/agent-relay-chatgpt-setup/SKILL.md",
+        "skills/agent-relay-chatgpt-setup/references/desktop.md",
+        "skills/agent-relay-chatgpt-setup/scripts/desktop_setup.py"
+      ]
     },
     {
       "name": "merge-train-snippet",
