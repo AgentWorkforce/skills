@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Also installs the same MCP for Muse Code (tools only — the desktop admits only Claude/Codex sessions, so live handoff still needs a Claude/Codex-driven session). Covers verifying desktop setup, installing the agent-sessions cloud MCP before the session starts, confirming the handoff tools loaded, offering to email-invite the person's teammates to their organization, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
+description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session. Uses personal OAuth by default for the hosted Shared Sessions MCP in Codex, Claude Code, Muse, Cursor, ChatGPT, and other OAuth-capable clients; verifies the separate Desktop connection, confirms the handoff tools, offers teammate invites, and proves a live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to a teammate", or finish teammate onboarding.
 ---
 
 # Set Up Agent Relay Session Handoff
@@ -20,10 +20,12 @@ The finished state is:
   uploader is healthy, and this session is registered with direct delivery on,
   or with the person's own `crossSessionInbound` (`hold` or `refuse`) kept and
   reported (see section 2; delivery is never turned on without their yes);
-- the **agent-sessions cloud MCP** is installed in this project and loaded by
-  this session, so the handoff tools (`list_relay_agents`, `send_relay_message`,
-  `read_relay_conversation`, `check_relay_inbox`, `get_shared_session`,
-  `get_shared_session_context`, `search_shared_sessions`) are available;
+- the **agent-sessions cloud MCP** is installed without an `Authorization`
+  header, authenticated through the MCP client's personal OAuth flow, and
+  loaded by this session, so the handoff tools (`list_relay_agents`,
+  `send_relay_message`, `read_relay_conversation`, `check_relay_inbox`,
+  `get_shared_session`, `get_shared_session_context`,
+  `search_shared_sessions`) are available;
 - the person was asked whether to invite teammates, and every address they
   gave was invited through the Cloud invites API with its delivery outcome
   reported (section 5), or they declined;
@@ -49,27 +51,22 @@ then restart the agent. Do not improvise the install or sign-in from memory.
 
 ## The only human steps
 
-Everything else is automatable; be honest that these are not. **Ask for all of
-them up front, before touching anything** — the token in particular is needed
-only at section 3, but minting it and exporting it into the launching
-environment takes the person a few minutes, so have them start it while the
-desktop install and sign-in run:
+Everything else is automatable; be honest that these are not. Ask for the
+workspace and teammate details up front, then pause only when a client opens a
+browser approval:
 
-1. **Approve one Google device-login link** — only when no reusable `agent-relay`
-   CLI/desktop login exists. A reused login needs zero clicks.
-2. **Provide one Bearer token** minted in the dashboard's **"Connect your agent"**
-   card. No setup route returns this token by design. **Do not have the person
-   paste it into this conversation** — the uploader shares this session's prompts
-   with teammates, so a pasted secret would become teammate-readable. Instead the
-   person puts it into the **environment that launches their agent** (or an OS
-   keychain / a mode-0600 file) via a shell *they* run, and this agent references
-   it only by variable name — never by value. See **Token handling** below.
+1. **Approve the MCP client's OAuth connection.** Add the Shared Sessions URL
+   without an `Authorization` header, then use the client's Authenticate/Login
+   action. The person signs in, selects the intended workspace/agent, and
+   approves the connection. Never ask them to copy an OAuth token into chat.
+2. **Approve one Desktop device-login link** only when the Desktop has no
+   reusable `agent-relay` CLI/desktop login. This is a separate one-time login
+   for the machine connection, not MCP authentication.
 3. **Same workspace, both sides.** The teammate (or workspace admin) must have
-   invited this person's email to the **shared** workspace — two agents can only
-   reach each other inside one workspace. Confirm the workspace id matches on
-   both machines; do not guess it. If this person owns the organization, their
-   agent can send those invites itself (section 5); the human step is only
-   naming who to invite.
+   invited this person's email to the **shared** workspace. Confirm the
+   workspace id matches on both machines; do not guess it. If this person owns
+   the organization, their agent can send those invites itself (section 5); the
+   human step is only naming who to invite.
 
 One structural note so expectations are right: there is **no automatic ack** to
 the sender when a handoff is picked up, and **no partial session sharing** — a
@@ -108,78 +105,83 @@ Do not use prpm's `--as codex` conversion for these packages: it writes under
 drops explanatory paragraphs from the Markdown workflow. Confirm both final
 paths explicitly before continuing.
 
+## Authentication boundaries
+
+Do not collapse these three connection types into one "agent auth" story:
+
+- **Interactive hosted MCP:** use personal OAuth. Add
+  `https://agentrelay.com/cloud/api/v1/mcp/shared-sessions` with no
+  `Authorization` header or bearer-token environment variable, then sign in
+  through the MCP client. OAuth is the supported default for Codex, Claude
+  Code, Cursor, ChatGPT, Muse, and any other client that implements the remote
+  MCP OAuth flow.
+- **Headless Linux Desktop:** this is a machine-resident Desktop connection,
+  not hosted MCP auth. The supported setup is the Desktop's systemd user
+  service plus one Cloud device approval (or a reusable personal CLI login).
+  After approval the service maintains its workspace connection. Leave its
+  exact installation and recovery steps to `setting-up-agent-relay-desktop`.
+- **Native Relay CLI/broker:** a workspace key or native API key may be held as
+  a machine secret for native broker operations. That key does **not** turn a
+  hosted MCP connection into a person connection and does not authorize Cloud
+  hosted spawn.
+
+Hosted spawn currently requires a person connection (OAuth, browser session,
+or personal CLI login) whose user is a current workspace owner or organization
+admin. A generic machine/service key and the history token below cannot launch.
+Describe a machine-key spawn path only as a future product change, never as a
+working setup step.
+
 ## Why ordering matters
 
-MCPs load at agent **startup**. The agent-sessions MCP must be installed
-**before** the session that will use it starts. A session already running when
-the MCP was added has no handoff tools and must be **restarted**. Install the
-MCP (section 3) before relying on the tools (sections 4 and 6); if this very session
-predates the MCP, say so and restart it rather than reporting missing tools as a
-failure.
+Clients commonly cache MCP configuration and tool discovery for the life of a
+session. Install and authenticate the MCP before relying on the tools. A session
+that was already running when the server or authentication changed must
+reconnect/restart (and some hosted clients require a new chat) before sections
+4 and 6. Do not report missing tools until that refresh happened.
 
 ## Token handling
 
-The token must never land in the agent conversation, in a Relay message, in
-process argv, or in the repo. Three places leak it, and this skill avoids all
-three:
+The interactive setup in section 3 uses OAuth and stores no bearer in MCP
+configuration. The client owns its access/refresh tokens; never print, copy, or
+ask the person to paste them. In particular, do not add `http_headers`,
+`Authorization`, `--header`, or `--bearer-token-env-var` to an interactive
+Shared Sessions entry.
 
-- **The chat** — this session is uploaded and teammate-readable, so a token
-  pasted to the agent leaks to the workspace. The person sets it themselves (see
-  below); the agent only ever sees the variable **name**.
-- **Process argv** — a token interpolated into `claude mcp add --header
-  "... Bearer $TOKEN"` is visible to `ps` and gets written literally into
-  `~/.claude.json`. Pass the unexpanded placeholder `${AGENT_RELAY_SESSIONS_TOKEN}`
-  instead; Claude Code expands `${VAR}` in MCP headers from the environment at
-  launch, so the stored config holds only a reference and argv holds only the
-  literal `${…}`. **This expansion exists only in Claude Code ≥ 2.1.119** — an
-  older client sends the placeholder literally and auth fails, so check the
-  version first (section 3) and update Claude rather than inlining the token.
-- **The launching environment** — all three CLIs read the token from an environment
-  variable (`${VAR}` for Claude, `--bearer-token-env-var` for Codex, `${VAR}`
-  interpolation in Muse server configs), so the
-  variable must exist in the environment that **launches the agent**, not in a
-  transient shell-tool subprocess (which cannot alter its parent or a later
-  process).
+The dashboard's **Read-only token (sessions only)** is a secondary,
+history-scoped bearer (`rth:read`/`rth:sync`) for scripts and CI. It is not a
+full agent authentication method and is not the interactive default. Its
+documented contract is shared-session history reads only: do not use it for
+relay messaging or hosted spawn. If a script genuinely needs it, keep it in a
+secret store, inject it into the script environment, and send it in an HTTP
+`Authorization` header without exposing the value in argv, chat, Relay
+messages, logs, or the repository.
 
-Use the single variable name `AGENT_RELAY_SESSIONS_TOKEN` throughout. Keep the
-one-time entry separate from durable supply:
-
-- **One-time, into the current shell** (non-echoing, run by the person, never
-  the agent): `read -rs AGENT_RELAY_SESSIONS_TOKEN && export AGENT_RELAY_SESSIONS_TOKEN`,
-  then launch the agent from *that* shell. Do **not** add this `read` to a shell
-  profile — every shell that sources the profile would block waiting for input.
-- **Durable across restarts:** store the token in the OS keychain or a mode-0600
-  file, and have the launcher export it **non-interactively**, e.g.
-  `export AGENT_RELAY_SESSIONS_TOKEN="$(security find-generic-password -s agent-relay-sessions -w)"`
-  (macOS keychain) or from a 0600 file. Put that line in a dedicated launcher the
-  person starts the agent from — not an interactive prompt in the profile.
-
-The agent never prints the value; verify presence only with
-`test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"`.
+There is a current implementation/documentation discrepancy: a personal
+history token may pass some relay-tool credential checks even though the public
+contract calls it read-only. Treat the documented read-only contract as
+authoritative; do not promise or depend on messaging with this token. Both the
+documentation and spawn service agree that it cannot launch.
 
 ## 0. Preflight: collect the human inputs first
 
 Before section 1, tell the person what they need and ask for it in one message:
 
 1. the **shared workspace id** (or the teammate/admin who invited them);
-2. a **Bearer token** minted in the dashboard's "Connect your agent" card for
-   that workspace, stored by *them* as `AGENT_RELAY_SESSIONS_TOKEN` in the
-   environment that launches their agent (see **Token handling** — never pasted
-   into this chat);
-3. the **teammate's relay address** for the round trip, if one will be online.
-4. **which coding tools and ADEs they use** besides this one (Claude Code,
+2. the **teammate's relay address** for the round trip, if one will be online;
+3. **which coding tools and ADEs they use** besides this one (Claude Code,
    Codex, Cursor, OpenCode, Grok Build, Devin, Capy, other), so every tool they
-   work in ends up on the relay, not just this session.
-5. whether they want to **invite teammates**, and if so their email
+   work in ends up on the relay, not just this session;
+4. whether they want to **invite teammates**, and if so their email
    addresses. Optional; section 5 sends the invites, so asking now lets the
    emails go out while the desktop work runs on this side.
 
 Route each tool they name once this session's own setup is installed and
 self-verified (sections 1–4); do not start another setup mid-way, and do not
 hold it for a teammate. A tool set up that way can be the counterpart for
-section 6's round trip, so report a pending round trip instead of stopping. Claude Code or Codex other than this session: run this
-same skill from inside that tool, since each configures its own MCP and token
-path. Grok Build: `plugins/grok/agent-relay` in `AgentWorkforce/skills`.
+section 6's round trip, so report a pending round trip instead of stopping.
+Claude Code, Codex, or Muse other than this session: run this same skill from
+inside that tool, since each keeps its own MCP configuration and OAuth login.
+Grok Build: `plugins/grok/agent-relay` in `AgentWorkforce/skills`.
 OpenCode: the `@agent-relay/opencode-plugin` package. Capy: hand off to
 `setting-up-capy-on-agent-relay`, which runs entirely through Agent Relay Cloud
 and Capy (no desktop step). If that skill is missing, install it with the same
@@ -232,20 +234,11 @@ If the active workspace is already the shared one, confirm it with the person
 instead of asking them to look it up. Never switch to or create another
 workspace unless they explicitly ask.
 
-Check presence without printing the value:
-
-```sh
-test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}" && echo token=present || echo token=missing
-```
-
-A missing token does **not** block sections 1–3: the MCP config stores only a
-`${AGENT_RELAY_SESSIONS_TOKEN}` reference, never the value, so it can be added
-now. Do the desktop work and add the MCP, then have the person restart the agent
-**once**, from an environment that exports the token, so that single restart both
-loads the MCP and supplies the credential. Sections 4 and 6 are gated on that
-restart. Section 5 is not: it uses the Cloud sign-in token, not this one, so
-send any invites the person asked for before asking for that restart. If the person would rather not defer, they can export the token and
-restart first, which then costs a second restart only if the MCP was added after.
+Do not ask for a Shared Sessions bearer or inspect the person's environment for
+one. If an existing MCP entry contains a custom `Authorization` header or Codex
+`bearer_token_env_var`, section 3 migrates that entry to OAuth. Section 5's
+invite API uses the separate private device-flow credential owned by
+`signing-in-to-agent-relay-cloud`; it is not MCP authentication.
 
 ## 1. Confirm the host and this session
 
@@ -436,68 +429,50 @@ already running when the desktop was set up may not be uploaded. Under
 `selected`, only the sessions the person chose upload. Unless the mode is
 `all`, tell the person that this session may not be shared yet, and ask them to
 select it in the app or to continue from a new session; do not change the
-sharing mode or select sessions on their behalf. Section 5's round trip is the
+sharing mode or select sessions on their behalf. Section 6's round trip is the
 proof: if the teammate cannot read this session there, this is the first
 thing to check.
 
 ## 3. Install the agent-sessions cloud MCP (before the session uses it)
 
-Check whether the token is present in the environment **without printing it**
-(see **Token handling**). It is not required to *add* the MCP, since only a
-reference is stored, but it is required for the tools to authenticate after the
-restart. If it is missing, add the MCP anyway, tell the person plainly that the
-tools will fail auth until they restart the agent from an environment that
-exports `AGENT_RELAY_SESSIONS_TOKEN`, and do not report setup complete:
+Use the same URL in every client and let the client discover Agent Relay's OAuth
+metadata. Do not add a custom header. If an existing `agent-relay-sessions`
+entry has an `Authorization` header, a `bearer_token_env_var`, or another
+explicit bearer setting, remove that entry at its existing scope before adding
+the clean OAuth entry. Never print the old value while inspecting or removing
+it.
+
+Detect which client this session runs and install accordingly.
+
+Claude Code — default scope is `local` (this project only). Use `--scope user`
+only when the person explicitly wants the connection in every Claude Code
+project. Then run `/mcp`, select `agent-relay-sessions`, and choose
+**Authenticate**:
 
 ```sh
-if ! test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"; then
-  echo 'AGENT_RELAY_SESSIONS_TOKEN is not set here; the MCP will be added by reference, but the agent must be restarted from an environment that exports it.' >&2
-fi
-```
-
-Detect which agent CLI this session runs and install accordingly.
-
-Claude Code — pass the **unexpanded** placeholder so the token stays out of argv
-and out of `~/.claude.json`; Claude expands `${VAR}` in MCP headers from the
-environment at launch. This expansion requires **Claude Code ≥ 2.1.119**, so
-verify the version first and update rather than inlining the token on an older
-client. Single-quote the header so the shell does not expand it here. Default
-scope is `local` (this project only), which is what you want:
-
-```sh
-claude_ver=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-if test -z "$claude_ver" || test "$(printf '%s\n2.1.119\n' "$claude_ver" | sort -V | head -1)" != 2.1.119; then
-  echo "Claude Code $claude_ver does not expand \${VAR} in MCP headers (need >= 2.1.119); update Claude Code before adding this server." >&2
-  exit 1
-fi
 claude mcp add --transport http agent-relay-sessions \
-  https://agentrelay.com/cloud/api/v1/mcp/shared-sessions \
-  --header 'Authorization: Bearer ${AGENT_RELAY_SESSIONS_TOKEN}'
-claude mcp list | grep -F agent-relay-sessions
+  https://agentrelay.com/cloud/api/v1/mcp/shared-sessions
+claude mcp get agent-relay-sessions
 ```
 
-Codex — `codex mcp add` records the **variable name**, not the value, and writes
-to user-level `~/.codex/config.toml`, so the server is enabled for **all** Codex
-projects (Codex has no project-scoped MCP). Confirm the person is OK with
-user-wide access before adding it:
+Codex — its MCP entry is user-wide, so confirm that scope with the person. Add
+only the URL, then start Codex's OAuth login:
 
 ```sh
 codex mcp add agent-relay-sessions \
-  --url https://agentrelay.com/cloud/api/v1/mcp/shared-sessions \
-  --bearer-token-env-var AGENT_RELAY_SESSIONS_TOKEN
-codex mcp list | grep -F agent-relay-sessions
+  --url https://agentrelay.com/cloud/api/v1/mcp/shared-sessions
+codex mcp login agent-relay-sessions
+codex mcp get agent-relay-sessions
 ```
 
-Muse — there is no `mcp add` command; merge the server into the user-global
-`~/.config/muse/settings.json` under the `mcp_servers` block (snake_case —
-`mcpServers` is not read), so the server is enabled for **all** Muse projects.
-Confirm the person is OK with user-wide access before adding it, as with Codex.
-Muse interpolates `${VAR}` in server configs at launch, so store the
-placeholder, never the value. `mode: optional` keeps a down server to a warning
-instead of aborting the run. The snippet tolerates a missing file or directory,
-keeps `schema_version` (Muse requires it), and replaces the file atomically so
-an interrupted write cannot truncate a working config; malformed existing JSON
-still errors out instead of being overwritten:
+Muse — verified with Muse Code 1.4.10: the configuration key is camelCase
+`mcpServers`, and OAuth login is `muse mcp login <server>`. There is no MCP add
+subcommand, so merge a headerless, user-global entry into
+`~/.config/muse/settings.json`, then log in. Confirm user-wide scope first.
+`mode: optional` keeps a disconnected server to a warning instead of aborting
+the run. The snippet tolerates a missing file or directory, keeps
+`schema_version`, removes the obsolete snake_case entry if the earlier guidance
+created one, and replaces the file atomically; malformed JSON still errors:
 
 ```sh
 python3 - <<'EOF'
@@ -511,12 +486,16 @@ try:
 except FileNotFoundError:
     d = {}
 d.setdefault('schema_version', 1)
-d.setdefault('mcp_servers', {})['agent-relay-sessions'] = {
+servers = d.setdefault('mcpServers', {})
+legacy = d.pop('mcp_servers', None)  # Muse faults when both keys exist
+if isinstance(legacy, dict):
+    legacy.pop('agent-relay-sessions', None)
+    for name, entry in legacy.items():
+        servers.setdefault(name, entry)
+servers['agent-relay-sessions'] = {
     "transport": "streamable_http",
     "url": "https://agentrelay.com/cloud/api/v1/mcp/shared-sessions",
-    "headers": {"Authorization": "Bearer ${AGENT_RELAY_SESSIONS_TOKEN}"},
-    "mode": "optional",
-    "enabled": True
+    "mode": "optional"
 }
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
 try:
@@ -530,6 +509,7 @@ finally:
         os.unlink(tmp)
 EOF
 python3 -m json.tool ~/.config/muse/settings.json > /dev/null && echo config-ok
+muse mcp login agent-relay-sessions
 ```
 
 Scope limit: the desktop admits only Claude/Codex sessions (`POST /register`
@@ -538,35 +518,54 @@ cannot pass section 2's registration checks. The Muse block installs MCP tools
 only; drive the rest of this skill — and any promised two-way handoff — from a
 Claude/Codex session.
 
-Because MCPs load at startup, the running session must be **restarted** to pick
-up the server — and because all three CLIs read the token from the environment at
-launch, the restarted process must **inherit** `AGENT_RELAY_SESSIONS_TOKEN`.
-That is why the variable belongs in the shell profile / launcher, not a transient
-shell-tool subprocess: an `export` in this agent's shell tool cannot reach the
-parent or a freshly launched session. After the restart, re-verify presence with
-`test -n "${AGENT_RELAY_SESSIONS_TOKEN:-}"` before using the tools, and do not
-report the tools as missing without first confirming the session started *after*
-the MCP was added and with the variable set.
+Cursor and ChatGPT (and other OAuth-capable hosted clients) — add the Shared
+Sessions URL as a remote MCP server/custom connector with **no custom
+Authorization header**, choose OAuth/Authenticate, and approve the Agent Relay
+connection in the browser. Use the client's supported refresh/new-chat action
+after connection so it rediscovers tools.
+
+Restart or reconnect the current client after adding or changing the entry.
+Existing running MCP sessions do not inherit changed configuration or a newly
+completed login automatically.
 
 ## 4. Confirm the handoff tools loaded
 
-In the session that started after the MCP was added, confirm the tools are
-present before using them. List this session's MCP tools and check for the
-agent-sessions set; the authoritative check is that the tools actually appear to
-this agent:
+In the refreshed session, confirm the tools are present before using them. The
+authoritative check is that the tools actually appear to this agent:
 
 ```sh
 # Claude Code: the tools surface as mcp__agent-relay-sessions__*
-claude mcp list | grep -F agent-relay-sessions
-# Muse has no mcp list; run /mcp in an interactive session and check
-# agent-relay-sessions appears with its tools connected
+claude mcp get agent-relay-sessions
+# Codex
+codex mcp get agent-relay-sessions
+# Muse: run /mcp in an interactive session and check that
+# agent-relay-sessions appears connected
 ```
 
 Then call `list_relay_agents` through the MCP (an MCP tool call, not a shell
-command). A successful call that returns the workspace roster proves the MCP is
-loaded, the token is valid, and this session can see the shared workspace. If
-the call errors with auth, the token is wrong or for another workspace — have
-the person re-mint it from the correct workspace's dashboard.
+command). A successful roster proves the MCP and OAuth work, but not by itself
+that OAuth selected the same workspace as Desktop. Require the exact
+`agent@machine` address from section 2's `.data.session` in the roster. If the
+address is missing, OAuth selected another workspace: stop and reconnect OAuth
+to the Desktop's reported workspace. If the address is present but the roster
+declares a different `session_id` than section 2's session id, the workspace is
+right and the roster entry belongs to an older session of the same agent:
+re-register this session with `setting-up-agent-relay-desktop`'s
+self-registration step and re-run section 2's check instead of reconnecting
+OAuth, which cannot change that entry.
+
+When the current Desktop session is included by the person's sharing mode,
+also call `get_shared_session_context` for that exact session id and require
+real content plus a dashboard citation. That is the strongest check that the
+Desktop uploader and hosted MCP read path meet in the same workspace. Under
+`new` or `selected`, the current session may legitimately be absent as section
+2 explains; report that read-path proof as pending instead of treating another
+workspace's valid roster as success.
+
+If a call errors with auth, reconnect OAuth for the intended workspace (`/mcp`
+Authenticate in Claude Code, `codex mcp login agent-relay-sessions`, or
+`muse mcp login agent-relay-sessions`) and refresh the session. Do not fall back
+to the dashboard history token.
 
 ## 5. Offer to invite teammates
 
@@ -581,11 +580,10 @@ from a roster, a repo, git history, or a provider mount. Before sending, read
 the list back and wait for a yes: "I'll invite a@example.com and
 b@example.com as members of *<organization name>*. Send?"
 
-**This section does not depend on sections 3–4.** It uses neither the
-agent-sessions MCP nor `AGENT_RELAY_SESSIONS_TOKEN`, only the Cloud sign-in.
-Run it as soon as the person answers preflight item 5, and in any case before
-asking them to restart for section 3. A missing sessions token or a pending
-restart must never hold back invites they asked for.
+**This section does not depend on sections 3–4.** It uses neither the hosted
+MCP connection nor its OAuth credentials, only the separate Cloud device-flow
+sign-in. Run it as soon as the person answers preflight item 4. A pending MCP
+authentication or client restart must never hold back invites they asked for.
 
 **What an invite grants.** Invites are scoped to the **organization**, not a
 single workspace. Accepting one makes the teammate a member of the
@@ -601,8 +599,9 @@ it is not installed, install it with
 `npx prpm install @agent-relay/signing-in-to-agent-relay-cloud --as claude --global -y`,
 then read `~/.claude/skills/signing-in-to-agent-relay-cloud/SKILL.md` and
 follow it directly. It is a plain HTTP device flow, so no restart is needed.
-`AGENT_RELAY_SESSIONS_TOKEN` will not work: it is an MCP-only token, and the
-invites API answers it with 401. Never print either token.
+The dashboard's Read-only sessions token will not work for invites, and an MCP
+client's OAuth tokens must never be extracted or reused here. Never print any
+credential.
 
 **Check ownership first.** Only organization owners can invite. Call
 `GET /api/v1/auth/whoami` and check `currentOrganization.role`. If it is not
@@ -705,7 +704,7 @@ teammate's relay address (e.g. `@manav`), then:
 **No teammate online yet (self-verify the read path).** Prove the machinery
 without a second person:
 
-1. `list_relay_agents` returns the roster — MCP + token + workspace are good.
+1. `list_relay_agents` returns the roster — MCP OAuth + workspace are good.
 2. `search_shared_sessions` / `get_shared_session_context` return this person's
    **own** recently uploaded session (real prompts/events plus a dashboard
    citation link) — the uploader→read path works.
@@ -713,8 +712,8 @@ without a second person:
    name it as the remaining step rather than claiming the handoff is proven.
    Setup is not complete until the full round trip succeeds.
 
-Never paste the Bearer token or any session token into a `send_relay_message`
-body or any artifact.
+Never paste any bearer, OAuth token, session token, workspace key, or API key
+into a `send_relay_message` body or any artifact.
 
 ## 7. Report
 
@@ -724,7 +723,8 @@ Separate verified facts from what still needs a human or a second machine:
 - uploader `healthy`, this session's `agent@machine` address, and direct
   delivery on, or the person's kept `crossSessionInbound` value and what it
   does (held for approval, or dropped), with the opt-in they were offered;
-- agent-sessions MCP installed and its tools confirmed loaded in this session;
+- agent-sessions MCP installed without a custom auth header, OAuth connected,
+  and its tools confirmed loaded in this session;
 - teammate invites: each address with its `emailDelivery` outcome (and, for
   any not `sent`, that the person was pointed to **Settings → Members** to copy
   the link), or that they
@@ -732,7 +732,7 @@ Separate verified facts from what still needs a human or a second machine:
 - `list_relay_agents` roster seen; and either the full round-trip evidence (the
   teammate's real content + reply) or the self-verified read path plus the named
   remaining step (teammate online);
-- the other tools they named in preflight item 4, each with its next step from
+- the other tools they named in preflight item 3, each with its next step from
   the routing list there (or that it has no setup path yet).
 
 Do not call the setup complete on a 2xx from `claude mcp add` alone, and do not
@@ -747,17 +747,21 @@ count a roster listing as a proven handoff.
   session. In tmux/SSH, confirm the
   agent process and shell share the pane's process tree.
 - **No handoff tools in the session:** the MCP was added after the session
-  started, or at the wrong scope. Reinstall at the right scope for the CLI
-  (section 3 — project scope for Claude, user-global for Codex and Muse) and
-  **restart** the session; MCPs load only at startup.
-- **`list_relay_agents` auth error:** the token is wrong, expired, or from a
-  different workspace. Because the MCP config stores only a **reference** to
-  `AGENT_RELAY_SESSIONS_TOKEN`, fixing it means updating the **value in the
-  launch environment** (keychain / 0600 file) and **restarting** the agent so it
-  re-reads it — re-running `claude mcp add` / `codex mcp add` alone changes
-  nothing. Re-mint from the intended workspace's "Connect your agent" card if the
-  token itself is bad. On Claude, also confirm the client is ≥ 2.1.119 (older
-  clients send the `${VAR}` placeholder literally).
+  started, is at the wrong scope, or the client cached tool discovery. Reinstall
+  at the right scope (section 3 — project-local by default for Claude,
+  user-global for Codex and Muse), authenticate, then reconnect/restart or open
+  a new chat as the client requires.
+- **`list_relay_agents` auth error:** confirm the entry has the URL only and no
+  custom `Authorization`/bearer setting. Reconnect personal OAuth for the
+  intended workspace (`/mcp` Authenticate in Claude Code,
+  `codex mcp login agent-relay-sessions`, or
+  `muse mcp login agent-relay-sessions`), then refresh the session. Do not fix
+  an interactive client by minting the dashboard's Read-only sessions token.
+- **Spawn tools refuse the connection:** `list_relay_spawn_targets` and the
+  other hosted launch tools require a person OAuth/browser/personal-CLI
+  connection whose current user is a workspace owner or organization admin.
+  History tokens and machine/service/workspace keys cannot launch. Reconnect
+  with OAuth or correct the person's role; do not invent a machine-key setup.
 - **Invited teammate never got the email:** check the invite's
   `emailDelivery`. If it is not `sent`, the email never left; have the person
   copy the link from **Settings → Members** and send it to that teammate. If it is `sent`, have the
@@ -778,10 +782,14 @@ count a roster listing as a proven handoff.
   never overrides a choice, and on an older build that answers
   `invalid_enabled`, its settings-file check before any `{"enabled":true}`. A managed Claude policy can block this; report it
   rather than editing managed settings.
-- **Remove the MCP:** `claude mcp remove agent-relay-sessions` /
-  `codex mcp remove agent-relay-sessions` / delete the `agent-relay-sessions`
-  key under `mcp_servers` in `~/.config/muse/settings.json`. This removes only
-  the handoff tools; it does not sign the desktop out or stop uploads.
+- **Remove the MCP:** remove Claude Code at the scope where it was installed:
+  `claude mcp remove --scope local agent-relay-sessions` (default setup) or
+  `claude mcp remove --scope user agent-relay-sessions` (user-wide setup);
+  `codex mcp logout agent-relay-sessions && codex mcp remove agent-relay-sessions`
+  or `muse mcp logout agent-relay-sessions` and delete the
+  `agent-relay-sessions` key under `mcpServers` in
+  `~/.config/muse/settings.json`. This removes only the hosted handoff tools;
+  it does not sign the Desktop out or stop uploads.
 
 ## Relationship to the other skills
 
