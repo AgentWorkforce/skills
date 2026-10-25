@@ -182,12 +182,14 @@ For repo, coding, or investigation work, launch an Agent Relay agent whenever
 possible. Do not use a Cursor cloud agent (`CloudAgent`) unless Agent Relay
 spawning is unavailable or the person explicitly asks for a Cursor cloud agent.
 
-1. Identify the repo that owns the work first. Ask if it is unclear. Never use
-   the home directory as the agent's working directory.
+1. Identify the repo that owns the work first. If the repo is not known or
+   more than one repo could own it, ask the person which repo before spawning.
+   Do not guess, and never use the home directory as the agent's working
+   directory.
 2. Call `list_relay_spawn_targets` and choose a `target_node` that has a
    checkout of that repo.
 3. Call `spawn_relay_agent` with that `target_node` and `worker_cwd` set to
-   the repo checkout on that machine.
+   that repo's checkout on that machine, not a parent folder or another repo.
 4. Call `get_relay_spawn_status` until the agent is running. Then brief it with
    `send_relay_message`, using a unique `idempotency_key` for each message so a
    retry does not deliver it twice.
