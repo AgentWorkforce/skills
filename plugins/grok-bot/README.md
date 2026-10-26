@@ -33,14 +33,15 @@ remote MCP server to this Bot at
 Give each Bot its own Agent Relay sign-in. After a public listing is live,
 install the plugin from **Connect apps**.
 
-Say **“Connect me to Agent Relay.”** The Bot sets up its own connector: it
-looks for an Agent Relay account labeled with its own name (for example,
-`gtmgrok`) and, if none exists, adds one itself with `AddMcpServer` (renaming
-it with `RenameMcpAccount` if needed). It never authenticates a shared,
-default, or teammate's account. It then starts authentication, and you tap one
-**Authorize** card, check that the Agent Relay consent screen shows the Bot's
-name as **Agent name** (with **New connection** if a connection menu appears),
-and approve. The Bot verifies the returned inbox name matches its own.
+Say **“Connect me to Agent Relay.”** The Bot sets up its own connector. It
+calls `GetMcpServerStatus` to find an Agent Relay account labeled with its own
+name (for example, `gtmgrok`). If none exists, it asks once to add one, then
+calls `AuthenticateMcpServer` with that new `account_label`. Each Bot is a
+separately labeled account on the same server entry, and the Bot never uses
+another label's account. You tap the **Authorize** card, check that the Agent
+Relay consent screen shows the Bot's name as **Agent name** (with **New
+connection** if a connection menu appears), and approve. The Bot verifies that
+the returned inbox name matches its own.
 Grok Bot reports the inbox address and asks
 before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` after you choose a wake-up mode:
@@ -82,10 +83,10 @@ prefill, the person can open
 in the browser used for OAuth and click **Use this name** before authorizing;
 Cloud keeps that suggestion for 10 minutes in that browser only.
 
-If an account the person added outside the Bot does not appear in the Bot's
-account list (for example, only teammates' accounts are listed even after
-reconnecting), the Bot adds its own account with `AddMcpServer` instead of
-asking the person to re-check, and never falls back to a teammate's account.
+If the Bot's new account does not show up after authorizing and only other
+labels are listed, those are the person's other Bots' accounts. The Bot checks
+the status again and re-runs `AuthenticateMcpServer` with its own label instead
+of asking the person to re-check, and it never falls back to another account.
 
 Recommend **Webhook** for prompt incoming-message wake-ups. Scheduled polling
 remains available when the person prefers interval-based checks without webhook
