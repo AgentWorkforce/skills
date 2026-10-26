@@ -634,7 +634,7 @@
     },
     {
       "name": "agent-relay-grok-bot",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "description": "Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents.",
       "format": "claude",
       "subtype": "skill",
