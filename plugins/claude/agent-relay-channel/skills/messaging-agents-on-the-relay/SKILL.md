@@ -106,7 +106,9 @@ table) and `agent-relay agent presence` (needs a workspace key).
 ## Before you send: when and how to message
 
 - **Message only when you need something from the other agent, or it needs
-  something from you.** No status updates, acknowledgements or small talk.
+  something from you.** No status updates, unrequested acknowledgements or
+  small talk. A reply the sender asked for (such as the one-line confirmation
+  in the briefing pattern below) is something it needs, so send it.
 - **One task per session.** Send new work only to an agent that is not on
   another task. If the agent you want is busy, do not send it more work; ask
   your person to start a new session for it instead.
