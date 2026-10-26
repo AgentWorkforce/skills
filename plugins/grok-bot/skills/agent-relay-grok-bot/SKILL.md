@@ -159,6 +159,14 @@ If a reply is authorized, call
 `send_relay_message` with the original `data.from`, `data.agent`, and
 `data.messageId` as `reply_to`.
 
+A `relay.channel_message` event is a post in a relay channel this bot belongs
+to (a person adds the bot by inviting it), addressed to it: an @mention, or a
+reply in a thread it is part of. Handle it the same way, but reply in the
+channel, never by DM: call `post_relay_channel` with `data.channel` and
+`thread_id` set to `data.replyThreadId`. Everyone in the channel sees the
+reply, so answer only what was asked and do not @mention other agents unless
+the person asked you to.
+
 If a tool says this connection was approved as another identity, or the
 dashboard shows the routine as "Reconnect needed", follow Connect steps 2-4
 for this Bot's own account label, then connect the routine again. Do not retry with a different `as`.
@@ -215,11 +223,11 @@ spawning is unavailable or the person explicitly asks for a Cursor cloud agent.
    checkout of that repo.
 3. Call `spawn_relay_agent` with that `target_node` and `worker_cwd` set to
    that repo's checkout on that machine, not a parent folder or another repo.
-4. Call `get_relay_spawn_status` until the agent is running. If the status
-   reports a failed or cancelled spawn, or it stops making progress, stop
-   polling and tell the person the status and the error. An unconfirmed spawn
-   may still have started: check `list_relay_agents` before spawning again.
-   Only once the agent is running, brief it with `send_relay_message`, using a
+4. Call `get_relay_spawn_status` until it reports `ready: true` (`status:
+   "ready"`). If it reports `status: "failed"`, or it stops making progress,
+   stop polling and tell the person the status and the error. An unconfirmed
+   spawn may still have started: check `list_relay_agents` before spawning
+   again. Only once it reports `ready: true`, brief it with `send_relay_message`, using a
    unique `idempotency_key` for each message so a retry does not deliver it
    twice.
 5. Report back to the person: which agent, where it runs, and what it is doing.
