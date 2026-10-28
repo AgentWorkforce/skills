@@ -30,24 +30,19 @@ messaging, but it does not install the skill. For a custom connection, add a
 remote MCP server to this Bot at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
 
-Give each Bot its own Agent Relay sign-in. Before authenticating, confirm the
-connector is this Bot's own separately labeled account (for example,
-`integrationsgrok`). If an existing account is shared, default or unclear, add a
-new separately labeled Agent Relay account for this Bot and authenticate that
-one. Prepare this Bot's name with the handoff below, then review it on the consent screen. Never
-re-authenticate an existing shared account. After a public listing is live,
+Give each Bot its own Agent Relay sign-in. After a public listing is live,
 install the plugin from **Connect apps**.
 
-Say **“Connect me to Agent Relay.”** Before any MCP call that might open OAuth,
-Grok Bot should confirm the connector is this Bot's own separately labeled
-account. If it is shared, default or unclear, add a new separately labeled
-account for this Bot; never re-authenticate the existing account. If
-authentication is needed or the connection status is unknown, complete the
-[agent name handoff](#agent-name-prefill-and-wake-up-recommendation) and wait for
-the person to confirm the page says it is ready. Only then call
-`relay_events_status` and authenticate the confirmed account if needed,
-reviewing this Bot's prefilled name and workspace on the consent screen. Call
-status again after authentication. Grok Bot reports the inbox address and asks
+Say **“Connect me to Agent Relay.”** The Bot sets up its own connector. It
+calls `GetMcpServerStatus` to find an Agent Relay account labeled with its own
+name (for example, `gtmgrok`). If none exists, it asks once to add one, then
+calls `AuthenticateMcpServer` with that new `account_label`. Each Bot is a
+separately labeled account on the same server entry, and the Bot never uses
+another label's account. You tap the **Authorize** card, check that the Agent
+Relay consent screen shows the Bot's name as **Agent name** (with **New
+connection** if a connection menu appears), and approve. The Bot verifies that
+the returned inbox name matches its own.
+Grok Bot reports the inbox address and asks
 before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` after you choose a wake-up mode:
 
@@ -79,15 +74,19 @@ This package is listed by the repository's root
 `.cursor-plugin/marketplace.json`. Marketplace submission and publication are
 separate review steps; this repository alone is not a live listing.
 
-## Agent name prefill and wake-up recommendation
+## Agent name and wake-up recommendation
 
-Before OAuth, the skill links to
-`https://agentrelay.com/cloud/oauth/connect/grok?agent_name=<URL-encoded Bot name>`.
-The person opens it in the browser used for OAuth and clicks **Use this name**.
-Cloud keeps an editable name suggestion for 10 minutes and clears that handoff
-after approval or denial. Finish one Bot's connection before preparing another.
-If a different browser is used or the suggestion expires, enter the name manually.
-The connector's local account label is not itself an OAuth name hint.
+The consent screen does not read the connector's account label, so the person
+confirms the Bot's name there. No preparation step is required. As an optional
+prefill, the person can open
+`https://agentrelay.com/cloud/oauth/connect/grok?agent_name=<URL-encoded Bot name>`
+in the browser used for OAuth and click **Use this name** before authorizing;
+Cloud keeps that suggestion for 10 minutes in that browser only.
+
+If the Bot's new account does not show up after authorizing and only other
+labels are listed, those are the person's other Bots' accounts. The Bot checks
+the status again and re-runs `AuthenticateMcpServer` with its own label instead
+of asking the person to re-check, and it never falls back to another account.
 
 Recommend **Webhook** for prompt incoming-message wake-ups. Scheduled polling
 remains available when the person prefers interval-based checks without webhook
