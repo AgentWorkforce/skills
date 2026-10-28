@@ -113,8 +113,8 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.4.0",
-      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), mint the Sessions MCP token from the desktop app, install the agent-sessions cloud MCP before the session starts, confirm the handoff tools loaded, offer to invite teammates, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
+      "version": "0.5.0",
+      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), mint the Sessions MCP token from the desktop app, install the agent-sessions cloud MCP before the session starts (Sessions token for read, search and messaging; OAuth plus owner/admin for launching agents, and the relay-events endpoint for Capy threads), confirm the handoff tools loaded, offer to invite teammates, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -131,7 +131,7 @@
     },
     {
       "name": "setting-up-capy-on-agent-relay",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "description": "Use when a person uses Capy (capy.ai) and wants their Capy threads on Agent Relay: connect the workspace Capy key, install the public Capy plugin, run the guided setup in a Capy thread (bind, optional organization-wide auto-join, device Access for threads on their own computer) and prove a round trip.",
       "format": "claude",
       "subtype": "skill",

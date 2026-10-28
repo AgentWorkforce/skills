@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Also installs the same MCP for Muse Code (tools only — the desktop admits only Claude/Codex sessions, so live handoff still needs a Claude/Codex-driven session). Covers verifying desktop setup (browser sign-in through the desktop app), minting the Sessions MCP token from the desktop app and installing the agent-sessions cloud MCP before the session starts, confirming the handoff tools loaded, offering to invite the person's teammates to their organization, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
+description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Also installs the same MCP for Muse Code (tools only — the desktop admits only Claude/Codex sessions, so live handoff still needs a Claude/Codex-driven session). Covers verifying desktop setup (browser sign-in through the desktop app), minting the Sessions MCP token from the desktop app and installing the agent-sessions cloud MCP before the session starts (token mode reads, searches and messages; OAuth plus workspace owner/admin is required to launch agents, and only the OAuth relay-events endpoint starts Capy threads), confirming the handoff tools loaded, offering to invite the person's teammates to their organization, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
 ---
 
 # Set Up Agent Relay Session Handoff
@@ -14,6 +14,71 @@ Prefer setting this up with the Agent Relay agent at
 each step. Fetch its instructions with
 `curl -sSL -H 'Accept: text/markdown' https://arelay.to/agent-relay`.
 
+## Which setup do I need?
+
+Agent Relay serves two hosted MCP endpoints, and each accepts two kinds of
+credential. What a session can do depends on **both** choices, so pick from this
+table before installing anything:
+
+| You need | Endpoint (server name used here) | Credential | Harness |
+| --- | --- | --- | --- |
+| Session handoff only: read, search and message teammates' sessions (headless or fleet machines, spawned agents, CI) | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **Sessions token** from the desktop or dashboard (`rth:read`), sent as a bearer header. No browser. | Claude Code, Codex, Muse |
+| Everything above **plus launching agents** on fleet machines (`spawn_relay_agent`) or Replicas, from a person's interactive session | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **OAuth** (no header), browser sign-in, **and** the person is a current workspace **owner or admin** | Claude Code, Codex |
+| **Starting Capy threads** (`spawn_capy_thread`) or binding a Capy thread | `…/api/v1/mcp/relay-events` (`agent-relay`) | **OAuth** (no header), browser sign-in, **and** owner/admin | Claude Code, Codex, Capy plugin |
+
+Base URL in production: `https://agentrelay.com/cloud`.
+
+The rules behind the table, all from Cloud's server code:
+
+- **A Sessions token never launches anything.** It reads, searches and
+  messages. Launch tools may still be **listed** in a token-mode session, but
+  every call is refused with: "This MCP connection uses a Shared sessions
+  history token (rth:read/rth:sync) from the dashboard. It can search and read
+  shared sessions, but it cannot launch agents. …" Switching to OAuth is the
+  only fix (section 3b).
+- **OAuth alone is not enough to launch.** Every launch call also checks that
+  the signed-in person is a current **owner or admin** of the workspace's
+  organization; anyone else gets "Only current workspace owners and admins can
+  manage hosted agent launches." (or "… can start Capy threads.").
+- **Capy tools exist only on `relay-events`.** The `shared-sessions` endpoint
+  has no Capy tools with any credential. To start Capy threads, add the
+  `relay-events` server with OAuth (section 3b), alongside or instead of
+  `agent-relay-sessions`.
+- **A browser sign-in is needed once per machine and per harness** for OAuth,
+  and once per endpoint (each endpoint is a separate OAuth resource). It cannot
+  be completed by an agent alone; see **Headless machines** in section 3b.
+
+### Tools each setup exposes
+
+`shared-sessions` registers the same 40 tools for both credentials (41 when
+Connect hosting is enabled). What differs is which calls succeed:
+
+| Tool group | Tools | Sessions token | OAuth |
+| --- | --- | --- | --- |
+| Session reads | `open_shared_sessions`, `search_shared_sessions`, `get_shared_session`, `get_shared_session_context`, `list_session_timings`, `list_team_activity` | works | works |
+| Relay messaging | `list_relay_agents`, `send_relay_message`, `read_relay_conversation`, `join_relay`, `leave_relay`, `relay_status`, `check_relay_inbox`, `list_relay_channels`, `subscribe_relay_channel`, `unsubscribe_relay_channel`, `post_relay_channel`, `read_relay_channel` | works | works (acts as the agent name approved at OAuth consent) |
+| Relay Connect | `create_connect`, `join_connect`, `connect_send`, `connect_inbox`, `connect_status`, `extend_connect`, `end_connect`, `create_connect_observer`, `list_connect_observers`, `revoke_connect_observer` (+ `host_connect_agent` when hosting is enabled) | works | works |
+| Screens | `show_ui`, `show_ui_guide` | works | works |
+| Agent launch | `list_relay_spawn_targets`, `spawn_relay_agent`, `get_relay_spawn_status`, `release_relay_agent` | **refused** | owner/admin only |
+| Replicas launch | `list_replicas_environments`, `spawn_replica`, `get_replica_spawn`, `recover_replica_spawn`, `bind_replica`, `release_replica` | **refused** | owner/admin only |
+
+`relay-events` with OAuth (default grant `relay:events` + `relay:mcp`)
+registers the Events tools (`get_event`, `get_recent_events`,
+`relay_events_status`, `answer_reply_question`,
+`connect_grok_bot_routine`, `disconnect_grok_bot_routine`), the inbox app
+(`relay_inbox`, `relay_inbox_tab`, `relay_inbox_refresh`,
+`relay_inbox_conversation`), `settings.read`, `settings.update`, `show_ui`,
+`show_ui_guide`, messaging (`list_relay_agents`, `send_relay_message`,
+`read_relay_conversation`, `post_relay_channel`, `read_relay_channel`), the
+session reads above except `list_team_activity`, the agent and Replicas launch
+tools, and the Capy tools: `list_capy_projects`, `spawn_capy_thread`,
+`get_capy_thread_spawn`, `bind_capy_thread`, `unbind_capy_thread`. It has no
+Connect tools, no `check_relay_inbox`/`join_relay`, and no
+`list_team_activity`, so a person who wants both handoff and Capy keeps
+`agent-relay-sessions` installed too. `relay-events` also accepts a Sessions
+token, but then every Capy and launch call is refused the same way, so do not
+set it up that way.
+
 The finished state is:
 
 - the desktop app is installed, signed in to the **intended workspace**, the
@@ -21,7 +86,8 @@ The finished state is:
   or with the person's own `crossSessionInbound` (`hold` or `refuse`) kept and
   reported (see section 2; delivery is never turned on without their yes);
 - the **agent-sessions cloud MCP** is installed in this project and loaded by
-  this session, so the handoff tools (`list_relay_agents`, `send_relay_message`,
+  this session (token mode by default; OAuth when the person needs to launch
+  agents, see **Which setup do I need?**), so the handoff tools (`list_relay_agents`, `send_relay_message`,
   `read_relay_conversation`, `check_relay_inbox`, `get_shared_session`,
   `get_shared_session_context`, `search_shared_sessions`) are available;
 - the person was asked whether to invite teammates, and either every address
@@ -66,6 +132,10 @@ person about all of them up front, before touching anything:**
    both machines; do not guess it. If this person owns the organization, they
    can invite teammates themselves (section 5); the human step is only naming
    who to invite.
+
+In OAuth mode (section 3b), step 2 changes: there is no token to supply, but
+the person signs in in a browser once per endpoint on this machine and
+harness, then restarts the agent if the tools do not appear.
 
 One structural note so expectations are right: there is **no automatic ack** to
 the sender when a handoff is picked up, and **no partial session sharing** — a
@@ -114,8 +184,9 @@ failure.
 
 ## Token handling
 
-The token is a read-only Sessions MCP token (`cld_at_…`) for the desktop
-app's signed-in workspace. `POST /setup/sessions-token` returns it once, and
+The token is a Sessions MCP token (`cld_at_…`, scope `rth:read`) for the
+desktop app's signed-in workspace. It reads, searches and messages; it never
+launches agents or Capy threads (see **Which setup do I need?**). `POST /setup/sessions-token` returns it once, and
 section 3 writes it from the response straight into private storage. It must
 never land in the agent conversation, in a log, in a Relay message, in process
 argv, in `~/.claude.json`, or in the repo. Three places leak it, and this skill
@@ -444,7 +515,15 @@ sharing mode or select sessions on their behalf. Section 5's round trip is the
 proof: if the teammate cannot read this session there, this is the first
 thing to check.
 
-## 3. Install the agent-sessions cloud MCP (before the session uses it)
+## 3. Install the agent-sessions cloud MCP in token mode (before the session uses it)
+
+This section sets up the **Sessions token** mode: session reads, search and
+messaging, with no browser step, which is right for every machine and for
+spawned agents. It does **not** give launch tools. If this person also needs to
+launch agents or start Capy threads from this session, finish this section
+only if they also want token mode elsewhere, and otherwise go straight to
+section 3b, which installs the same server with OAuth instead (a session uses
+one credential per server name, not both).
 
 ### Obtain the token from the desktop app
 
@@ -647,6 +726,166 @@ reach the parent or a freshly launched session. After the restart, re-verify pre
 report the tools as missing without first confirming the session started *after*
 the MCP was added and with the variable set.
 
+## 3b. OAuth mode: launch agents and start Capy threads
+
+Use this for a **person's interactive** Claude Code or Codex session that must
+launch agents (`spawn_relay_agent`, Replicas) or start Capy threads. Check two
+things first and tell the person:
+
+- they are a current **owner or admin** of the workspace's organization;
+  otherwise OAuth connects fine but every launch call is refused;
+- they will **sign in in a browser** once per endpoint, on this machine, for
+  this harness. An agent cannot do that step for them.
+
+OAuth stores no token in the environment, the config or the repo: the harness
+keeps the credential itself, so **Token handling** and
+`AGENT_RELAY_SESSIONS_TOKEN` do not apply here.
+
+### Which servers to add
+
+- Launch agents or Replicas, plus handoff: `agent-relay-sessions` →
+  `https://agentrelay.com/cloud/api/v1/mcp/shared-sessions`.
+- Start Capy threads: also `agent-relay` →
+  `https://agentrelay.com/cloud/api/v1/mcp/relay-events`. This is the only
+  endpoint with the Capy tools.
+
+Each is a separate OAuth resource, so each needs its own sign-in. On consent,
+the person approves the workspace and an agent name; OAuth messaging tools act
+as that agent.
+
+### Claude Code
+
+Add the servers **without** an `Authorization` header. Use `-s user`: an
+OAuth server holds no secret in its config, so one sign-in can serve every
+project on this machine, and the person's launch rights are theirs, not a
+project's. (Token mode keeps the default `local` scope because its config
+references a machine-specific env var; either works there.)
+
+```sh
+claude mcp add --transport http -s user agent-relay-sessions \
+  https://agentrelay.com/cloud/api/v1/mcp/shared-sessions
+# Only when the person will start Capy threads:
+claude mcp add --transport http -s user agent-relay \
+  https://agentrelay.com/cloud/api/v1/mcp/relay-events
+claude mcp list
+```
+
+Then, in an interactive Claude Code session started after the add, run
+`/mcp`, pick each server that shows it needs authentication, and choose
+**Authenticate**. Claude Code opens the browser; the person signs in to Agent
+Relay Cloud on the intended workspace and approves. Restart the session if the
+tools do not appear afterwards.
+
+### Codex
+
+Codex MCP servers are always user-global (`~/.codex/config.toml`), so confirm
+the person is OK with every Codex project getting them. Add without
+`--bearer-token-env-var`, then log in:
+
+```sh
+codex mcp add agent-relay-sessions --url https://agentrelay.com/cloud/api/v1/mcp/shared-sessions
+codex mcp login agent-relay-sessions
+# Only when the person will start Capy threads:
+codex mcp add agent-relay --url https://agentrelay.com/cloud/api/v1/mcp/relay-events
+codex mcp login agent-relay
+codex mcp list
+```
+
+`codex mcp login` opens the browser and waits for the local callback. Restart
+Codex so the session picks the servers up.
+
+Muse has no documented OAuth path for these servers here (unverified); keep
+Muse on token mode.
+
+### Switch an existing token-mode install to OAuth
+
+The server name stays the same; only the credential changes. Remove the
+token-mode entry at the scope it was added with, re-add it without the header,
+sign in, and restart:
+
+```sh
+# Claude Code: see where it lives (scope and whether it has a header)
+claude mcp get agent-relay-sessions
+claude mcp remove agent-relay-sessions -s local     # or -s project / -s user, as shown
+claude mcp add --transport http -s user agent-relay-sessions \
+  https://agentrelay.com/cloud/api/v1/mcp/shared-sessions
+# then /mcp → agent-relay-sessions → Authenticate, and restart the session
+
+# Codex
+codex mcp remove agent-relay-sessions
+codex mcp add agent-relay-sessions --url https://agentrelay.com/cloud/api/v1/mcp/shared-sessions
+codex mcp login agent-relay-sessions
+# then restart Codex
+```
+
+If an entry with the same name remains at another Claude scope, the old
+header can still win; `claude mcp get` must show no `Authorization` header
+afterwards. Leave the stored Sessions token and the launcher export in place
+if other tools or machines still use token mode; otherwise the person can
+revoke the token in the dashboard.
+
+### Verify
+
+- `agent-relay-sessions` (OAuth): call `list_relay_spawn_targets`. Success
+  is a target list (it can be empty if no machine is online). The
+  "Shared sessions history token" refusal means the session is still in token
+  mode: recheck the switch and restart. "Only current workspace owners and
+  admins …" means OAuth works but the person lacks the role.
+- `agent-relay` (OAuth): call `list_capy_projects`. Success is a list of
+  project ids and names. An error about a missing Capy connection means an
+  owner or admin still has to connect the workspace's Capy key
+  (`setting-up-capy-on-agent-relay`).
+- Token mode, for comparison: `list_relay_agents` returns the roster, and
+  `list_relay_spawn_targets` returns the history-token refusal. Both are the
+  expected result there.
+
+### Starting Capy threads
+
+1. Call `list_capy_projects` (follow `nextCursor` while `truncated` is
+   true) and pick a `project_id`.
+2. Call `spawn_capy_thread` with `client_request_id`, `project_id`, `task`
+   and **always `model`** (for example `anthropic/claude-sonnet-5-5`). The MCP
+   tool requires it, because a Capy project with no default model rejects a
+   thread without one (`model_not_selected`). Pass `report_to` with your own
+   agent name to get the result back.
+3. When `binding.state` is `bound`, message `binding.agent`. Retry with the
+   **same** `client_request_id`; a new one starts a second thread. Check
+   progress with `get_capy_thread_spawn`.
+
+Agent Relay Desktop's local core also exposes `capy.threads.spawn`, where
+`model` is **optional**. A call without it is accepted and then fails inside
+Capy with `model_not_selected` for a project with no default model. Always
+pass `model` there too.
+
+### OAuth lifetime and re-authentication
+
+From Cloud's OAuth server:
+
+- The access token lasts **1 hour**; the harness refreshes it on its own.
+- The refresh token lasts **30 days from its last use**: every refresh rotates
+  it and issues a new 30-day one, so a connection used at least monthly stays
+  signed in.
+- Presenting an already-rotated refresh token more than 30 seconds after
+  rotation is treated as theft and revokes the whole grant.
+- Once the refresh token expires (30 idle days) or the grant is revoked, the
+  server answers 401 and the person signs in again: `/mcp` → Authenticate in
+  Claude Code, or `codex mcp login <name>` in Codex.
+
+For comparison, a Sessions token minted from the dashboard lasts **90 days**
+and does not refresh; mint a new one (section 3) when it expires. The lifetime
+of a token minted through the desktop's `/setup/sessions-token` was not
+verified here.
+
+### Headless machines
+
+OAuth needs a person in a browser, so it does not fit fleet machines, CI, or
+spawned agents. Use token mode (section 3) there: it covers reads, search and
+messaging, which is all those sessions need. Launch from a person's OAuth
+session instead. Codex's `codex mcp login <name> --no-browser` prints the
+sign-in URL so a person can open it on another device and paste the callback
+URL back; that still needs a person, and it was not verified against Agent
+Relay's server.
+
 ## 4. Confirm the handoff tools loaded
 
 In the session that started after the MCP was added, confirm the tools are
@@ -668,6 +907,12 @@ the call errors with auth, the token is wrong, revoked, or for another
 workspace: run section 3's token block with `sessions_force_mint=1` set (it
 overwrites the stored file), run its launcher check, then restart the agent so
 it reads the new value.
+
+`list_relay_agents` succeeding proves token mode only. It does not prove the
+session can launch: in token mode `list_relay_spawn_targets` is refused by
+design. When the person needs launch or Capy tools, verify with section 3b's
+**Verify** steps instead, and do not report launch capability from a roster
+listing.
 
 ## 5. Offer to invite teammates
 
@@ -698,8 +943,8 @@ test -n "${CLOUD_API_ACCESS_TOKEN:-}" && echo cloud_token=present || echo cloud_
   base). Read back the addresses they named so they can enter them there, tell
   them what an invite grants (below), and continue to section 6.
 - **A Cloud access token is present:** send the invites through the API as
-  follows. `AGENT_RELAY_SESSIONS_TOKEN` will not work: it is a read-only MCP
-  token, and the invites API answers it with 401. Never print either token.
+  follows. `AGENT_RELAY_SESSIONS_TOKEN` will not work: it is a Sessions MCP
+  token (`rth:read`), and the invites API answers it with 401. Never print either token.
 
 Invite only addresses the person typed in this conversation. Never take them
 from a roster, a repo, git history, or a provider mount. Before sending, read
@@ -870,6 +1115,14 @@ count a roster listing as a proven handoff.
   wrong workspace, fix that first with `setting-up-agent-relay-desktop`
   section 3. On Claude, also confirm the client is ≥ 2.1.119 (older clients
   send the `${VAR}` placeholder literally).
+- **A launch or Capy tool says "This MCP connection uses a Shared sessions
+  history token (rth:read/rth:sync)":** the server was added in token mode.
+  That is expected, not a bug: switch it to OAuth with section 3b. If the
+  refusal is "Only current workspace owners and admins can …", the person is
+  not an owner/admin; an owner promotes them or launches for them.
+- **`list_capy_projects` / `spawn_capy_thread` are missing:** they exist only
+  on the `relay-events` endpoint. Add it with section 3b; reconnecting
+  `agent-relay-sessions` with OAuth does not add them.
 - **Invited teammate never got the email:** check the invite's
   `emailDelivery`. If it is not `sent`, the email never left; have the person
   copy the link from **Settings → Members** and send it to that teammate. If it is `sent`, have the
