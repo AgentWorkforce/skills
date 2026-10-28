@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Also installs the same MCP for Muse Code (tools only — the desktop admits only Claude/Codex sessions, so live handoff still needs a Claude/Codex-driven session). Covers verifying desktop setup (browser sign-in through the desktop app), choosing the credential and installing the agent-sessions cloud MCP before the session starts: OAuth for a person's interactive session (reads, search, messaging, and, for a workspace owner/admin, launching agents; only the OAuth relay-events endpoint starts Capy threads; Relay Connect does not accept OAuth yet), or a Sessions MCP token minted from the desktop app for headless machines and for Relay Connect (reads, search, messaging and Connect, never launches). Then confirming the handoff tools loaded, offering to invite the person's teammates to their organization, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
+description: Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session, so their agent and a teammate's agent can message each other and read each other's real sessions (prompts, events, tool calls, file edits). Also installs the same MCP for Muse Code (tools only — the desktop admits only Claude/Codex sessions, so live handoff still needs a Claude/Codex-driven session). Covers verifying desktop setup (browser sign-in through the desktop app), choosing the credential and installing the agent-sessions cloud MCP before the session starts, either OAuth for a person's interactive session (reads, search, messaging, and, for a workspace owner/admin, launching agents; only the OAuth relay-events endpoint starts Capy threads; Relay Connect does not accept OAuth yet), or a Sessions MCP token minted from the desktop app for headless machines and for Relay Connect (reads, search, messaging and Connect, never launches). Then confirming the handoff tools loaded, offering to invite the person's teammates to their organization, and proving one live round trip. Use when a human asks an agent to "set me up for session handoff", "connect my agent to <teammate>", or finish the onboarding we send new teammates — instead of walking them through the app and the dashboard by hand.
 ---
 
 # Set Up Agent Relay Session Handoff
@@ -79,8 +79,25 @@ Today a person who needs both launching (OAuth) and Relay Connect (token) has
 two options:
 
 - keep the token-mode server under `agent-relay-sessions` and add the OAuth
-  server under a second name (for example `agent-relay-launch`) pointing at
-  the same `shared-sessions` URL; or
+  server under its own name, `agent-relay-launch`, pointing at the same
+  `shared-sessions` URL. Do **not** use section 3b's `agent-relay-sessions`
+  commands for this: `codex mcp add` with the same name replaces the token
+  entry (and with it Connect), and on Claude Code the `local` token entry
+  overrides a `user` entry of the same name, so the OAuth one never loads.
+  Set `cloud_base` with section 3b's block first, then:
+
+  ```sh
+  claude mcp add --transport http -s user agent-relay-launch \
+    "${cloud_base:?run the cloud_base block first}/api/v1/mcp/shared-sessions"
+  # Codex
+  codex mcp add agent-relay-launch --url "$cloud_base/api/v1/mcp/shared-sessions"
+  codex mcp login agent-relay-launch
+  ```
+
+  On Claude Code, sign it in with `/mcp` → `agent-relay-launch` →
+  Authenticate, then restart the session. Its tools appear as
+  `mcp__agent-relay-launch__*`; launch through those and use Connect through
+  `agent-relay-sessions`; or
 - launch from a separate OAuth session and keep this one in token mode.
 
 Connect support for OAuth is coming (AgentWorkforce/cloud#5710, merged but not
