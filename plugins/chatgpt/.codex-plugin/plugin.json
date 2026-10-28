@@ -1,6 +1,6 @@
 {
   "name": "agent-relay",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Bring your coding agents' shared sessions into ChatGPT as cited context, and let agents message your chat over Agent Relay.",
   "author": {
     "name": "Agent Relay",

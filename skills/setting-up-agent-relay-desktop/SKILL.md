@@ -1,13 +1,14 @@
 ---
 name: setting-up-agent-relay-desktop
-description: Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, device sign-in, session sharing, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification. Use when a human asks an agent to install, configure, or finish desktop relay setup without walking through the app UI.
+description: Set up or repair Agent Relay Desktop end-to-end from a running Codex or Claude session on macOS or Linux, including verified installation, headless systemd service, browser sign-in, session sharing, self-registration, direct delivery, webhooks, GitHub subscriptions, and delivery verification. Use when a human asks an agent to install, configure, or finish desktop relay setup without walking through the app UI.
 ---
 
 # Set Up Agent Relay Desktop
 
 Complete the setup through the private session socket. Do not ask the human to
-click through the desktop app. The only normal human step is approving one
-device-login link when no reusable `agent-relay` CLI login exists.
+click through the desktop app. The only normal human step is signing in with
+Google in the browser that opens, when no reusable desktop or `agent-relay` CLI
+login exists.
 
 Prefer setting this up with the Agent Relay agent at
 <https://arelay.to/agent-relay>, which checks your current state and confirms
@@ -374,7 +375,7 @@ test -S "$relay_socket"
 curl -fsS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status | jq -e '.ok and (.data.version | length > 0)'
 ```
 
-## 3. Sign in by device approval
+## 3. Sign in through the browser
 
 Before choosing a workspace, check what the human already has. These commands
 only read state. The CLI checks run only when section 2 found a `relay_cli`;
@@ -396,13 +397,46 @@ only when the human explicitly asks for it.
 
 For a multi-server rollout, obtain the existing enterprise workspace UUID from
 the human and pass it explicitly on every server. Do not guess it and do not
-use `{}` when the target workspace is known: that could select a default/free
-workspace and split the fleet. Use `{}` only for an individual setup where the
-human has confirmed that the reusable login's current workspace is intended.
+omit `workspace` when the target workspace is known: that could select a
+default/free workspace and split the fleet. Omit `workspace` only for a new
+signup, or for an individual setup where the human has confirmed that the
+reusable login's current workspace is intended.
+
+Choose the flow before the first request. `"flow":"browser"` asks the app to
+reuse a kept desktop or same-origin `agent-relay` CLI login when one exists.
+Otherwise the app starts a browser sign-in: Cloud's login page, then Google,
+then back to a receiver on the app's own machine. There is no code to compare.
+That return trip only works when the human's browser runs on this machine, so:
+
+- `browser` when this machine has a local display the human uses (a Mac, or a
+  Linux desktop session);
+- `device` on a headless host, or one reached over SSH, where the human's
+  browser is on another machine. The human approves a link and code from any
+  phone or browser instead.
+
+The block picks `device` for SSH sessions and for Linux without a display. If
+the human sits at this machine's own screen while the agent runs over SSH, set
+`relay_flow=browser` instead.
+
+An agent-driven signup guide also passes its product as `signup_source`
+(`"teams"` or `"flows"`); set `relay_signup_source` to the value the guide
+names, and leave it empty otherwise. It is sent only with the browser flow.
 
 ```sh
-relay_workspace_uuid='HUMAN-PROVIDED-WORKSPACE-UUID'
-sign_in_payload=$(jq -nc --arg workspace "$relay_workspace_uuid" '{workspace:$workspace}')
+if test -n "${SSH_CONNECTION:-}" ||
+   { test "$(uname -s)" = Linux && test -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}"; }; then
+  relay_flow=device
+else
+  relay_flow=browser
+fi
+relay_signup_source=''   # "teams" or "flows" only when a signup guide names it
+relay_workspace_uuid='HUMAN-PROVIDED-WORKSPACE-UUID'   # empty: see below
+sign_in_payload=$(jq -nc --arg flow "$relay_flow" --arg workspace "$relay_workspace_uuid" \
+  --arg source "$relay_signup_source" \
+  '{flow:$flow}
+   + (if $workspace != "" then {workspace:$workspace} else {} end)
+   + (if $flow == "browser" and $source != "" then {signup_source:$source} else {} end)')
+printf 'sign-in payload: %s\n' "$sign_in_payload"
 sign_in=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   -H 'Content-Type: application/json' \
   -d "$sign_in_payload" http://relay/setup/sign-in)
@@ -413,6 +447,9 @@ printf '%s\n' "$sign_in" | jq \
     workspace: .data.workspace
   }, error}'
 ```
+
+For a new signup or an individual setup without a known workspace, set
+`relay_workspace_uuid=''`; the payload then carries no `workspace`.
 
 If sign-in reports that older upload schedules could not be inspected, first
 inspect the user's legacy cron, launchd, and user-service upload schedules.
@@ -421,7 +458,7 @@ acknowledgement added; never use it merely to suppress the error:
 
 ```sh
 sign_in_payload=$(printf '%s\n' "$sign_in_payload" | \
-  jq '. + {acknowledge_uninspected_schedules:true}')
+  jq -c '. + {acknowledge_uninspected_schedules:true}')
 sign_in=$(curl -sS --max-time 60 --unix-socket "$relay_socket" \
   -H 'Content-Type: application/json' \
   -d "$sign_in_payload" http://relay/setup/sign-in)
@@ -433,37 +470,35 @@ printf '%s\n' "$sign_in" | jq \
   }, error}'
 ```
 
-Print a device link and code only when the response actually contains a code:
-
-```sh
-user_code=$(printf '%s\n' "$sign_in" | jq -r '.data.user_code // empty')
-if test -n "$user_code"; then
-  verification_url_complete=$(printf '%s\n' "$sign_in" | \
-    jq -r '.data.verification_url_complete // empty')
-  if test -n "$verification_url_complete"; then
-    printf 'Open %s and approve code %s\n' "$verification_url_complete" "$user_code"
-  else
-    verification_url=$(printf '%s\n' "$sign_in" | \
-      jq -r '.data.verification_url // empty')
-    printf 'Open %s and enter code %s\n' "$verification_url" "$user_code"
-  fi
-fi
-```
-
 If the response is `signed_in` with `reused_login:true`, the app reused an
-eligible same-origin CLI or desktop login and intentionally issued no device
-code. Confirm the returned workspace id and name with the human rather than
-waiting for a code, then continue only if it is the intended workspace.
+eligible same-origin CLI or desktop login and opened no browser. Confirm the
+returned workspace id and name with the human, then continue only if it is the
+intended workspace.
 
-For `pending_approval`, the human can approve from any phone or browser. Do not
-create another code while this one is pending. A `preparing` response is also
-normal: poll `/setup/status` at the reported interval. Preparing local history
-can take about a minute when the app reuses an existing `agent-relay` CLI login.
-Poll both states until sign-in finishes. The reason for a failure is in
-`.data.sign_in_message`, not in `.data.sign_in` (which only says `error`), so
-print it, and map the known messages to their fix instead of dumping raw state:
+The sign-in request usually answers `preparing`. That is normal: the app is
+starting the browser sign-in, or preparing local history after reusing a login,
+which can take about a minute. Poll `/setup/status` at the reported interval.
+When it reaches `pending_approval` in the browser flow, status carries
+`verification_url_complete` (with `user_code` null) and `sign_in_link_opener`,
+which says who opens the link (the device flow carries a `user_code` instead,
+and the loop prints the link and code for the human):
+
+- `app`: the running desktop app already opened it in the human's browser. Do
+  not open it again; tell the human to finish signing in with Google there.
+- `caller`: open `verification_url_complete` with the OS URL opener (macOS
+  `open`, Linux `xdg-open`), the URL passed as a separate argument and never
+  interpolated into shell code. With no opener, or when the opener fails,
+  give the human the link.
+
+Handle the link once. Do not send another sign-in request while one is
+pending; the human may still be in the browser.
+
+The reason for a failure is in `.data.sign_in_message`, not in `.data.sign_in`
+(which only says `error`), so print it, and map the known messages to their fix
+instead of dumping raw state:
 
 ```sh
+link_handled=
 while :; do
   state=$(curl -sS --max-time 60 --unix-socket "$relay_socket" http://relay/setup/status)
   phase=$(printf '%s' "$state" | jq -r '.data.sign_in // .error.code')
@@ -473,7 +508,34 @@ while :; do
         '{sign_in: .data.sign_in, workspace: .data.workspace}'
       break
       ;;
-    preparing|pending_approval) relay_unknown=0 ;;
+    preparing) relay_unknown=0 ;;
+    pending_approval)
+      relay_unknown=0
+      sign_in_link=$(printf '%s' "$state" | jq -r '.data.verification_url_complete // empty')
+      user_code=$(printf '%s' "$state" | jq -r '.data.user_code // empty')
+      if test -z "$link_handled" && test -n "$user_code"; then
+        link_handled=1   # "flow":"device": approve this code from any phone or browser
+        printf 'Open %s and approve code %s\n' "$sign_in_link" "$user_code"
+      elif test -z "$link_handled" && test -n "$sign_in_link"; then
+        # Handled once the app opened it, an opener succeeded, or it was printed.
+        case "$(printf '%s' "$state" | jq -r '.data.sign_in_link_opener // empty')" in
+          app)
+            printf 'Agent Relay opened the sign-in page in your browser; sign in with Google there.\n' ;;
+          caller)
+            if test "$(uname -s)" = Darwin && open "$sign_in_link"; then
+              :
+            elif test "$(uname -s)" = Linux && command -v xdg-open >/dev/null &&
+                 test -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" && xdg-open "$sign_in_link"; then
+              :
+            else
+              printf 'Open this link and sign in with Google: %s\n' "$sign_in_link"
+            fi ;;
+          *)
+            printf 'Open this link and sign in with Google: %s\n' "$sign_in_link" ;;
+        esac
+        link_handled=1
+      fi
+      ;;
     signed_out|not_signed_in)
       # signed_out: the attempt ended or was cancelled; not_signed_in: the error code.
       printf 'Sign-in is not in progress; send the sign-in request again (see Recovery).\n' >&2
@@ -1112,8 +1174,10 @@ event.
 
   Leave `com.ai-hist.sync` alone; it is not checked. Then re-run
   `/setup/sign-in` with the same payload.
-- **`not_signed_in`:** run `/setup/sign-in`; do not paste tokens into the
-  request. Restart after `expired` or `denied` to obtain a new code.
+- **`not_signed_in`:** send a new sign-in request built the way section 3
+  builds it, with the same flow choice (`browser`, or `device` on a headless
+  or SSH host); do not paste tokens into the request. After `expired` or
+  `denied`, start a new sign-in the same way.
 - **Older schedules could not be inspected:** inspect the user's legacy cron,
   launchd, or user-service upload schedules first. Only after that inspection,
   retry `/setup/sign-in` with the original payload plus
