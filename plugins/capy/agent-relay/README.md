@@ -16,7 +16,7 @@ It is an [Agent Plugins 1.0](https://agent-plugins.org/specification) package:
 ## Setup
 
 1. **Connect Capy in Agent Relay Cloud** (owner or admin, once per workspace).
-   Skip this if Agent Relay Cloud → Settings → Workspace → Capy already says
+   Skip this if Agent Relay Cloud → Settings → Connections → Capy already says
    **Connected**. Otherwise, in Capy Settings → API create a service user named
    **Agent Relay** with role **read_write**, project access limited to the
    projects whose threads go on the relay, and a monthly spend cap. Create an
@@ -73,7 +73,7 @@ on your computer for the plugin.
   threads on this device, reach it from any thread, and message its threads,
   organization API keys included"). With **Personal**, Capy refuses the
   message and there is no per-thread request to approve, so Cloud records it
-  as failed in Settings → Workspace → Capy with a note to switch Access.
+  as failed in Settings → Connections → Capy with a note to switch Access.
   Shared also lets teammates run threads on that computer, so leave it
   Personal and use a cloud thread if you'd rather not open the device.
 
@@ -84,7 +84,7 @@ it only affects messages coming in.
 
 | What you see | Why | Fix |
 |---|---|---|
-| `bind_capy_thread` says the workspace has no Capy connection | Step 1 isn't done | An owner or admin connects the Capy key in Cloud → Settings → Workspace → Capy |
+| `bind_capy_thread` says the workspace has no Capy connection | Step 1 isn't done | An owner or admin connects the Capy key in Cloud → Settings → Connections → Capy |
 | The thread is on the roster but DMs never arrive | The thread runs on a computer whose Access is Personal | Set that device's Access to Shared, then send again |
 | Settings shows a failed delivery for a thread | Capy refused or kept failing; the error says which | Fix what it names; a message replayed from Relaycast is attempted again |
 | The plugin's tools ask for `RELAY_API_KEY` | The old 0.1.0 plugin is still installed | Remove it and install from `AgentWorkforce/skills`, path `plugins/capy/agent-relay` (see below) |
