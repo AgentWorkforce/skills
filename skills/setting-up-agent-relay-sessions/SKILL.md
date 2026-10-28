@@ -17,13 +17,17 @@ each step. Fetch its instructions with
 ## Which setup do I need?
 
 Agent Relay serves two hosted MCP endpoints, and each accepts two kinds of
-credential. What a session can do depends on **both** choices, so pick from this
-table before installing anything:
+credential. What a session can do depends on **both** choices.
+
+**Recommendation:** use **OAuth** for people and interactive agents (section
+3b), and a **Sessions token** for headless machines, fleet machines, CI and
+spawned agents (section 3). A token session reads, searches and messages, and
+never launches anything. Pick from this table before installing anything:
 
 | You need | Endpoint (server name used here) | Credential | Harness |
 | --- | --- | --- | --- |
-| Session handoff only: read, search and message teammates' sessions (headless or fleet machines, spawned agents, CI) | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **Sessions token** from the desktop or dashboard (`rth:read`), sent as a bearer header. No browser. | Claude Code, Codex, Muse |
-| Everything above **plus launching agents** on fleet machines (`spawn_relay_agent`) or Replicas, from a person's interactive session | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **OAuth** (no header), browser sign-in, **and** the person is a current workspace **owner or admin** | Claude Code, Codex |
+| Headless or fleet machines, spawned agents, CI: read, search and message teammates' sessions | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **Sessions token** from the desktop or dashboard (`rth:read`), sent as a bearer header. No browser. | Claude Code, Codex, Muse |
+| A person's or interactive agent's session (recommended), including **launching agents** on fleet machines (`spawn_relay_agent`) or Replicas | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **OAuth** (no header), browser sign-in, **and** the person is a current workspace **owner or admin** | Claude Code, Codex |
 | **Starting Capy threads** (`spawn_capy_thread`) or binding a Capy thread | `…/api/v1/mcp/relay-events` (`agent-relay`) | **OAuth** (no header), browser sign-in, **and** owner/admin | Claude Code, Codex, Capy plugin |
 
 Base URL in production: `https://agentrelay.com/cloud`.
@@ -86,8 +90,8 @@ The finished state is:
   or with the person's own `crossSessionInbound` (`hold` or `refuse`) kept and
   reported (see section 2; delivery is never turned on without their yes);
 - the **agent-sessions cloud MCP** is installed in this project and loaded by
-  this session (token mode by default; OAuth when the person needs to launch
-  agents, see **Which setup do I need?**), so the handoff tools (`list_relay_agents`, `send_relay_message`,
+  this session (OAuth for a person's interactive session, token mode on
+  headless machines; see **Which setup do I need?**), so the handoff tools (`list_relay_agents`, `send_relay_message`,
   `read_relay_conversation`, `check_relay_inbox`, `get_shared_session`,
   `get_shared_session_context`, `search_shared_sessions`) are available;
 - the person was asked whether to invite teammates, and either every address
@@ -518,12 +522,11 @@ thing to check.
 ## 3. Install the agent-sessions cloud MCP in token mode (before the session uses it)
 
 This section sets up the **Sessions token** mode: session reads, search and
-messaging, with no browser step, which is right for every machine and for
-spawned agents. It does **not** give launch tools. If this person also needs to
-launch agents or start Capy threads from this session, finish this section
-only if they also want token mode elsewhere, and otherwise go straight to
-section 3b, which installs the same server with OAuth instead (a session uses
-one credential per server name, not both).
+messaging, with no browser step. Use it on headless machines, fleet machines,
+CI and spawned agents, or when the person cannot do a browser sign-in. It does
+**not** give launch tools. For a person's interactive session, OAuth (section
+3b) is the recommended setup: go straight there unless they want token mode
+anyway. A session uses one credential per server name, not both.
 
 ### Obtain the token from the desktop app
 
@@ -728,9 +731,9 @@ the MCP was added and with the variable set.
 
 ## 3b. OAuth mode: launch agents and start Capy threads
 
-Use this for a **person's interactive** Claude Code or Codex session that must
-launch agents (`spawn_relay_agent`, Replicas) or start Capy threads. Check two
-things first and tell the person:
+This is the recommended setup for a **person's interactive** Claude Code or
+Codex session, and the only one that can launch agents (`spawn_relay_agent`,
+Replicas) or start Capy threads. Check two things first and tell the person:
 
 - they are a current **owner or admin** of the workspace's organization;
   otherwise OAuth connects fine but every launch call is refused;
