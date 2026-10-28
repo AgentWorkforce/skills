@@ -165,6 +165,26 @@ state that and let them choose. Binding and sending work either way.
   its last delivery and no failures. Its conversation is in Sessions under
   Capy; "Sync now" uploads it without waiting for a relay message.
 
+## Starting Capy threads from Claude Code or Codex
+
+A person's Claude Code or Codex session can start new Capy threads with
+`spawn_capy_thread`, but only through the `relay-events` endpoint
+(`https://agentrelay.com/cloud/api/v1/mcp/relay-events`) connected with
+**OAuth**, by a current workspace **owner or admin**. The
+`shared-sessions` MCP from `setting-up-agent-relay-sessions` has no Capy
+tools, and a Sessions token is refused by every Capy and launch tool. Install
+and verify it with that skill's section 3b. Always pass `model` (for example
+`anthropic/claude-sonnet-5-5`) to `spawn_capy_thread`, and to the desktop
+core's `capy.threads.spawn`. Desktop builds from relay-desktop#703 (merged
+2026-10-27, not yet in a stable release as of 2026-10-28) require it there and
+refuse a call without one (`invalid_params`). Older releases accepted a call
+without it, and a project with no default model then failed the thread later
+with `model_not_selected`.
+
+Binding an existing thread is different: `bind_capy_thread` needs the thread's
+OAuth connection to `relay-events` and workspace access only, so any member
+can bind once an owner or admin has connected the Capy key.
+
 ## Recovery
 
 | Symptom | Cause | Fix |
@@ -173,6 +193,7 @@ state that and let them choose. Binding and sending work either way.
 | Thread on the roster but DMs never arrive | It runs on a computer whose Access is Personal | Step 4, then send again |
 | Capy card shows a failed delivery | Capy refused or kept failing; the error names why | Fix what it names; a message Relaycast replays is attempted again |
 | Relay tools ask for `RELAY_API_KEY` | Old 0.1.0 plugin | Remove it, install from `plugins/capy/agent-relay` |
+| `spawn_capy_thread` missing, or refused as a "Shared sessions history token" | Connected to `shared-sessions`, or with a Sessions token | Add `relay-events` with OAuth (`setting-up-agent-relay-sessions` section 3b) |
 | A new thread did not join by itself | No organization `AGENTS.md` line, or the plugin is off for that thread | Ask the thread to bind, or add the line (step 3) |
 
 ## Undo
