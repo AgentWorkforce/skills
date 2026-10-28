@@ -677,14 +677,14 @@
     },
     {
       "name": "merge-train-snippet",
-      "version": "1.0.2",
-      "description": "AGENTS.md snippet: feature PRs target trunk, verify locally (no feature-branch CI), and add the `mergeable` label when ready; the merge agent sweeps them into trunk and promotes trunk to the default branch.",
+      "version": "1.1.0",
+      "description": "AGENTS.md snippet: feature PRs target trunk and are verified locally; once the merge train's autoEntry flag is on, ready non-draft PRs enter by themselves, `merge-train:hold` keeps one out, and destructive PRs are always merged by hand. Authoring agents no longer add the `mergeable` label.",
       "format": "generic",
       "subtype": "snippet",
       "snippet": {
         "target": "AGENTS.md",
         "position": "append",
-        "header": "Merging: trunk + the mergeable label"
+        "header": "Merging: trunk, auto-entry and merge-train:hold"
       },
       "tags": [
         "merge-train",
