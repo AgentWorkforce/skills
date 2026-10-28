@@ -175,8 +175,15 @@ A person's Claude Code or Codex session can start new Capy threads with
 tools, and a Sessions token is refused by every Capy and launch tool. Install
 and verify it with that skill's section 3b. Always pass `model` (for example
 `anthropic/claude-sonnet-5-5`) to `spawn_capy_thread`, and to the desktop
-core's `capy.threads.spawn`, where it is optional but a project with no
-default model fails the thread later with `model_not_selected`.
+core's `capy.threads.spawn`. Desktop builds from relay-desktop#703 (merged
+2026-10-27, not yet in a stable release as of 2026-10-28) require it there and
+refuse a call without one (`invalid_params`). Older releases accepted a call
+without it, and a project with no default model then failed the thread later
+with `model_not_selected`.
+
+Binding an existing thread is different: `bind_capy_thread` needs the thread's
+OAuth connection to `relay-events` and workspace access only, so any member
+can bind once an owner or admin has connected the Capy key.
 
 ## Recovery
 

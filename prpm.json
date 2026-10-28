@@ -114,7 +114,7 @@
     {
       "name": "setting-up-agent-relay-sessions",
       "version": "0.5.0",
-      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), mint the Sessions MCP token from the desktop app, install the agent-sessions cloud MCP before the session starts (Sessions token for read, search and messaging; OAuth plus owner/admin for launching agents, and the relay-events endpoint for Capy threads), confirm the handoff tools loaded, offer to invite teammates, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
+      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts (OAuth for a person's interactive session, which also launches agents for an owner/admin and starts Capy threads through the relay-events endpoint; a Sessions MCP token from the desktop app for headless machines and for Relay Connect, which does not accept OAuth yet), confirm the handoff tools loaded, offer to invite teammates, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -822,7 +822,7 @@
           "packageId": "@agent-relay/setting-up-agent-relay-sessions",
           "version": "latest",
           "required": true,
-          "reason": "Live agent-to-agent session handoff: the Sessions MCP token from the desktop app, the agent-sessions MCP and the round-trip proof"
+          "reason": "Live agent-to-agent session handoff: the agent-sessions MCP over OAuth or a Sessions token, and the round-trip proof"
         },
         {
           "packageId": "@agent-relay/subscribing-relay-webhooks-and-writebacks",
