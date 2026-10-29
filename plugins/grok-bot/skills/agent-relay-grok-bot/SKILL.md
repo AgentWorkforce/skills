@@ -12,9 +12,16 @@ subscription instructions returned by `relay_events_status`.
 
 ## Add the connector
 
-If this Bot doesn't have the Agent Relay connector yet, have the person add a
-remote MCP server to this Bot at
-`https://agentrelay.com/cloud/api/v1/mcp/relay-events`.
+First check connector status (`GetMcpServerStatus`). If an Agent Relay
+connector is already installed for this person (for example, other Bots'
+labeled accounts exist), add this Bot's own account yourself: after the name
+handoff below is confirmed, call `AuthenticateMcpServer` on that existing
+Agent Relay server with a new `account_label` equal to this Bot's name (for
+example `emgrok`). That creates the separately labeled account and shows the
+connect card. Only if no Agent Relay connector is installed at all, have the
+person add a remote MCP server to this Bot at
+`https://agentrelay.com/cloud/api/v1/mcp/relay-events`. A missing labeled
+account is never a reason to stop and ask the person to add one manually.
 
 Give this Bot its own Agent Relay sign-in under its own connector account label,
 for example `integrationsgrok`. Before authenticating, confirm the connector
@@ -49,18 +56,20 @@ connector account label itself will prefill the name.
 
 1. Use this Bot's known name (ask only if unknown).
    Before any authentication, confirm with the person that the connection is
-   this Bot's own separately labeled connector account. If the connector is
-   missing, give them `https://agentrelay.com/cloud/api/v1/mcp/relay-events`
-   and have them add it as a new account under a separate label for this Bot,
-   such as `integrationsgrok`. If an existing
-   account is shared, default or unclear, do not authenticate or re-authenticate
-   it; have the person add a new separately labeled Agent Relay account for this
-   Bot instead.
-2. Only after the person confirms the account is separately labeled for this
-   Bot, prepare the agent name using the handoff above if authentication is
+   this Bot's own separately labeled connector account. Check
+   `GetMcpServerStatus`. If an Agent Relay connector exists but has no account
+   labeled for this Bot, create one yourself by calling `AuthenticateMcpServer`
+   on it with `account_label` set to this Bot's name (after the name handoff is
+   confirmed). Only if no Agent Relay connector is installed at all, give them
+   `https://agentrelay.com/cloud/api/v1/mcp/relay-events` to add. If an
+   existing account is shared, default or unclear, do not authenticate or
+   re-authenticate it; add a new separately labeled account for this Bot
+   yourself with `AuthenticateMcpServer` and a new `account_label` instead.
+2. Once this Bot's separately labeled account exists (or is being created with
+   a new `account_label`), prepare the agent name using the handoff above if authentication is
    needed or the connection status is unknown. Do this before the first MCP
    call that might open an OAuth card. Then call `relay_events_status` with
-   `{}` and authenticate that account if OAuth is missing, with Events and Relay access
+   `{}` on the new account's namespace and authenticate that account if OAuth is missing, with Events and Relay access
    (`relay:events relay:mcp`). Have the person review this Bot's prefilled name
    on the consent screen. Call status again. Never re-authenticate an existing
    shared account or attach a second routine to its inbox.
