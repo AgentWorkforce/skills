@@ -29,28 +29,28 @@ those, so they run without asking. A hint that uses `curl --unix-socket`
 instead asks for approval in Codex and Claude Code: take the socket path from
 it and use the probe commands in step 4.
 
-## 2. Otherwise find the socket and the probe
+## 2. Otherwise read them from Agent Relay's rules
 
-Run this once. It only reads files.
+The core writes the exact probe and socket into each tool's rules while it
+injects into that tool. Read the file with your file-reading tool, which asks
+for nothing. Do not use a shell script for this step.
 
-```sh
-cat "$HOME/.agentworkforce/desktop/relay-socket" 2>/dev/null
-grep -h -m1 '"relay", "agents"' "${CODEX_HOME:-$HOME/.codex}/rules/agent-relay.rules" 2>/dev/null
-for p in "$HOME/.agentworkforce/desktop/bin/agent-relay-probe" "${AGENT_RELAY_PROBE_PATH:-/none}" \
-  "${AGENT_RELAY_INSTALL_DIR:-${AGENT_RELAY_HOME:-$HOME/.agentworkforce/relay}}/bin/agent-relay-probe" \
-  "$HOME/.local/bin/agent-relay-probe" "/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe" \
-  /usr/lib/agent-relay/agent_relay/helpers/agent-relay-probe; do test -x "$p" && echo "probe: $p"; done
-```
-
-- **Socket:** the first line. Whichever core is running writes this pointer.
-  The path is usually `~/Library/Application Support/com.agentrelay.desktop/run/relay.sock`
-  on macOS, for both cores, and `$XDG_RUNTIME_DIR/agent-relay/relay.sock` on Linux.
-- **Probe:** in Codex, use the probe and socket that the `pattern = [...]` line
-  names, because those are the ones that run without asking. Otherwise use the
-  first `probe:` line. `~/.agentworkforce/desktop/bin/agent-relay-probe` is the
-  desktop core's space-free link. `~/.agentworkforce/relay/bin/agent-relay-probe`
-  is the core that `relay init` installs.
-- **Nothing printed:** no core is running. Ask the person to run `relay init`
+- **Claude Code:** `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`).
+  Under `permissions.allow`, the entry
+  `Bash(PROBE relay agents --socket 'SOCKET')` is the command to list agents,
+  without the `Bash(` and `)`.
+- **Codex:** `~/.codex/rules/agent-relay.rules` (or `$CODEX_HOME/rules/…`).
+  The rule `pattern = ["PROBE", "relay", "agents", "--socket", "SOCKET"]`
+  names both paths.
+- **Neither file names them:** read `~/.agentworkforce/desktop/relay-socket`.
+  Its first line is the socket that every running core writes, the desktop
+  app's or `relay init`'s. Then use the first of these probes that exists:
+  `~/.agentworkforce/desktop/bin/agent-relay-probe` (the desktop core's
+  space-free link), `~/.agentworkforce/relay/bin/agent-relay-probe` (the core
+  `relay init` installs), `~/.local/bin/agent-relay-probe`, or
+  `/Applications/Agent Relay.app/Contents/Helpers/agent-relay-probe`. These
+  commands may ask for approval once.
+- **No pointer file:** no core is running. Ask the person to run `relay init`
   or start the Agent Relay desktop app (`setting-up-agent-relay-desktop`).
   Then stop.
 
@@ -63,7 +63,8 @@ The rules match words, so:
 - leave the probe path unquoted and single-quote the socket path, for
   example `--socket '/Users/me/Library/Application Support/com.agentrelay.desktop/run/relay.sock'`.
 
-`PROBE` and `SOCKET` below stand for the two paths from step 2.
+`PROBE` and `SOCKET` below stand for the two paths from step 2, with `~`
+expanded to the full home folder.
 
 ## 4. List agents, send, reply
 
