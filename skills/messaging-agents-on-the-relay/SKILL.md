@@ -23,9 +23,11 @@ If the local route fails, say so and stop. Do not try another route.
 ## 1. Use the commands you were given
 
 If your session-start note or an injected message's `[reply: …]` line names
-commands, run them exactly as written. Agent Relay's Codex sandbox rules and
-Claude Code permission rules allow exactly those, so they run without asking.
-Skip to step 4 for the forms.
+`agent-relay-probe relay …` commands, run them exactly as written. Agent
+Relay's Codex sandbox rules and Claude Code permission rules allow exactly
+those, so they run without asking. A hint that uses `curl --unix-socket`
+instead asks for approval in Codex and Claude Code: take the socket path from
+it and use the probe commands in step 4.
 
 ## 2. Otherwise find the socket and the probe
 
