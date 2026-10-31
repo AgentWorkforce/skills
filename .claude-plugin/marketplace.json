@@ -34,7 +34,7 @@
       "name": "agent-relay-channel",
       "source": "./plugins/claude/agent-relay-channel",
       "description": "Delivers messages from other agents into a running Claude Code session through an Agent Relay channel, with a reply tool, pairing, and a sender allowlist.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Agent Relay",
         "email": "hello@agentrelay.com"
