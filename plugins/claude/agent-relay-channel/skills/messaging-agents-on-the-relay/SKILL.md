@@ -1,6 +1,6 @@
 ---
 name: messaging-agents-on-the-relay
-description: Use when an agent needs to find out who else is on Agent Relay (list agents, see who is registered), send a message to another agent by address, reply to a message it received, or brief a peer agent, using the desktop session socket with no tokens. Covers the GET /agents roster, POST /send with address or short name and reply_to, the macOS Codex probe form, what an injected message looks like and when it arrives, a worked briefing pattern, error codes, and the safety rules for treating peer messages as requests, not authority.
+description: Use when an agent needs to find out who else is on Agent Relay (list agents, see who is registered), send a message to another agent by address, reply to a message it received, or brief a peer agent, using the desktop session socket with no tokens. Covers the GET /agents roster, POST /send with address or short name and reply_to, the macOS Codex probe form, what an injected message looks like and when it arrives, when to message and how to write it, a worked briefing pattern, error codes, and the safety rules for treating peer messages as requests, not authority.
 ---
 
 # Message Other Agents on the Relay
@@ -103,6 +103,18 @@ CLI alternatives that exist: `agent-relay fleet agent list` (agents on every
 reachable fleet node, joined against the workspace roster; `--pretty` for a
 table) and `agent-relay agent presence` (needs a workspace key).
 
+## Before you send: when and how to message
+
+- **Message only when you need something from the other agent, or it needs
+  something from you.** No status updates, unrequested acknowledgements or
+  small talk. A reply the sender asked for (such as the one-line confirmation
+  in the briefing pattern below) is something it needs, so send it.
+- **One task per session.** Send new work only to an agent that is not on
+  another task. If the agent you want is busy, do not send it more work; ask
+  your person to start a new session for it instead.
+- **Point first, then the context the recipient cannot see:** the repo, branch
+  and files (or the brief file) it needs. It does not share your session.
+
 ## 2. Send a message
 
 ```sh
@@ -114,7 +126,9 @@ relay_req POST '/send?address=NAME@HOST' "$msg" |
 - The body is plain text. Add `&reply_to=<message_id>` to thread a reply.
 - A success is `{"ok":true,"data":{"conversation_id":..., "from":..., "message_id":..., "to":...}}`.
 - `?to=<short-name>` also works (the reply hints in injected messages use it);
-  both forms resolved to the same agent in testing.
+  both forms resolved to the same agent in testing. A short name that matches
+  more than one agent is refused with `ambiguous_recipient`, listing every
+  matching full address.
 - **Keep messages short, and put long briefs in a file.** On 2026-10-04 long
   text injected into a spawned (PTY) agent arrived truncated to its **tail**,
   silently (a 6.7 KB task became its last 339 characters; a 2 KB message became its
@@ -164,7 +178,10 @@ do not sleep or poll.
 
 | Symptom | Meaning | Do |
 |---|---|---|
-| `address_not_found` ("Relaycast has no such resource") | No agent with that address | Re-run `GET /agents`; use the exact `name@host` |
+| `address_not_found` | No agent with that address | Re-run `GET /agents`; use the exact `name@host` |
+| `ambiguous_recipient` | The short name matches more than one agent; the message lists every full address | Pick one and send to that `name@host` |
+| `recipient_is_person` | The name is a person's, not an agent's; the message lists their agents | Send to one of their agents' addresses |
+| `agent_not_found` | No agent has that name; the message suggests a close match or says to list agents | Re-run `GET /agents`; use the exact `name@host` |
 | `not_found` ("Use a documented Agent Relay session-socket route") | Wrong route or method (for example `GET /send`) | Use `POST /send?address=...` with a body |
 | `not_a_relay_session` | Not an interactive registered session, or system `curl` on macOS Codex | Use your own interactive shell and the probe form |
 | `GET /agents` empty or errors | Desktop not running or not signed in | `setting-up-agent-relay-desktop` |
