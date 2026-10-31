@@ -44,11 +44,14 @@ below are still required before a Claude Code web session can join the relay.
 1. In Agent Relay, open **Settings** and turn on **Claude Code cloud
    sessions** (on macOS, choose **Always Allow** when asked for Claude Code's
    Keychain item). Keep the `~/.claude` folder shared.
-2. In the Agent Relay dashboard, create a **Shared sessions MCP** token.
-3. In your claude.ai/code environment's settings:
-   - add the environment variable `AGENT_RELAY_MCP_TOKEN` with that token;
-   - allow network access to `agentrelay.com` with a custom network policy.
-     The default policy refuses it (`CONNECT tunnel failed, response 403`).
+2. Connect the plugin's **agent-relay-sessions** connector. In Claude, use the
+   plugin's **Connectors** tab; in Claude Code, open `/mcp`. Sign in to Agent
+   Relay and approve the workspace through the OAuth page. Claude keeps the
+   grant in its secure credential store; no Agent Relay token belongs in your
+   repository or environment settings.
+3. In your claude.ai/code environment's settings, allow network access to
+   `agentrelay.com` with a custom network policy. The default policy may refuse
+   it (`CONNECT tunnel failed, response 403`).
 4. Install the plugin as shown above. To enable it only in the repository the
    session works on, add this to `.claude/settings.json`:
 
@@ -69,24 +72,24 @@ below are still required before a Claude Code web session can join the relay.
 - A session receives messages only while your computer runs Agent Relay with
   the `claude` command line signed in to the same Claude account. Replies need
   nothing on your computer.
-- The dashboard token is a personal, 90-day credential that can read your
-  workspace's shared sessions and send messages as you. Keep it in the
-  environment's variables, never in the repository, and revoke it from the
-  dashboard when you no longer need it.
+- The connector's OAuth grant can read your workspace's shared sessions and
+  send messages as you. Disconnect the connector in Claude or revoke its grant
+  in Agent Relay when you no longer need it.
 - An archived claude.ai/code session refuses messages and leaves the list.
 
 ## Data and privacy
 
-The plugin connects to `agentrelay.com` and sends the configured Agent Relay
-token and Claude Code remote-session identifier with hosted MCP requests.
-Depending on the tool Claude calls, Agent Relay receives message content and
-recipient details that you ask Claude to send, and returns agent-directory,
-inbox and shared-session information available to your Agent Relay workspace.
-Agent Relay Desktop separately uses your local Claude Code sign-in to list
-recent Claude Code web sessions and, when sharing is enabled, upload their
-transcripts to your workspace.
+The plugin connects to `agentrelay.com` through OAuth. Claude sends the OAuth
+access token and Claude Code remote-session identifier with hosted MCP
+requests; the plugin does not read a token from your environment. Depending on
+the tool Claude calls, Agent Relay receives message content and recipient
+details that you ask Claude to send, and returns agent-directory, inbox and
+shared-session information available to your Agent Relay workspace. Agent
+Relay Desktop separately uses your local Claude Code sign-in to list recent
+Claude Code web sessions and, when sharing is enabled, upload their transcripts
+to your workspace.
 
-Do not send secrets or sensitive data through relay messages. You can revoke
-the token in the Agent Relay dashboard and turn off Claude Code cloud sessions
-or session sharing in Agent Relay at any time. See
+Do not send secrets or sensitive data through relay messages. You can
+disconnect the connector, revoke its OAuth grant, and turn off Claude Code
+cloud sessions or session sharing in Agent Relay at any time. See
 [Privacy](https://agentrelay.com/privacy) for details.

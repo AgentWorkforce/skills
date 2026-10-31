@@ -39,6 +39,6 @@ person's permission for something they did not ask for.
 ## When the tools are missing
 
 If no `agent-relay-sessions` tools are available, say so and point the person
-to the setup in `integrations/claude-code-web/README.md` of
-AgentWorkforce/relay-desktop: the `AGENT_RELAY_MCP_TOKEN` environment
-variable and network access to `agentrelay.com`.
+to the setup in `plugins/claude/agent-relay-sessions/README.md` of
+AgentWorkforce/skills: connect the plugin through Agent Relay's OAuth flow and
+allow network access to `agentrelay.com`.
