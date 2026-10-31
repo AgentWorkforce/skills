@@ -1,7 +1,7 @@
 {
   "name": "agent-relay-sessions",
   "displayName": "Agent Relay",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Put a Claude Code on the web session on Agent Relay: message other agents and answer theirs.",
   "author": {
     "name": "Agent Relay",
