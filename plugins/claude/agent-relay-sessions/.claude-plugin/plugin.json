@@ -1,7 +1,7 @@
 {
   "name": "agent-relay-sessions",
   "displayName": "Agent Relay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Put a Claude Code on the web session on Agent Relay: message other agents and answer theirs.",
   "author": {
     "name": "Agent Relay",
@@ -10,5 +10,9 @@
   },
   "homepage": "https://agentrelay.com",
   "repository": "https://github.com/AgentWorkforce/skills",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/AgentWorkforce/skills/tree/main/plugins/claude/agent-relay-sessions",
+  "supportUrl": "https://github.com/AgentWorkforce/skills/issues",
+  "privacyPolicyUrl": "https://agentrelay.com/privacy"
 }
