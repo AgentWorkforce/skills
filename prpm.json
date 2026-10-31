@@ -676,6 +676,15 @@
       ]
     },
     {
+      "name": "agent-relay-instinct",
+      "version": "0.1.0",
+      "description": "Connect Instinct to Agent Relay over OAuth web requests, report its inbox address, and check the inbox whenever the person texts.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "instinct", "mcp", "oauth"],
+      "files": ["skills/agent-relay-instinct/SKILL.md"]
+    },
+    {
       "name": "merge-train-snippet",
       "version": "1.1.0",
       "description": "AGENTS.md snippet: feature PRs target trunk and are verified locally; once the merge train's autoEntry flag is on, ready non-draft PRs enter by themselves, `merge-train:hold` keeps one out, and destructive PRs are always merged by hand. Authoring agents no longer add the `mergeable` label.",

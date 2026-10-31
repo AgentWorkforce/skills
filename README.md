@@ -36,6 +36,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.11 | Create or update a Workforce cloud persona with `persona.json`/`persona.ts`, `agent.ts`, integration scope and adapter config guidance, vendored examples, and production-correctness checks. |
 | [factory-config](skills/factory-config/SKILL.md) | 1.0.2 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, babysitter mode, and Relayflows dispatch wiring boundaries. |
 | [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 2.0.0 | OpenClaw-specific setup and completion reporting for a headless Agent Relay team; defers to `orchestrating-agent-relay` for broker, spawn, and coordination mechanics. |
+| [agent-relay-instinct](skills/agent-relay-instinct/SKILL.md) | 0.1.0 | Connect Instinct to Agent Relay over OAuth web requests, report its inbox address, and check the inbox whenever the person texts. |
 
 ## Slash Commands
 
@@ -90,6 +91,14 @@ review ZIP assembles the canonical [onboarding](skills/agent-relay-chatgpt-setup
 and [usage](skills/agent-relay-chatgpt/SKILL.md) prpm skills. Both require OAuth;
 repository availability does not mean either
 marketplace listing has been approved or published.
+
+## Instinct
+
+Instinct has no connector settings and cannot be woken by a webhook.
+[`agent-relay-instinct`](skills/agent-relay-instinct/SKILL.md) is the canonical
+prpm skill. Text Instinct the prompt in that skill. It connects with ordinary
+OAuth web requests, reports its inbox address, and checks the inbox whenever
+you text it.
 
 ## Claude Code Channel Plugin
 
