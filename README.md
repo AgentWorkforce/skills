@@ -17,7 +17,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [signing-in-to-agent-relay-cloud](skills/signing-in-to-agent-relay-cloud/SKILL.md) | 0.1.0 | Sign a person in to Agent Relay Cloud through the OAuth device flow from an agent session: device grant, polling, refresh, whoami, and the CLI credential handoff, with no token printed. |
 | [setting-up-agent-relay-flows](skills/setting-up-agent-relay-flows/SKILL.md) | 0.1.0 | Choose a catalog flow and repository, connect tools and coding-agent credentials, activate the listener through the direct-source deploy API, and verify it is listening. Builds on `signing-in-to-agent-relay-cloud`. |
 | [subscribing-relay-webhooks-and-writebacks](skills/subscribing-relay-webhooks-and-writebacks/SKILL.md) | 0.1.7 | Subscribe a session to GitHub PR and Slack channel events so they are injected, and write back to providers through a Relayfile mount, with the verified steps and known defects. |
-| [messaging-agents-on-the-relay](skills/messaging-agents-on-the-relay/SKILL.md) | 0.1.2 | Find other agents on Agent Relay and message them from a registered desktop session with no tokens: roster, send, reply, the macOS Codex probe form, and safety rules. |
+| [messaging-agents-on-the-relay](skills/messaging-agents-on-the-relay/SKILL.md) | 0.2.0 | Find other agents on Agent Relay and message them through this computer's core (the desktop app's or the one `relay init` starts) with no tokens: finding the socket and probe, `relay agents` and `relay send` with no approval prompt, replies, and safety rules. `relay init` installs it. |
 | [relay-connect](skills/relay-connect/SKILL.md) | 0.5.0 | Create or join a temporary Relay Connect with the native `agent-relay-probe connect` commands after one verified install; guests need no account. |
 | [writing-relayflows](skills/writing-relayflows/SKILL.md) | 1.6.2 | Author a Relayflows v2 flow (`@relayflows/surface`/`@relayflows/sdk`, the `flows` CLI) in TypeScript or YAML/JSON — including direct `use`/`f.dispatch` child flows, local-run Cloud dashboard mirroring, and the hosted `use` limitation. Not the older `@relayflows/core` WorkflowBuilder engine. |
 | [migrating-persona-to-relayflow](skills/migrating-persona-to-relayflow/SKILL.md) | 1.1.0 | Migrate an existing `defineAgent` persona to run its LLM-heavy work through a Relayflow v1 workflow via `ctx.workflow.run()`: scope decisions, the 4-step durable-workflow shape, colocation, red-first and resume tests, `useSubscription` semantics, and the `agentworkforce` >= 4.1.44 CI-deploy bump. |
@@ -165,7 +165,7 @@ This collection includes:
 
 ### Agent Relay setup skills
 
-`setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions`, `subscribing-relay-webhooks-and-writebacks` and `messaging-agents-on-the-relay` build on each other (the other three all need a working, signed-in desktop). The sessions skill's teammate-invite step also uses `signing-in-to-agent-relay-cloud` for a Cloud token, so the collection carries it too. Install them together so the references resolve.
+`setting-up-agent-relay-desktop`, `setting-up-agent-relay-sessions`, `subscribing-relay-webhooks-and-writebacks` and `messaging-agents-on-the-relay` build on each other (sessions and subscribing need a working, signed-in desktop; messaging works with any running Agent Relay core, including the one `relay init` starts, which also installs it). The sessions skill's teammate-invite step also uses `signing-in-to-agent-relay-cloud` for a Cloud token, so the collection carries it too. Install them together so the references resolve.
 
 With `prpm`, install the `agent-relay-setup` collection for Claude Code:
 
@@ -173,7 +173,7 @@ With `prpm`, install the `agent-relay-setup` collection for Claude Code:
 npx prpm install collections/agent-relay-setup --as claude --global -y
 ```
 
-For Codex, do **not** use `--as codex` for these skills: the conversion drops explanatory paragraphs from the workflows and writes under `~/.agents/skills`, which Codex does not load as its global skill folder. Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` instead:
+For Codex, do **not** use `--as codex` for these skills: the conversion drops explanatory paragraphs from the workflows. Mirror the installed `SKILL.md` files into `~/.codex/skills/<name>/` instead (Codex 0.163 loads global skills from both `~/.agents/skills` and `$CODEX_HOME/skills`):
 
 ```bash
 (
@@ -201,7 +201,7 @@ npx skills add https://github.com/AgentWorkforce/skills \
 
 The collection also carries `setting-up-capy-on-agent-relay` as an optional package, for people whose Capy threads should join the relay (it needs no desktop). With `skills`, add `--skill setting-up-capy-on-agent-relay` to include it.
 
-Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`; use the `~/.codex/skills` mirror above if you need Codex to load them globally.) The sessions, subscribing and messaging skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
+Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`, or with `-g` to `~/.agents/skills`, which Codex 0.163 loads as a global skill folder.) The sessions and subscribing skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
 
 ### Agent Relay Cloud and Flows setup skills
 
