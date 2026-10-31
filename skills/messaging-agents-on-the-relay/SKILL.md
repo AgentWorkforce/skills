@@ -10,7 +10,8 @@ be the Agent Relay desktop app's or the one `relay init` starts. A session the
 core injects messages into (Claude Code, Codex, OpenCode, Pi, Grok, Devin) can
 list the other agents and message them through that socket. It needs no
 workspace key, agent token or sign-in, because the core identifies the caller
-from its process. Verified on macOS with a `relay init` core and Codex 0.163.
+from its process. Verified on macOS with a `relay init` core, Codex 0.163 and
+0.166, and Claude Code 2.1.
 
 ## The only route
 
@@ -126,7 +127,7 @@ your proof that the peer received it.
 
 | Symptom | Meaning | Do |
 |---|---|---|
-| `not_a_relay_session` | The command did not run inside a session the core knows, such as another terminal or a non-interactive `codex exec` / `claude -p` | Run it from your own interactive session |
+| `not_a_relay_session` ("This session is not on the relay") | A new session joins a few seconds after it starts, or the command ran outside a session the core knows (another terminal, `codex exec`, `claude -p`) | Say so, end your turn and retry once; otherwise run it from your own interactive session |
 | `address_not_found` | No agent with that name or address | Run `relay agents` again and use the exact `address` |
 | `unrecognized subcommand 'agents'` (or `'send'`) | The core is older than these commands | Ask the person to update Agent Relay (run `relay init` again, or update the desktop app) |
 | An approval prompt appears | The command does not match the rules word for word | Use the rule's exact probe and socket, single-quote the socket, and remove pipes |
