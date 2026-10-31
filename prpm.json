@@ -1,6 +1,6 @@
 {
   "name": "agent-workforce-skills",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Skills for multi-agent coordination - swarm patterns, workflow building, relay usage, and orchestrating agent-relay",
   "author": "khaliqgant",
   "organization": "agent-relay",
@@ -214,6 +214,23 @@
       ],
       "files": [
         "skills/messaging-agents-on-the-relay/SKILL.md"
+      ]
+    },
+    {
+      "name": "using-pippen-sandboxes",
+      "version": "0.1.0",
+      "description": "Use when an agent needs a clean, throwaway AWS environment, a sandbox AWS account, or isolated test infrastructure (VPC, EKS, RDS, S3) for an AgentWorkforce product, for example an end-to-end self-host proof. Covers what Pippen Tools is, the AWS account naming, installing the pippen CLI, Roles Anywhere certificate auth, the pippen sandbox up/status/deploy/extend/down commands, the 3-hour lease, sweep and quarantine, what deploy creates today and what it does not, the approval boundary, who owns it, and when not to use it.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "aws",
+        "sandbox",
+        "pippen",
+        "test-infrastructure",
+        "internal-tools"
+      ],
+      "files": [
+        "skills/using-pippen-sandboxes/SKILL.md"
       ]
     },
     {

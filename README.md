@@ -2,7 +2,7 @@
 
 Skills, slash commands, and a Claude Code plugin for building multi-agent systems with Agent Relay.
 
-Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.10.0`.
+Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.11.0`.
 
 ## Published Skills
 
@@ -18,6 +18,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [setting-up-agent-relay-flows](skills/setting-up-agent-relay-flows/SKILL.md) | 0.1.0 | Choose a catalog flow and repository, connect tools and coding-agent credentials, activate the listener through the direct-source deploy API, and verify it is listening. Builds on `signing-in-to-agent-relay-cloud`. |
 | [subscribing-relay-webhooks-and-writebacks](skills/subscribing-relay-webhooks-and-writebacks/SKILL.md) | 0.1.7 | Subscribe a session to GitHub PR and Slack channel events so they are injected, and write back to providers through a Relayfile mount, with the verified steps and known defects. |
 | [messaging-agents-on-the-relay](skills/messaging-agents-on-the-relay/SKILL.md) | 0.1.2 | Find other agents on Agent Relay and message them from a registered desktop session with no tokens: roster, send, reply, the macOS Codex probe form, and safety rules. |
+| [using-pippen-sandboxes](skills/using-pippen-sandboxes/SKILL.md) | 0.1.0 | Get a throwaway AWS sandbox account from Pippen Tools (internal): install, Roles Anywhere auth, `pippen sandbox up/status/deploy/extend/down`, the 3-hour lease, sweep and quarantine, what deploy creates today, and the approval boundary. |
 | [relay-connect](skills/relay-connect/SKILL.md) | 0.5.0 | Create or join a temporary Relay Connect with the native `agent-relay-probe connect` commands after one verified install; guests need no account. |
 | [writing-relayflows](skills/writing-relayflows/SKILL.md) | 1.6.2 | Author a Relayflows v2 flow (`@relayflows/surface`/`@relayflows/sdk`, the `flows` CLI) in TypeScript or YAML/JSON — including direct `use`/`f.dispatch` child flows, local-run Cloud dashboard mirroring, and the hosted `use` limitation. Not the older `@relayflows/core` WorkflowBuilder engine. |
 | [migrating-persona-to-relayflow](skills/migrating-persona-to-relayflow/SKILL.md) | 1.1.0 | Migrate an existing `defineAgent` persona to run its LLM-heavy work through a Relayflow v1 workflow via `ctx.workflow.run()`: scope decisions, the 4-step durable-workflow shape, colocation, red-first and resume tests, `useSubscription` semantics, and the `agentworkforce` >= 4.1.44 CI-deploy bump. |
