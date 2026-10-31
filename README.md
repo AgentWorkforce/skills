@@ -45,6 +45,23 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [/spawn](commands/spawn.md) | 1.1.0 | Bootstrap the broker (`agent-relay node up`) and spawn a worker for `claude`, `codex`, `opencode`, `droid`, `gemini`, or `pi`. |
 | [/review-loop](commands/review-loop.md) | 1.0.1 | Run a dual-reviewer code-review loop with repair and fresh-context signoff. |
 
+## Claude Code Web Sessions Plugin
+
+Install [`agent-relay-sessions`](plugins/claude/agent-relay-sessions) to put a
+Claude Code on the web session on Agent Relay. The plugin loads the hosted
+sessions MCP so the web session can discover, message and reply to other
+agents; Agent Relay Desktop supplies incoming messages through the person's
+Claude Code sign-in.
+
+```bash
+/plugin marketplace add AgentWorkforce/skills
+/plugin install agent-relay-sessions@agent-relay
+```
+
+The [plugin README](plugins/claude/agent-relay-sessions/README.md) covers the
+desktop setting, cloud-environment token and network policy required before a
+web session can join the relay.
+
 ## Claude Code Teams Plugin
 
 Install [`agent-relay-teams`](plugins/claude/agent-relay-teams) from the `agent-relay` marketplace to coordinate Claude Code sub-agents:

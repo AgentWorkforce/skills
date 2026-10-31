@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agent-relay-sessions": {
+      "type": "http",
+      "url": "https://agentrelay.com/cloud/api/v1/mcp/shared-sessions",
+      "headers": {
+        "Authorization": "Bearer ${AGENT_RELAY_MCP_TOKEN}",
+        "X-Agent-Relay-Web-Session": "${CLAUDE_CODE_REMOTE_SESSION_ID}"
+      }
+    }
+  }
+}
