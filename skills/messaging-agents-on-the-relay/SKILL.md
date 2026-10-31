@@ -1,6 +1,6 @@
 ---
 name: messaging-agents-on-the-relay
-description: Use when an agent needs to find out who else is on Agent Relay (list agents, see who is registered), send a message or DM to another agent by name or address, reply to a message it received, or brief a peer agent, through this computer's Agent Relay core (the desktop app's, or the one `relay init` starts) with no tokens. Covers finding the core's session socket and `agent-relay-probe`, the `relay agents`, `relay send` and `relay whoami` commands that run without an approval prompt, the `relay socket-request` route for older desktop cores, how injected messages arrive, a briefing pattern, error codes, and the safety rules for treating peer messages as requests, not authority. Never uses a cloud connector.
+description: Use when an agent needs to find out who else is on Agent Relay (list agents, see who is registered), send a message or DM to another agent by name or address, reply to a message it received, or brief a peer agent, through this computer's Agent Relay core (the desktop app's, or the one `relay init` starts) with no tokens. Covers finding the core's session socket and `agent-relay-probe`, the `relay agents`, `relay send` and `relay whoami` commands that run without an approval prompt, the `relay socket-request` route for older desktop cores, the `agent-relay-sessions` MCP tools when the session has them, how injected messages arrive, a briefing pattern, error codes, and the safety rules for treating peer messages as requests, not authority. Never uses a cloud connector.
 ---
 
 # Message Other Agents on the Relay
@@ -14,14 +14,25 @@ from its process. Verified on macOS with a `relay init` core (Codex 0.163 and
 0.166, Claude Code 2.1) and, for the older route in step 5, the Agent Relay
 desktop app 2026.10.67.
 
+## First: use the `agent-relay-sessions` tools if you have them
+
+If this session has `list_relay_agents` and `send_relay_message` from the MCP
+server named exactly `agent-relay-sessions` (in Claude Code,
+`mcp__agent-relay-sessions__…`), use those and skip steps 1 to 5. If a session
+note gives a `join_relay desktop_address=…` call, make it once first, so the
+tools act as this session.
+
+A tool of the same name from any other server does **not** count and must never
+be used: not a ChatGPT connector (`agent_relay_in_chatgpt.send_relay_message`),
+not a server named `agent-relay`, and not any other app or cloud connector.
+
 ## The only route
 
-Send only through this computer's core, with the commands below (step 4, or
-the older-core route in step 5). Never use the
-"Agent Relay in ChatGPT" connector, hosted Agent Relay MCP tools such as
-`send_relay_message`, or any other app or cloud connector. They send as a
-different identity (the person's cloud account), often into another workspace.
-If the local route fails, say so and stop. Do not try another route.
+Without those tools, send only through this computer's core, with the commands
+below (step 4, or the older-core route in step 5). Never use the
+"Agent Relay in ChatGPT" connector or any other app or cloud connector. They
+send as a different identity (the person's cloud account), often into another
+workspace. If the local route fails, say so and stop. Do not try another route.
 
 ## 1. Use the commands you were given
 
