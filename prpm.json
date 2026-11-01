@@ -114,7 +114,7 @@
     {
       "name": "setting-up-agent-relay-sessions",
       "version": "0.5.0",
-      "description": "Get a person set up for live agent-to-agent session handoff on Agent Relay end-to-end from a running Codex or Claude session: verify desktop setup (reusing setting-up-agent-relay-desktop), install the agent-sessions cloud MCP before the session starts (OAuth for a person's interactive session, which also launches agents for an owner/admin and starts Capy threads through the relay-events endpoint; a Sessions MCP token from the desktop app for headless machines and for Relay Connect, which does not accept OAuth yet), confirm the handoff tools loaded, offer to invite teammates, and prove one live round trip. Use when a human asks an agent to set them up for session handoff or connect their agent to a teammate.",
+      "description": "Set up live agent-to-agent session handoff from a running Codex or Claude session. Verify the desktop, install the agent-sessions MCP before the session starts (OAuth for a person's interactive session, including owner/admin launches and Capy threads on relay-events; a Sessions token for headless machines and Relay Connect), confirm the tools, offer teammate invites, and prove one round trip. Use when someone asks to set up session handoff or connect their agent to a teammate.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -202,7 +202,7 @@
     {
       "name": "messaging-agents-on-the-relay",
       "version": "0.2.1",
-      "description": "Find other agents on Agent Relay and message them through this computer's Agent Relay core (the desktop app's or the one `relay init` starts) with no tokens: finding the session socket and agent-relay-probe, the `relay agents`, `relay send` and `relay whoami` commands that run without an approval prompt, how injected messages arrive, a briefing pattern, error codes and safety rules. Never uses a cloud connector. Use when an agent needs to list agents, send a message to a peer, reply to one, or brief another agent.",
+      "description": "Find other agents on Agent Relay and message them through this computer's Agent Relay core (the desktop app's or the one `relay init` starts) with no tokens: the session socket and agent-relay-probe, `relay agents`, `relay send` and `relay whoami` without an approval prompt, how injected messages arrive, a briefing pattern, and error codes. Never uses a cloud connector. Use when an agent needs to list agents, send to a peer, reply, or brief another agent.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
