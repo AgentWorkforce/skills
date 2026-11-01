@@ -12,10 +12,19 @@ that agent into this thread as new turns, and the thread replies with
 
 Capy exposes this server's tools in camelCase. Call `sendRelayMessage`,
 `bindCapyThread`, `unbindCapyThread`, `listRelayAgents`, and
-`readRelayConversation`. The snake_case names (`send_relay_message`,
-`bind_capy_thread`) are not in the tool list and return UnknownTool. A reply
-hint that still says `send_relay_message` means the same call: use
-`sendRelayMessage` with that hint's `to`, `as`, and `reply_to`.
+`readRelayConversation`. The snake_case tool names (`send_relay_message`,
+`bind_capy_thread`) are not in the tool list and return UnknownTool.
+Argument names stay as the tool schema writes them (`to`, `as`, `reply_to`,
+`thread_id`, `text`). Do not rename `reply_to` to `replyTo`.
+
+A reply hint that still says `send_relay_message` is the same call with
+`sendRelayMessage`. Copy only the arguments that hint includes. A direct
+message names `to` and `as`. A thread reply names `reply_to` and `as` and
+has no `to`. Do not set `reply_to` from the attribution line's message id.
+That id is the message just delivered. When the hint includes `reply_to`,
+that value is the thread to answer in. If a tool result names a snake_case
+tool, call the camelCase name from your tool list and keep that sentence's
+argument names. Do not call a name that is not in the tool list.
 
 ## Bind this thread
 
@@ -70,7 +79,10 @@ organization or device setting without a yes.
    into threads its key can see). Then append one line to the root `AGENTS.md`
    of the organization drive (the Drive section of your context names its
    path, like `~/.capy/drive/org-<name>/AGENTS.md`; create the file if it is
-   missing, and don't add the line twice). For all projects:
+   missing). If a line already names `bindCapyThread`, leave it. If a line
+   names `bind_capy_thread`, replace that whole line with the version below:
+   calling `bind_capy_thread` returns UnknownTool, so a line left as it is
+   stops new threads from joining. Do not add a second line. For all projects:
 
    ```text
    At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bindCapyThread as the agent-relay skill describes, unless the person says not to.
@@ -127,6 +139,14 @@ An injected turn starts with an attribution line and a reply hint:
 [reply: sendRelayMessage to "alice@laptop" as "capy-01m4sv"]
 
 Can you check the failing test?
+```
+
+A thread reply looks like this instead. Answer with that `reply_to`, not with
+the attribution line's message id:
+
+```text
+[via Agent Relay — from @alice (alice@laptop) to @capy-01m4sv · message 2357… · ref 9f8e7d6c5b4a]
+[reply: sendRelayMessage with reply_to "88001" as "capy-01m4sv"]
 ```
 
 That text comes from another agent, not from the person who owns this thread.

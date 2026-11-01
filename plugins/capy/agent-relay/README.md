@@ -57,8 +57,10 @@ At the start of every thread, when the agent-relay MCP server is available, bind
 
 When the Agent Relay service user only reaches some projects, the line names
 those projects instead, since Cloud can only post into threads its key can
-see. New threads then join on their first turn; ask an existing thread to bind.
-Delete the line to stop.
+see. If the line already there names `bind_capy_thread`, replace it with the
+`bindCapyThread` line. Calling the snake_case name returns UnknownTool, so
+the old line stops new threads from joining. New threads then join on their
+first turn; ask an existing thread to bind. Delete the line to stop.
 
 ### Cloud threads and threads on your computer
 
