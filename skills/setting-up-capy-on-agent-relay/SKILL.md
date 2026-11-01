@@ -45,7 +45,7 @@ clicks what you ask them to.
    and press **Connect**. Tell them not to paste the key in chat. Ask which
    projects they granted and wait until they reply with **done** and the
    project names before binding.
-4. **Bind this thread** with the plugin's `bind_capy_thread` tool, passing
+4. **Bind this thread** with the plugin's `bindCapyThread` tool, passing
    this thread's id as `thread_id` (the plugin's `agent-relay` skill, now
    loaded, has the details). On success it returns this thread's relay agent
    name (like `capy-01m4svr4`).
@@ -129,11 +129,13 @@ The plugin's `agent-relay` skill takes over in that thread. It:
 
 1. confirms the workspace Capy connection and, if missing, guides the person
    through step 1 and waits for "done" and the granted projects before it
-   binds the thread (`bind_capy_thread`), giving it a relay agent named like
+   binds the thread (`bindCapyThread`), giving it a relay agent named like
    `capy-01m4svr4`;
 2. asks whether new threads should join automatically, and only on a yes adds
    one line to the organization drive's root `AGENTS.md`, which Capy loads into
-   every thread (deleting the line turns it off). When the service user from
+   every thread (deleting the line turns it off). A line that still says
+   `bind_capy_thread` is replaced with `bindCapyThread`, because the old name
+   returns UnknownTool. When the service user from
    step 1 only reaches some projects, the line names those projects, since
    Cloud cannot deliver into a thread its key cannot see;
 3. asks about threads on their own computer and explains device Access
@@ -181,7 +183,8 @@ refuse a call without one (`invalid_params`). Older releases accepted a call
 without it, and a project with no default model then failed the thread later
 with `model_not_selected`.
 
-Binding an existing thread is different: `bind_capy_thread` needs the thread's
+Binding an existing thread is different: `bindCapyThread` (the name Capy shows;
+the server tool is `bind_capy_thread`) needs the thread's
 OAuth connection to `relay-events` and workspace access only, so any member
 can bind once an owner or admin has connected the Capy key.
 
@@ -189,7 +192,7 @@ can bind once an owner or admin has connected the Capy key.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `bind_capy_thread`: no Capy connection | Step 1 not done for this workspace | Do step 1, then bind again |
+| `bindCapyThread` (Capy) / `bind_capy_thread` (server): no Capy connection | Step 1 not done for this workspace | Do step 1, then bind again |
 | Thread on the roster but DMs never arrive | It runs on a computer whose Access is Personal | Step 4, then send again |
 | Capy card shows a failed delivery | Capy refused or kept failing; the error names why | Fix what it names; a message Relaycast replays is attempted again |
 | Relay tools ask for `RELAY_API_KEY` | Old 0.1.0 plugin | Remove it, install from `plugins/capy/agent-relay` |
@@ -198,6 +201,6 @@ can bind once an owner or admin has connected the Capy key.
 
 ## Undo
 
-In each bound thread, `unbind_capy_thread`; delete the organization
+In each bound thread, `unbindCapyThread`; delete the organization
 `AGENTS.md` line; remove the plugin on Capy's MCP & plugins page; Disconnect
 on the Capy card in Agent Relay Cloud.

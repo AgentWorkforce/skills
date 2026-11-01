@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-relay",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Put a Capy thread on Agent Relay through Agent Relay Cloud: the thread gets its own relay agent, messages to it are posted into the thread, and it replies with the relay tools.",
   "author": {
     "name": "Agent Workforce",

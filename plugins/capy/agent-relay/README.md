@@ -35,10 +35,11 @@ It is an [Agent Plugins 1.0](https://agent-plugins.org/specification) package:
 3. **In other threads**, once the plugin is installed, say "Set me up on
    Agent Relay" for the guided setup (bind, an optional organization-wide
    auto-join, device Access, a test message), or just "bind this thread to
-   Agent Relay". The skill has
-   the agent call `bind_capy_thread` with its jam id. The thread is then on the
-   relay roster as `capy-<thread id prefix>` (shown with the Capy mark in the
-   desktop apps and Cloud).
+   Agent Relay". The skill tells the agent to call `bindCapyThread` with its
+   jam id. Capy lists that name, not the server's `bind_capy_thread`, and
+   calling the snake_case name returns UnknownTool. The thread then appears on
+   the relay roster as `capy-<thread id prefix>` (shown with the Capy mark in
+   the desktop apps and Cloud).
 4. **Check it**: DM that agent from the desktop app or another agent. The
    message should appear in the thread as a new turn starting with
    `[via Agent Relay — …]`, and the thread's reply should come back to you.
@@ -51,13 +52,15 @@ every thread, so the guided setup offers to add one line there (only after you
 say yes):
 
 ```text
-At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bind_capy_thread as the agent-relay skill describes, unless the person says not to.
+At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bindCapyThread as the agent-relay skill describes, unless the person says not to.
 ```
 
 When the Agent Relay service user only reaches some projects, the line names
 those projects instead, since Cloud can only post into threads its key can
-see. New threads then join on their first turn; ask an existing thread to bind.
-Delete the line to stop.
+see. If the line already there names `bind_capy_thread`, replace it with the
+`bindCapyThread` line. Calling the snake_case name returns UnknownTool, so
+the old line stops new threads from joining. New threads then join on their
+first turn; ask an existing thread to bind. Delete the line to stop.
 
 ### Cloud threads and threads on your computer
 
@@ -84,7 +87,7 @@ it only affects messages coming in.
 
 | What you see | Why | Fix |
 |---|---|---|
-| `bind_capy_thread` says the workspace has no Capy connection | Step 1 isn't done | An owner or admin connects the Capy key in Cloud → Settings → Workspace → Capy |
+| `bindCapyThread` says the workspace has no Capy connection | Step 1 isn't done | An owner or admin connects the Capy key in Cloud → Settings → Workspace → Capy |
 | The thread is on the roster but DMs never arrive | The thread runs on a computer whose Access is Personal | Set that device's Access to Shared, then send again |
 | Settings shows a failed delivery for a thread | Capy refused or kept failing; the error says which | Fix what it names; a message replayed from Relaycast is attempted again |
 | The plugin's tools ask for `RELAY_API_KEY` | The old 0.1.0 plugin is still installed | Remove it and install from `AgentWorkforce/skills`, path `plugins/capy/agent-relay` (see below) |
@@ -98,13 +101,13 @@ sequenceDiagram
     participant C as Agent Relay Cloud
     participant K as Capy API
     participant T as Capy thread
-    T->>C: bind_capy_thread(jam id)
+    T->>C: bindCapyThread(jam id)
     C->>R: register the thread's agent, subscribe to its messages
     A->>R: DM @capy-xxxxxx
     R->>C: signed webhook
     C->>K: POST /threads/{jam}/message (steer, deduplicated)
     K->>T: new turn "[via Agent Relay — …]"
-    T->>C: send_relay_message(as: capy-xxxxxx)
+    T->>C: sendRelayMessage(as: capy-xxxxxx)
     C->>R: DM back
 ```
 
@@ -125,4 +128,4 @@ curl -X DELETE "https://cast.agentrelay.com/v1/agents/<name from the error>" \
   -H "Authorization: Bearer $RELAY_API_KEY"
 ```
 
-Then call `bind_capy_thread` again.
+Then call `bindCapyThread` again.
