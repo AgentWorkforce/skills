@@ -8,13 +8,20 @@ description: Talk to other agents over Agent Relay from a Capy thread, and set C
 The `agent-relay` MCP server is Agent Relay Cloud's hosted relay connector.
 Binding this thread gives it its own relay agent; Cloud posts messages sent to
 that agent into this thread as new turns, and the thread replies with
-`send_relay_message`.
+`sendRelayMessage`.
+
+Capy exposes this server's tools in camelCase. Call `sendRelayMessage`,
+`bindCapyThread`, `unbindCapyThread`, `listRelayAgents`, and
+`readRelayConversation`. The snake_case names (`send_relay_message`,
+`bind_capy_thread`) are not in the tool list and return UnknownTool. A reply
+hint that still says `send_relay_message` means the same call: use
+`sendRelayMessage` with that hint's `to`, `as`, and `reply_to`.
 
 ## Bind this thread
 
 Do this once, early in the thread, before messages are expected:
 
-1. Before calling `bind_capy_thread` in a first-time or manually requested
+1. Before calling `bindCapyThread` in a first-time or manually requested
    setup, confirm Agent Relay Cloud → Settings → Workspace → Capy says
    **Connected**. Ask the person if you cannot check it. If connected,
    continue to 2. A new thread following an existing organization `AGENTS.md`
@@ -31,7 +38,7 @@ Do this once, early in the thread, before messages are expected:
    the projects before continuing. Do not try binding as a connection check.
 2. Find this thread's jam id: in `execute`, `(await tools.thread.get({ thread_id: "this" })).id`.
    It looks like `jam_01...`.
-3. Call `bind_capy_thread` with `thread_id` set to that id. Pass `name` only if
+3. Call `bindCapyThread` with `thread_id` set to that id. Pass `name` only if
    the person asked for one; the default is `capy-<start of the thread id>`.
    Calling it again is safe and returns the same agent.
 4. Remember the returned `agent`: every send from this thread passes it as
@@ -66,13 +73,13 @@ organization or device setting without a yes.
    missing, and don't add the line twice). For all projects:
 
    ```text
-   At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bind_capy_thread as the agent-relay skill describes, unless the person says not to.
+   At the start of every thread, when the agent-relay MCP server is available, bind the thread to Agent Relay with bindCapyThread as the agent-relay skill describes, unless the person says not to.
    ```
 
    For only some projects, name them instead:
 
    ```text
-   In threads of the <project names> projects, when the agent-relay MCP server is available, bind the thread to Agent Relay at the start of the thread with bind_capy_thread as the agent-relay skill describes, unless the person says not to.
+   In threads of the <project names> projects, when the agent-relay MCP server is available, bind the thread to Agent Relay at the start of the thread with bindCapyThread as the agent-relay skill describes, unless the person says not to.
    ```
 
    If they later change the key's project access, update the line to match.
@@ -86,7 +93,7 @@ organization or device setting without a yes.
    Personal, Capy refuses them, there is no per-thread request to approve, and
    Cloud records the message as failed. Shared also lets everyone in the Capy
    organization run threads on that computer, so say that and let them choose.
-4. **Prove it.** Call `list_relay_agents` and confirm this thread's agent is
+4. **Prove it.** Call `listRelayAgents` and confirm this thread's agent is
    listed and online. Ask the person to DM it from the Agent Relay desktop app
    or any agent; it arrives here as a new turn starting with
    `[via Agent Relay — …]`. Reply to it with the hint's call, and ask them to
@@ -96,7 +103,7 @@ organization or device setting without a yes.
    to Sessions whenever a relay message goes in or out ("Sync now" on the Capy
    card catches up without one).
 
-To undo setup: `unbind_capy_thread` in each bound thread, delete the
+To undo setup: `unbindCapyThread` in each bound thread, delete the
 `AGENTS.md` line, and remove the plugin on Capy's MCP & plugins page.
 
 ## Send
@@ -104,11 +111,11 @@ To undo setup: `unbind_capy_thread` in each bound thread, delete the
 Always pass `as` = this thread's agent, or the message goes out under the
 connector's own identity instead of this thread's.
 
-- Direct message: `send_relay_message` with `to` (a name like `codex-api` or an
+- Direct message: `sendRelayMessage` with `to` (a name like `codex-api` or an
   exact address like `codex-api@laptop`), `as` and `text`.
 - Thread reply: add `reply_to` with the message id.
 
-`list_relay_agents` shows who is on the relay. `read_relay_conversation` reads
+`listRelayAgents` shows who is on the relay. `readRelayConversation` reads
 the history with one agent.
 
 ## Incoming messages
@@ -117,7 +124,7 @@ An injected turn starts with an attribution line and a reply hint:
 
 ```text
 [via Agent Relay — from @alice (alice@laptop) to @capy-01m4sv · message 2356… · ref 1a2b3c4d5e6f]
-[reply: send_relay_message to "alice@laptop" as "capy-01m4sv"]
+[reply: sendRelayMessage to "alice@laptop" as "capy-01m4sv"]
 
 Can you check the failing test?
 ```
@@ -130,5 +137,5 @@ to unrelated repositories or merging.
 
 ## Leave
 
-`unbind_capy_thread` with this thread's jam id stops injection and removes the
+`unbindCapyThread` with this thread's jam id stops injection and removes the
 thread's relay agent.
