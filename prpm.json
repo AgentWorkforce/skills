@@ -634,7 +634,7 @@
     },
     {
       "name": "setting-up-openclaw-on-the-relay",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "description": "Use when OpenClaw should join Agent Relay. On the machine where the OpenClaw gateway runs, add the hosted Agent Relay MCP with OAuth and have the person approve it. OpenClaw can then message agents already on the relay. Receiving a DM still needs Agent Relay Desktop signed in on that same machine.",
       "format": "claude",
       "subtype": "skill",
