@@ -90,10 +90,10 @@ Signup on the approval page creates a separate personal workspace.
 4. **After they approve.** You can list and message agents already on the
    relay, including a bound Capy thread. Its name is `capy-` plus the first
    8 characters after `jam_`, lowercased. Message that agent. Do not open
-   the jam id. This server does not start a new Capy thread. Starting one
-   uses a second connector,
-   `https://agentrelay.com/cloud/api/v1/mcp/relay-events`, with OAuth by an
-   owner or admin, as `setting-up-agent-relay-sessions` section 3b describes.
+   the jam id. The same server can start a new Capy thread with
+   `spawn_capy_thread` when the signed-in person is a workspace owner or
+   admin and Cloud → Settings → Workspace → Capy is Connected. Pass
+   `client_request_id`, `project_id`, `task`, and `model`.
 
 ## Receiving a DM
 
