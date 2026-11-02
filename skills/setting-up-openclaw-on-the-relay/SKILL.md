@@ -184,8 +184,10 @@ yourself:** you run inside the gateway, and stopping it ends your turn
 halfway. Give the person these steps to run in a terminal, or let another
 agent on that computer (Claude Code, Codex) run them with the person's yes.
 
-1. **Find how it was installed.** Resolve `command -v openclaw`. A path
-   inside `.../lib/node_modules/openclaw` is a global npm install; it never
+1. **Find how it was installed.** `command -v openclaw` gives the link in
+   `bin`; resolve it to its target first (`readlink -f "$(command -v
+   openclaw)"`, or `realpath`). A target inside
+   `.../lib/node_modules/openclaw` is a global npm install; it never
    updates itself, which is why such gateways fall months behind. Update it
    with the same npm (the one next to the Node that runs the gateway). For
    another installer, use that installer.
@@ -228,12 +230,15 @@ Desktop is missing, say so. Outbound messaging from step 3 still works. A
 queued send receipt is not delivery.
 
 After an update, Desktop can keep an OpenClaw registration the relay no
-longer knows: `"$relay_probe" relay call sessions.list --json` shows the
+longer knows: `"$relay_probe" relay call sessions.list --json` shows an
 `openclaw` session's `registration.push.state` stuck at `connecting`, and a
-DM to its name answers `agent_not_found`. Take it off and add it again:
+DM to its name answers `agent_not_found`. Note that session's
+`registration.name` and `target.id` (one per OpenClaw agent; `main` is only
+the default), take it off and add it again with that same id:
 `"$relay_probe" relay call agents.unregister --params '{"name":"<name>"}'`,
 then `"$relay_probe" relay call agents.register --params
-'{"target":{"id":"main","kind":"openclaw"}}'`, and wait for `live`.
+'{"target":{"id":"<target.id>","kind":"openclaw"}}'`, and wait for `live`.
+Repeat for each stuck OpenClaw session.
 
 ## Verify
 
