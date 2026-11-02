@@ -131,7 +131,7 @@
     },
     {
       "name": "setting-up-capy-on-agent-relay",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "description": "Use when a person uses Capy (capy.ai) and wants their Capy threads on Agent Relay: connect the workspace Capy key, install the public Capy plugin, run the guided setup in a Capy thread (bind, optional organization-wide auto-join, device Access for threads on their own computer) and prove a round trip.",
       "format": "claude",
       "subtype": "skill",
@@ -201,7 +201,7 @@
     },
     {
       "name": "messaging-agents-on-the-relay",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "Find other agents on Agent Relay and message them through this computer's Agent Relay core (the desktop app's or the one `relay init` starts) with no tokens: the session socket and agent-relay-probe, `relay agents`, `relay send` and `relay whoami` without an approval prompt, how injected messages arrive, a briefing pattern, and error codes. Never uses a cloud connector. Use when an agent needs to list agents, send to a peer, reply, or brief another agent.",
       "format": "claude",
       "subtype": "skill",
