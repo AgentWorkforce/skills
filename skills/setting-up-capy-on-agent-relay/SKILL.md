@@ -20,21 +20,30 @@ Set me up on Agent Relay: https://github.com/AgentWorkforce/skills/blob/main/ski
 
 ## If you are Capy and were given this link
 
-Follow these steps in this thread, in order. Do them yourself; the person only
-clicks what you ask them to.
+Follow these steps in order. Do them yourself; the person only clicks what you
+ask them to. Capy loads a plugin's tools and skill only in a thread started
+after that plugin was added, so a first-time install finishes in a new thread.
 
 1. **Propose the plugin.** Propose installing the plugin from GitHub:
    repository `AgentWorkforce/skills`, ref `main`, path
    `plugins/capy/agent-relay` (with `mcp_add`, source
    `{ git: { repository: "AgentWorkforce/skills", ref: "main", path: "plugins/capy/agent-relay" } }`;
    leave owner unset so the person chooses), then stop and wait for Add and
-   Connect. If an `agent-relay` server is already connected and its tools do
-   not ask for `RELAY_API_KEY`, skip to 3. If they ask for `RELAY_API_KEY`, an
-   old plugin is installed: tell them to remove it on Capy's MCP & plugins
-   page, then propose this plugin again and wait.
-2. **Person:** they press **Add** on the card, then **Connect**, and sign in to
-   Agent Relay Cloud. If they have no Agent Relay account, they create one on
-   that sign-in page. The approval wakes you.
+   Connect. If an `agent-relay` server is already connected and `bindCapyThread`
+   is in your tool list and does not ask for `RELAY_API_KEY`, skip to 3. If the
+   tools ask for `RELAY_API_KEY`, an old plugin is installed: tell them to
+   remove it on Capy's MCP & plugins page, then propose this plugin again and
+   wait.
+2. **Account, then Connect.** Before they sign in, ask whether they already
+   have an Agent Relay account or were invited to a teammate's or company's
+   workspace. An invited person who has not accepted opens the invite email and
+   signs in with the exact email the invite was sent to. Do not send them
+   through signup on the Connect page first: that signup creates a new personal
+   workspace, and the thread would join that workspace instead of the team's.
+   Someone who already has an account signs in to the workspace that should own
+   the Capy connection. Someone with no account and no invite creates one on
+   the sign-in page. Then they press **Add**, then **Connect**, and approve.
+   The approval wakes you.
 3. **Confirm the workspace Capy connection before binding.** Ask whether Agent
    Relay Cloud → Settings → Workspace → Capy says **Connected**. If it does,
    skip to 4. Otherwise, tell the person a workspace owner or admin must:
@@ -45,16 +54,14 @@ clicks what you ask them to.
    and press **Connect**. Tell them not to paste the key in chat. Ask which
    projects they granted and wait until they reply with **done** and the
    project names before binding.
-4. **Bind this thread** with the plugin's `bindCapyThread` tool, passing
-   this thread's id as `thread_id` (the plugin's `agent-relay` skill, now
-   loaded, has the details). On success it returns this thread's relay agent
-   name (like `capy-01m4svr4`).
-5. **Finish with the plugin's `agent-relay` skill** (now loaded): follow its
-   "Set up Capy on the relay" section from step 2 on. It asks about auto-join
-   (including whether the workspace key reaches all projects, which decides
-   the exact `AGENTS.md` line), asks about threads on their own computer, and
-   proves a round trip with a DM from a different agent (the desktop app,
-   another agent or another Capy thread).
+4. **Continue where the plugin is loaded.** If `bindCapyThread` is in your tool
+   list, bind this thread with it, passing this thread's id as `thread_id`. On
+   success it returns this thread's relay agent name (like `capy-01m4svr4`).
+   Then follow the plugin's `agent-relay` skill, section "Set up Capy on the
+   relay", from step 2 on (auto-join, threads on their own computer, and the
+   round trip). If `bindCapyThread` is not in your tool list, stop. Tell the
+   person to open a new Capy thread and send `Set me up on Agent Relay`. That
+   thread has the plugin skill and binds itself. Do not try to bind this thread.
 
 The rest of this page is the reference for those steps and for any agent
 (Claude Code, Codex, the Agent Relay agent) guiding a person through the same
@@ -70,8 +77,12 @@ and wait for them. Ask before every organization or device setting change.
 
 Ask in one message:
 
-1. Do they have an Agent Relay Cloud workspace they are signed in to? If not,
-   run `signing-in-to-agent-relay-cloud` first.
+1. Do they have an Agent Relay Cloud workspace they are signed in to, an
+   existing account, or an email invite to a teammate's or company's workspace?
+   An invited person who has not accepted opens that invite and signs in with
+   the invited email before any other sign-up. A fresh sign-up creates a
+   separate personal workspace. If they have no account and no invite, run
+   `signing-in-to-agent-relay-cloud` first.
 2. Are they an owner or admin of that Agent Relay workspace? Step 1 needs one,
    once, to connect the key. On the Capy side any organization member can
    create a read_only or read_write service user; anyone can do the rest.
@@ -112,10 +123,12 @@ Install the Agent Relay plugin from GitHub AgentWorkforce/skills, path plugins/c
 
 Capy shows a plugin card; they press **Add** (choosing who it's for), then
 **Connect**, and sign in to Agent Relay Cloud on the same workspace as step 1.
-No key is pasted: the plugin needs no `RELAY_API_KEY`. If a thread's relay
-tools ask for one, the old 0.1.0 plugin is installed; remove it on Capy's MCP &
-plugins page and install this one. They can remove the plugin there at any
-time.
+If they were invited, that sign-in is the invited email after they accept the
+invite, not a new signup. No key is pasted: the plugin needs no `RELAY_API_KEY`.
+If a thread's relay tools ask for one, the old 0.1.0 plugin is installed;
+remove it on Capy's MCP & plugins page and install this one. Adding the plugin
+does not load it into the thread that proposed it. They can remove the plugin
+there at any time.
 
 ## 3. Run the guided setup inside Capy (person sends one message)
 
@@ -199,6 +212,7 @@ can bind once an owner or admin has connected the Capy key.
 | Thread on the roster but DMs never arrive | It runs on a computer whose Access is Personal | Step 4, then send again |
 | Capy card shows a failed delivery | Capy refused or kept failing; the error names why | Fix what it names; a message Relaycast replays is attempted again |
 | Relay tools ask for `RELAY_API_KEY` | Old 0.1.0 plugin | Remove it, install from `plugins/capy/agent-relay` |
+| `bindCapyThread` is missing after Add and Connect | Capy loads a plugin only in threads started after it was added | Open a new Capy thread and send `Set me up on Agent Relay` |
 | `spawn_capy_thread` missing, or refused as a "Shared sessions history token" | Connected to `shared-sessions`, or with a Sessions token | Add `relay-events` with OAuth (`setting-up-agent-relay-sessions` section 3b) |
 | A new thread did not join by itself | No organization `AGENTS.md` line, or the plugin is off for that thread | Ask the thread to bind, or add the line (step 3) |
 | Another agent cannot open the thread (`INVALID_ARGUMENT`) or finds no roster match | It treated the jam id as a History source, or the idle agent was omitted from the default agents list | Message the relay agent, as `messaging-agents-on-the-relay` describes |
