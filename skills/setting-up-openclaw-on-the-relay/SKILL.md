@@ -27,17 +27,28 @@ Set me up on Agent Relay: https://github.com/AgentWorkforce/skills/blob/main/ski
 Do this on the computer where your gateway runs. The person only approves
 the page you give them.
 
+1. **Version gate. Do this first.** Run `openclaw --version` and
+   `openclaw mcp --help` before an account question, the probe, or any
+   `mcp add` or `mcp login`. Connect needs OpenClaw 2026.8.1 or newer.
+   Compare the three numbers, not the text. Split on `.` and compare year,
+   then month, then patch. 2026.3.8 is older. 2026.8.0 is older. 2026.8.1 is
+   new enough. 2026.10.9 is newer. Text order is wrong: the string `2026.10`
+   sorts before `2026.8`.
+
+   Bail immediately when the version is older than 2026.8.1, or when
+   `openclaw mcp` reports `unknown command`. Say the installed version and
+   that Connect needs 2026.8.1 or newer. Then stop. Do not add a server, do
+   not call `openclaw.relay_tools.connect`, do not ask them to sign in, and
+   do not run `openclaw update`.
+
+   If the CLI exits because Node is unsupported, stop and say it needs Node
+   24.22.1+ or 26.12.1+. Do not change their default Node unless they agree.
+
 Before any sign-in, ask whether they already have an Agent Relay account or
 were invited to a workspace. An invited person opens the invite email and
 signs in with the invited email. Do not ask them to paste the invite link.
-Signup on the approval page creates a separate personal workspace.
-
-1. **Version.** Run `openclaw --version`. Connect needs OpenClaw 2026.8.1 or
-   newer. Compare the numbers in order: 2026.10.9 is newer than 2026.8.1, and
-   2026.3.8 is older. Older than 2026.8.1, stop and say Connect is
-   unavailable. Do not add a server. If the CLI exits because Node is
-   unsupported, stop and say it needs Node 24.22.1+ or 26.12.1+. Do not
-   change their default Node unless they agree.
+Signup on the approval page creates a separate personal workspace. Skip this
+when step 1 bailed.
 
 2. **Use Desktop when it can connect this gateway.** If `agent-relay-probe`
    is installed, find it the way `setting-up-agent-relay-desktop` section 6
@@ -59,10 +70,11 @@ Signup on the approval page creates a separate personal workspace.
      Desktop reuses an `mcp.servers` entry that already points at the
      shared-sessions URL, whatever its name, and leaves an `agent_relay`
      entry at another address as it is.
-   - `unavailable` or `refused`: show `detail` and continue with step 3.
-     Inbound delivery still needs Desktop. This only failed to add the
-     outbound tools. Do not run `openclaw update`. Updating restarts the
-     gateway, and only the person decides that.
+   - `unavailable` or `refused`: if `detail` names an OpenClaw older than
+     2026.8.1, bail as in step 1. Do not continue. Any other `detail`: show
+     it and continue with step 3 only because step 1 already passed. Do not
+     run `openclaw update`. Updating restarts the gateway, and only the
+     person decides that.
 
 3. **Add the hosted MCP.** Skip this when step 2 is `connected` or the person
    is already approving that `authorization_url`. The endpoint is

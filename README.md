@@ -36,7 +36,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.11 | Create or update a Workforce cloud persona with `persona.json`/`persona.ts`, `agent.ts`, integration scope and adapter config guidance, vendored examples, and production-correctness checks. |
 | [factory-config](skills/factory-config/SKILL.md) | 1.0.2 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, babysitter mode, and Relayflows dispatch wiring boundaries. |
 | [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 2.0.0 | OpenClaw-specific setup and completion reporting for a headless Agent Relay team; defers to `orchestrating-agent-relay` for broker, spawn, and coordination mechanics. |
-| [setting-up-openclaw-on-the-relay](skills/setting-up-openclaw-on-the-relay/SKILL.md) | 0.1.1 | Put OpenClaw on Agent Relay from OpenClaw itself: one hosted MCP approval on the gateway machine. Receiving a DM still needs Desktop there. This is not `openclaw-orchestrator`. |
+| [setting-up-openclaw-on-the-relay](skills/setting-up-openclaw-on-the-relay/SKILL.md) | 0.1.2 | Put OpenClaw on Agent Relay from OpenClaw itself: one hosted MCP approval on the gateway machine. Receiving a DM still needs Desktop there. This is not `openclaw-orchestrator`. |
 
 ## Slash Commands
 
