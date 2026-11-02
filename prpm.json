@@ -633,6 +633,15 @@
       ]
     },
     {
+      "name": "setting-up-openclaw-on-the-relay",
+      "version": "0.1.3",
+      "description": "Use when OpenClaw should join Agent Relay. On the machine where the OpenClaw gateway runs, add the hosted Agent Relay MCP with OAuth and have the person approve it. OpenClaw can then message agents already on the relay. Receiving a DM still needs Agent Relay Desktop signed in on that same machine.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "openclaw", "mcp", "setup"],
+      "files": ["skills/setting-up-openclaw-on-the-relay/SKILL.md"]
+    },
+    {
       "name": "agent-relay-grok-bot",
       "version": "0.1.8",
       "description": "Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents.",
@@ -801,7 +810,7 @@
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
       "description": "Set up Agent Relay Desktop, live session handoff between teammates (including inviting them), subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "category": "development",
       "tags": [
         "agent-relay",
@@ -847,6 +856,12 @@
           "version": "latest",
           "required": false,
           "reason": "Put Capy threads on Agent Relay through Agent Relay Cloud and the Capy plugin"
+        },
+        {
+          "packageId": "@agent-relay/setting-up-openclaw-on-the-relay",
+          "version": "latest",
+          "required": false,
+          "reason": "On the computer where the OpenClaw gateway runs, add the hosted Agent Relay MCP so OpenClaw can message agents already on the relay. Receiving a DM still needs Desktop there"
         }
       ]
     }

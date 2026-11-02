@@ -36,6 +36,7 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 | [creating-cloud-persona](skills/creating-cloud-persona/SKILL.md) | 1.0.11 | Create or update a Workforce cloud persona with `persona.json`/`persona.ts`, `agent.ts`, integration scope and adapter config guidance, vendored examples, and production-correctness checks. |
 | [factory-config](skills/factory-config/SKILL.md) | 1.0.2 | Create and validate Agent Relay Factory configs for repo routing, Linear states, GitHub issue ingestion, Slack, babysitter mode, and Relayflows dispatch wiring boundaries. |
 | [openclaw-orchestrator](skills/openclaw-orchestrator/SKILL.md) | 2.0.0 | OpenClaw-specific setup and completion reporting for a headless Agent Relay team; defers to `orchestrating-agent-relay` for broker, spawn, and coordination mechanics. |
+| [setting-up-openclaw-on-the-relay](skills/setting-up-openclaw-on-the-relay/SKILL.md) | 0.1.3 | Put OpenClaw on Agent Relay from OpenClaw itself: one hosted MCP approval on the gateway machine. Receiving a DM still needs Desktop there. This is not `openclaw-orchestrator`. |
 
 ## Slash Commands
 
@@ -199,7 +200,9 @@ npx skills add https://github.com/AgentWorkforce/skills \
   --skill signing-in-to-agent-relay-cloud
 ```
 
-The collection also carries `setting-up-capy-on-agent-relay` as an optional package, for people whose Capy threads should join the relay (it needs no desktop). With `skills`, add `--skill setting-up-capy-on-agent-relay` to include it.
+The collection also carries `setting-up-capy-on-agent-relay` and `setting-up-openclaw-on-the-relay` as optional packages. Capy needs no desktop. OpenClaw adds the hosted MCP on the computer where its gateway runs; receiving a DM still needs Agent Relay Desktop on that computer. With `skills`, add `--skill setting-up-capy-on-agent-relay` or `--skill setting-up-openclaw-on-the-relay`.
+
+To onboard OpenClaw, on the computer where its gateway runs, send it: `Set me up on Agent Relay: https://github.com/AgentWorkforce/skills/blob/main/skills/setting-up-openclaw-on-the-relay/SKILL.md`.
 
 Add `-g` for a user-level install, or `--agent claude-code` to pick a tool. (`--agent codex` writes to `./.agents/skills`, or with `-g` to `~/.agents/skills`, which Codex 0.163 loads as a global skill folder.) The sessions and subscribing skills stop and tell you which companion to install if the desktop skill is missing; the desktop skill is the foundation and has no companion requirement.
 
