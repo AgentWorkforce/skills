@@ -184,11 +184,17 @@ yourself:** you run inside the gateway, and stopping it ends your turn
 halfway. Give the person these steps to run in a terminal, or let another
 agent on that computer (Claude Code, Codex) run them with the person's yes.
 
-First read the gateway mode with `openclaw config get gateway.mode`. If
-the CLI cannot start (an unsupported Node), read only `gateway.mode` from
-the config file the gateway service uses instead: `OPENCLAW_CONFIG_PATH`
-from its service definition, else `openclaw.json` in its state directory
-(`OPENCLAW_STATE_DIR`, default `~/.openclaw`), for example
+First read the gateway's service definition (step 2 says where) and note
+the OpenClaw settings it runs with: `OPENCLAW_CONFIG_PATH`,
+`OPENCLAW_STATE_DIR`, `OPENCLAW_PROFILE`, and any `--profile` in its
+arguments. Run every OpenClaw command in this section, including the next
+one, with that same environment and profile, so each reads and changes the
+config the service uses and not the shell's. Then read the gateway mode
+with `openclaw config get gateway.mode`. If the CLI cannot start (an
+unsupported Node), read only `gateway.mode` from that same config file
+instead: `OPENCLAW_CONFIG_PATH`, else `openclaw.json` in the state
+directory (`OPENCLAW_STATE_DIR`, default `~/.openclaw`; a profile has its
+own state directory), for example
 `jq -r '.gateway.mode // "unset"' <that file>`. Do not print the rest of
 the file; it holds credentials. If the mode is `remote`, this computer only
 points at a gateway that runs elsewhere: do not change the mode and do not
