@@ -35,14 +35,17 @@ the page you give them.
    new enough. 2026.10.9 is newer. Text order is wrong: the string `2026.10`
    sorts before `2026.8`.
 
-   Bail immediately when the version is older than 2026.8.1, or when
-   `openclaw mcp` reports `unknown command`. Say the installed version and
-   that Connect needs 2026.8.1 or newer. Then stop. Do not add a server, do
-   not call `openclaw.relay_tools.connect`, do not ask them to sign in, and
-   do not run `openclaw update`.
+   When the version is older than 2026.8.1, or `openclaw mcp` reports
+   `unknown command`, do not add a server, do not call
+   `openclaw.relay_tools.connect`, and do not ask them to sign in. Say the
+   installed version and that Agent Relay needs 2026.8.1 or newer: older
+   gateways cannot sign in to the relay, and relay messages to them only
+   arrive by polling. Then **offer the update** in "Updating an old OpenClaw"
+   below, and ask before doing anything. Updating restarts the gateway, and
+   only the person decides that. If they say no, stop there.
 
-   If the CLI exits because Node is unsupported, stop and say it needs Node
-   24.22.1+ or 26.12.1+. Do not change their default Node unless they agree.
+   If the CLI exits because Node is unsupported, say it needs Node 24.22.1+
+   (below 25) or 26.12.1+. Do not change their default Node unless they agree.
 
    After the version gate passes, ask whether they have an Agent Relay account
    or an invitation, which **workspace** should own this connection (name and
@@ -76,10 +79,13 @@ the page you give them.
      shared-sessions URL, whatever its name, and leaves an `agent_relay`
      entry at another address as it is.
    - `unavailable` or `refused`: if `detail` names an OpenClaw older than
-     2026.8.1, bail as in step 1. Do not continue. Any other `detail`: show
+     2026.8.1, offer the update as in step 1. Do not continue. Trust the
+     version from step 1 over this text: Desktop also says "This version of
+     OpenClaw can't sign in to MCP servers" for its own token-auth entry
+     (`X-Agent-Relay-Managed-By: agent-relay-desktop`) on a current OpenClaw.
+     When step 1 passed, treat that detail as "continue with step 3". Any other `detail`: show
      it and continue with step 3 only because step 1 already passed. Do not
-     run `openclaw update`. Updating restarts the gateway, and only the
-     person decides that.
+     update OpenClaw here without asking: updating restarts the gateway.
 
    If the probe is missing, or the status/connect command fails because the
    Desktop core is stopped, its socket is missing, the connection is refused,
@@ -171,12 +177,63 @@ the page you give them.
    A `failed` binding means the thread exists but is not yet on the relay;
    inspect `binding.reason` and retry the same request id to repair it.
 
+## Updating an old OpenClaw
+
+Only after the person agrees. **If you are OpenClaw, do not run these
+yourself:** you run inside the gateway, and stopping it ends your turn
+halfway. Give the person these steps to run in a terminal, or let another
+agent on that computer (Claude Code, Codex) run them with the person's yes.
+
+1. **Find how it was installed.** Resolve `command -v openclaw`. A path
+   inside `.../lib/node_modules/openclaw` is a global npm install; it never
+   updates itself, which is why such gateways fall months behind. Update it
+   with the same npm (the one next to the Node that runs the gateway). For
+   another installer, use that installer.
+2. **Check the Node the gateway runs.** Read the gateway's service
+   definition (macOS: the LaunchAgent plist in `~/Library/LaunchAgents`;
+   Linux: the systemd unit) for its program and `PATH`, then run that Node's
+   `--version`. Current OpenClaw needs Node 24.22.1+ (below 25) or 26.12.1+.
+   Upgrade it with the manager that installed it (for example
+   `brew upgrade node`), and tell the person it changes Node for every other
+   tool using that Node, and that the manager may upgrade dependents too.
+3. **Back up** `~/.openclaw` (or `OPENCLAW_STATE_DIR`) and the service
+   definition. The config holds credentials: keep the backup private and do
+   not print the config.
+4. **Stop the gateway.** Run `openclaw gateway stop`; a current OpenClaw
+   refuses with a warning unless you pass `--force`, which the person has
+   agreed to. Repairs and MCP changes are refused while it runs.
+5. **Install, then repair.** `npm i -g openclaw@latest`, then
+   `openclaw doctor --fix --non-interactive`. If doctor says files are
+   retired and names a version to upgrade through first (for example
+   "Upgrade through OpenClaw 2026.9.7"), install that version, run the same
+   doctor, then install latest and run it again. Finish with
+   `openclaw config validate`.
+6. **Start the gateway again** with `openclaw gateway install --force --port
+   <its port>` (18789 by default) so the service runs the new version, and
+   set `openclaw config set gateway.mode local` if install warns it is
+   missing. `openclaw gateway status` should show it listening.
+7. **Give it a model.** The gateway service does not see API keys exported
+   in a shell. Run `openclaw models status`; if the default model has no
+   usable credential, have the person sign in, for example
+   `openclaw models auth login --provider openai` for a ChatGPT
+   subscription. Otherwise relay messages arrive but every answer fails
+   with "No route-compatible authentication source".
+8. Run step 1 of the setup again, then continue.
+
 ## Receiving a DM
 
 Agent Relay Desktop must be signed in on this same computer. While the local
 gateway answers, OpenClaw is on the roster and a DM to it is delivered. If
 Desktop is missing, say so. Outbound messaging from step 3 still works. A
 queued send receipt is not delivery.
+
+After an update, Desktop can keep an OpenClaw registration the relay no
+longer knows: `"$relay_probe" relay call sessions.list --json` shows the
+`openclaw` session's `registration.push.state` stuck at `connecting`, and a
+DM to its name answers `agent_not_found`. Take it off and add it again:
+`"$relay_probe" relay call agents.unregister --params '{"name":"<name>"}'`,
+then `"$relay_probe" relay call agents.register --params
+'{"target":{"id":"main","kind":"openclaw"}}'`, and wait for `live`.
 
 ## Verify
 
