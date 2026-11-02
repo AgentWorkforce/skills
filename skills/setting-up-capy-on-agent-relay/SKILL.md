@@ -38,10 +38,11 @@ after that plugin was added, so a first-time install finishes in a new thread.
    sign-in page in step 2. Complete this check even if the plugin is already
    connected; if it is connected to another workspace, reconnect it to the
    intended one before binding.
-2. **Propose the plugin, then Connect.** Only after step 1 is complete: if an
-   `agent-relay` server is already connected to that workspace and
-   `bindCapyThread` is in your tool list and does not ask for `RELAY_API_KEY`,
-   skip to 3. If the tools ask for `RELAY_API_KEY`, an old plugin is installed:
+2. **Propose the plugin, then Connect.** Only after step 1 is complete: if the
+   current `agent-relay` plugin is already connected to that workspace and
+   does not ask for `RELAY_API_KEY`, skip to 3 even if this older thread lacks
+   `bindCapyThread`; step 4 sends it to a new thread without reinstalling.
+   If the tools ask for `RELAY_API_KEY`, an old plugin is installed:
    tell them to remove it on Capy's MCP & plugins page before proceeding.
    Otherwise, propose installing the plugin from GitHub: repository
    `AgentWorkforce/skills`, ref `main`, path `plugins/capy/agent-relay` (with
@@ -189,15 +190,18 @@ state that and let them choose. Binding and sending work either way.
   `messaging-agents-on-the-relay` describes. It does not open the jam id in
   History.
 
-## Starting Capy threads from Claude Code or Codex
+## Starting Capy threads from Claude Code, Codex or OpenClaw
 
-A person's Claude Code or Codex session can start new Capy threads with
-`spawn_capy_thread`, but only through the `relay-events` endpoint
-(`https://agentrelay.com/cloud/api/v1/mcp/relay-events`) connected with
-**OAuth**, by a current workspace **owner or admin**. The
-`shared-sessions` MCP from `setting-up-agent-relay-sessions` has no Capy
-tools, and a Sessions token is refused by every Capy and launch tool. Install
-and verify it with that skill's section 3b. Always pass `model` (for example
+A person's Claude Code, Codex or OpenClaw session can start new Capy threads
+with `spawn_capy_thread` through either hosted endpoint:
+`https://agentrelay.com/cloud/api/v1/mcp/shared-sessions` or
+`https://agentrelay.com/cloud/api/v1/mcp/relay-events`. Use an existing **OAuth**
+connection; the person must be a current workspace **owner or admin**, and
+Cloud → Settings → Workspace → Capy must be Connected. The shared-sessions
+MCP already supports Capy: do not add another connector or ask for another
+browser approval just for this. A Sessions token cannot launch Capy threads.
+Install or verify OAuth with `setting-up-agent-relay-sessions` section 3b.
+Always pass `model` (for example
 `anthropic/claude-sonnet-5-5`) to `spawn_capy_thread`, and to the desktop
 core's `capy.threads.spawn`. Desktop builds from relay-desktop#703 (merged
 2026-10-27, not yet in a stable release as of 2026-10-28) require it there and
@@ -207,8 +211,8 @@ with `model_not_selected`.
 
 Binding an existing thread is different: `bindCapyThread` (the name Capy shows;
 the server tool is `bind_capy_thread`) needs the thread's
-OAuth connection to `relay-events` and workspace access only, so any member
-can bind once an owner or admin has connected the Capy key.
+OAuth connection to either hosted endpoint and workspace access only, so any
+member can bind once an owner or admin has connected the Capy key.
 
 ## Recovery
 
@@ -219,7 +223,7 @@ can bind once an owner or admin has connected the Capy key.
 | Capy card shows a failed delivery | Capy refused or kept failing; the error names why | Fix what it names; a message Relaycast replays is attempted again |
 | Relay tools ask for `RELAY_API_KEY` | Old 0.1.0 plugin | Remove it, install from `plugins/capy/agent-relay` |
 | `bindCapyThread` is missing after Add and Connect | Capy loads a plugin only in threads started after it was added | Open a new Capy thread and send `Set me up on Agent Relay` |
-| `spawn_capy_thread` missing, or refused as a "Shared sessions history token" | Connected to `shared-sessions`, or with a Sessions token | Add `relay-events` with OAuth (`setting-up-agent-relay-sessions` section 3b) |
+| `spawn_capy_thread` missing, or refused as a "Shared sessions history token" | Stale tool list or token-mode connection | Refresh/restart the existing server and check `describe_capabilities`; both endpoints support Capy. If token mode, use OAuth (`setting-up-agent-relay-sessions` section 3b), preserving any Connect token server |
 | A new thread did not join by itself | No organization `AGENTS.md` line, or the plugin is off for that thread | Ask the thread to bind, or add the line (step 3) |
 | Another agent cannot open the thread (`INVALID_ARGUMENT`) or finds no roster match | It treated the jam id as a History source, or the idle agent was omitted from the default agents list | Message the relay agent, as `messaging-agents-on-the-relay` describes |
 

@@ -1,6 +1,6 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Set up live agent-to-agent session handoff from a running Codex or Claude session. Verify the desktop, install the agent-sessions MCP before the session starts (OAuth for a person's interactive session, including owner/admin launches and Capy threads on relay-events; a Sessions token for headless machines and Relay Connect), confirm the tools, offer teammate invites, and prove one round trip. Use when someone asks to set up session handoff or connect their agent to a teammate.
+description: Set up live agent-to-agent session handoff from a running Codex or Claude session. Verify the desktop, install the agent-sessions MCP before the session starts (OAuth for a person's interactive session, including owner/admin launches and Capy threads on shared-sessions or relay-events; a Sessions token for headless machines and Relay Connect), confirm the tools, offer teammate invites, and prove one round trip. Use when someone asks to set up session handoff or connect their agent to a teammate.
 ---
 
 # Set Up Agent Relay Session Handoff
@@ -32,8 +32,8 @@ installing anything:
 | --- | --- | --- | --- |
 | Headless or fleet machines, spawned agents, CI: read, search and message teammates' sessions; also **Relay Connect** | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **Sessions token** from the desktop or dashboard (`rth:read`), sent as a bearer header. No browser. | Claude Code, Codex, Muse |
 | A person's or interactive agent's session (recommended), including **launching agents** on fleet machines (`spawn_relay_agent`) or Replicas. No Relay Connect yet. | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`) | **OAuth** (no header), browser sign-in. Launching also needs the person to be a current workspace **owner or admin** | Claude Code, Codex |
-| **Starting Capy threads** (`spawn_capy_thread`) | `…/api/v1/mcp/relay-events` (`agent-relay`) | **OAuth** (no header), browser sign-in, **and** owner/admin | Claude Code, Codex |
-| **Binding a Capy thread** (`bind_capy_thread`) | `…/api/v1/mcp/relay-events` | **OAuth** (no header) with workspace access; **any member**, no owner/admin role. An owner or admin connects the workspace's Capy key once. | The Capy thread itself, through the Capy plugin (`setting-up-capy-on-agent-relay`) |
+| **Starting Capy threads** (`spawn_capy_thread`) | `…/api/v1/mcp/shared-sessions` (`agent-relay-sessions`), or an existing `relay-events` connection | **OAuth** (no header), browser sign-in, **and** owner/admin | Claude Code, Codex |
+| **Binding a Capy thread** (`bind_capy_thread`) | `…/api/v1/mcp/shared-sessions` or `…/api/v1/mcp/relay-events` | **OAuth** (no header) with workspace access; **any member**, no owner/admin role. An owner or admin connects the workspace's Capy key once. | The Capy thread itself, through the Capy plugin (`setting-up-capy-on-agent-relay`) |
 
 Base URL in production: `https://agentrelay.com/cloud`. A desktop signed in to
 a staging or local Cloud uses the same paths on that Cloud's base (section 3b
@@ -60,10 +60,12 @@ The rules behind the table, all from Cloud's server code:
   or `rth:sync`), which includes the Sessions token. An OAuth connection lists
   the Connect tools, but every call is refused with "A personal Cloud
   credential is required for Relay Connect." See **Relay Connect and OAuth**.
-- **Capy tools exist only on `relay-events`.** The `shared-sessions` endpoint
-  has no Capy tools with any credential. To start Capy threads, add the
-  `relay-events` server with OAuth (section 3b), alongside or instead of
-  `agent-relay-sessions`.
+- **Both endpoints expose Capy tools.** An existing OAuth connection to
+  `shared-sessions` can list projects and start Capy threads; do not add
+  `relay-events` or ask for another browser approval just for Capy. An existing
+  OAuth `relay-events` connection works too. Binding requires OAuth and
+  workspace access; starting threads also requires current owner/admin rights
+  (section 3b). A Sessions token cannot start or bind Capy threads.
 - **A browser sign-in is needed once per machine and per harness** for OAuth,
   and once per endpoint (each endpoint is a separate OAuth resource). It cannot
   be completed by an agent alone; see **Headless machines** in section 3b.
@@ -121,6 +123,8 @@ adds tools.
 | Session reads | `open_shared_sessions`, `search_shared_sessions`, `get_shared_session`, `get_shared_session_context`, `list_session_timings`, `list_team_activity` | works | works |
 | Relay messaging | `list_relay_agents`, `send_relay_message`, `read_relay_conversation`, `join_relay`, `leave_relay`, `relay_status`, `check_relay_inbox`, `list_relay_channels`, `subscribe_relay_channel`, `unsubscribe_relay_channel`, `post_relay_channel`, `read_relay_channel` | works | works (acts as the agent name approved at OAuth consent) |
 | Relay Connect | `create_connect`, `join_connect`, `connect_send`, `connect_inbox`, `connect_status`, `extend_connect`, `end_connect`, `create_connect_observer`, `list_connect_observers`, `revoke_connect_observer` (+ `host_connect_agent` when hosting is enabled) | works | **refused** today (listed, not usable; see above) |
+| Capy binding | `bind_capy_thread`, `unbind_capy_thread` | **refused** | workspace members |
+| Capy launch | `list_capy_projects`, `spawn_capy_thread`, `get_capy_thread_spawn` | **refused** | owner/admin only |
 | Screens | `show_ui`, `show_ui_guide` | works | works |
 | Agent launch | `list_relay_spawn_targets`, `spawn_relay_agent`, `get_relay_spawn_status`, `release_relay_agent` | **refused** | owner/admin only |
 | Replicas launch | `list_replicas_environments`, `spawn_replica`, `get_replica_spawn`, `recover_replica_spawn`, `bind_replica`, `release_replica` | **refused** | owner/admin only |
@@ -144,8 +148,9 @@ tools, and the Capy tools: `list_capy_projects`, `spawn_capy_thread`,
 endpoint is stateless, so `spawn_relay_agent` there requires an explicit
 `idempotency_key`; reuse the same key on a retry. It has no
 Connect tools, no `check_relay_inbox`/`join_relay`, and no
-`list_team_activity`, so a person who wants both handoff and Capy keeps
-`agent-relay-sessions` installed too. `relay-events` also accepts a Sessions
+`list_team_activity`, so a person who needs the full handoff tools or Connect
+keeps `agent-relay-sessions` installed too. Capy alone does not need a second
+server or a second OAuth consent. `relay-events` also accepts a Sessions
 token, but then every Capy and launch call is refused the same way, so do not
 set it up that way.
 
@@ -849,11 +854,11 @@ fi
 echo "cloud_base=$cloud_base"   # confirm with the person before adding
 ```
 
-- Launch agents or Replicas, plus handoff: `agent-relay-sessions` →
-  `$cloud_base/api/v1/mcp/shared-sessions`.
-- Start Capy threads: also `agent-relay` →
-  `$cloud_base/api/v1/mcp/relay-events`. This is the only endpoint with the
-  Capy tools.
+- Launch agents, Replicas or Capy threads, plus handoff:
+  `agent-relay-sessions` → `$cloud_base/api/v1/mcp/shared-sessions`.
+- An existing OAuth `agent-relay` → `$cloud_base/api/v1/mcp/relay-events`
+  also supports Capy. Keep it if it is already connected; do not add it just
+  to start Capy threads when `agent-relay-sessions` is authorized with OAuth.
 
 Each is a separate OAuth resource, so each needs its own sign-in. On consent,
 the person approves the workspace and an agent name; OAuth messaging tools act
@@ -873,9 +878,6 @@ references a machine-specific env var; either works there.)
 ```sh
 claude mcp add --transport http -s user agent-relay-sessions \
   "${cloud_base:?run the cloud_base block first}/api/v1/mcp/shared-sessions"
-# Only when the person will start Capy threads:
-claude mcp add --transport http -s user agent-relay \
-  "$cloud_base/api/v1/mcp/relay-events"
 claude mcp list
 ```
 
@@ -894,9 +896,6 @@ the person is OK with every Codex project getting them. Add without
 ```sh
 codex mcp add agent-relay-sessions --url "${cloud_base:?run the cloud_base block first}/api/v1/mcp/shared-sessions"
 codex mcp login agent-relay-sessions
-# Only when the person will start Capy threads:
-codex mcp add agent-relay --url "$cloud_base/api/v1/mcp/relay-events"
-codex mcp login agent-relay
 codex mcp list
 ```
 
@@ -966,7 +965,9 @@ revoke the token in the dashboard.
   "Shared sessions history token" refusal means the session is still in token
   mode: recheck the switch and restart. "Only current workspace owners and
   admins …" means OAuth works but the person lacks the role.
-- `agent-relay` (OAuth): call `list_capy_projects`. Success is a list of
+- On the same OAuth server (`agent-relay-sessions`, `agent-relay-launch` in
+  a dual setup, or an existing `agent-relay`): call `list_capy_projects`.
+  Success is a list of
   project ids and names. An error about a missing Capy connection means an
   owner or admin still has to connect the workspace's Capy key
   (`setting-up-capy-on-agent-relay`).
@@ -1295,9 +1296,11 @@ count a roster listing as a proven handoff.
   Connect.":** the server is connected with OAuth, which Connect does not
   accept yet. Use Connect through a token-mode server (section 3), under a
   second name if this one must stay OAuth (see **Relay Connect and OAuth**).
-- **`list_capy_projects` / `spawn_capy_thread` are missing:** they exist only
-  on the `relay-events` endpoint. Add it with section 3b; reconnecting
-  `agent-relay-sessions` with OAuth does not add them.
+- **`list_capy_projects` / `spawn_capy_thread` are missing:** both
+  `shared-sessions` and `relay-events` expose them. Refresh/restart the existing
+  connection and check `describe_capabilities`; do not add a second connector
+  just for Capy. A history-token refusal means use OAuth (section 3b); an
+  owner/admin refusal means the person lacks launch rights.
 - **Invited teammate never got the email:** check the invite's
   `emailDelivery`. If it is not `sent`, the email never left; have the person
   copy the link from **Settings → Members** and send it to that teammate. If it is `sent`, have the
