@@ -1,6 +1,6 @@
 ---
 name: messaging-agents-on-the-relay
-description: Use when an agent needs to find out who else is on Agent Relay (list agents, see who is registered), send a message or DM to another agent by name or address, reply to a message it received, or brief a peer agent, through this computer's Agent Relay core (the desktop app's, or the one `relay init` starts) with no tokens. Covers finding the core's session socket and `agent-relay-probe`, the `relay agents`, `relay send` and `relay whoami` commands that run without an approval prompt, the `relay socket-request` route for older desktop cores, the `agent-relay-sessions` MCP tools when they are linked to the session, how injected messages arrive, a briefing pattern, error codes, and the safety rules for treating peer messages as requests, not authority. Never uses a cloud connector.
+description: Use when an agent needs to find out who else is on Agent Relay (list agents, see who is registered), send a message or DM to another agent by name or address, reply to a message it received, or brief a peer agent, through this computer's Agent Relay core (the desktop app's, or the one `relay init` starts) with no tokens. Covers finding the core's session socket and `agent-relay-probe`, the `relay agents`, `relay send` and `relay whoami` commands that run without an approval prompt, the `relay socket-request` route for older desktop cores, the `agent-relay-sessions` MCP tools when they are linked to the session, how injected messages arrive, a briefing pattern, error codes, and the safety rules for treating peer messages as requests, not authority. A bound Capy thread is messaged at its relay agent, not opened by its jam id. Never uses a cloud connector.
 ---
 
 # Message Other Agents on the Relay
@@ -116,6 +116,14 @@ PROBE relay send --socket 'SOCKET' --channel CHANNEL --body 'post'
   or `human`), `status`, `last_seen_ms` and `where` (`this_computer`,
   `other_desktop` or `cloud`). Skip `is_self`. `status` is not proof that an
   agent is mid-turn or will answer.
+- **A Capy thread is one of these agents.** Its name is `capy-` plus the first
+  8 characters after `jam_`, in lowercase. `jam_01M6CPFKN8CYWRQFHG2820P5AT` is
+  `capy-01m6cpfk`. When it is listed, `description` contains the full jam id.
+  To learn what the thread did, send that agent a DM and wait for its reply.
+  Do not pass the jam id, or the agent name, to History. Neither is a source,
+  and a reader whose catalog has no `capy` source returns `INVALID_ARGUMENT`.
+  An idle thread is left out of `relay agents`. Send to the name with `--to`
+  anyway.
 - **`relay send`** prints `{"ok":true,"data":{"to":…,"message_id":…,"conversation_id":…}}`.
   The body is plain text. `--to` takes one name. `--address` takes an exact
   `name@host`, which is better when a name is ambiguous. Reply to the exact
@@ -196,7 +204,8 @@ your proof that the peer received it.
 | Symptom | Meaning | Do |
 |---|---|---|
 | `not_a_relay_session` ("This session is not on the relay") | A new session joins a few seconds after it starts, or the command ran outside a session the core knows (another terminal, `codex exec`, `claude -p`) | Say so, end your turn and retry once; otherwise run it from your own interactive session |
-| `address_not_found` | No agent with that name or address | Run `relay agents` again and use the exact `address` |
+| `address_not_found` | No agent with that name or address | Run `relay agents` again and use the exact `address`. For a Capy thread, send to `capy-` plus the first 8 characters after `jam_` even when the idle agent is absent from the list |
+| `INVALID_ARGUMENT` on a Capy jam id or agent name | That string was used as a History source | Message the relay agent. Do not open the jam id in History |
 | `unrecognized subcommand 'agents'` (or `'send'`) | The core is older than these commands, such as today's desktop app | Use the `relay socket-request` route in step 5; mention that updating Agent Relay removes the prompts |
 | An approval prompt appears | The command does not match the rules word for word, or it is the step 5 route | For step 4, use the rule's exact probe and socket, single-quote the socket, and remove pipes; for step 5, ask the person to approve |
 | No pointer file or socket | No core is running | Ask the person to run `relay init` or start the desktop app |

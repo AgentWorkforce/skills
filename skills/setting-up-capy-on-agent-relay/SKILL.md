@@ -166,6 +166,9 @@ state that and let them choose. Binding and sending work either way.
 - Agent Relay Cloud → Settings → Workspace → Capy lists the bound thread with
   its last delivery and no failures. Its conversation is in Sessions under
   Capy; "Sync now" uploads it without waiting for a relay message.
+- Another agent reads what the thread did by messaging that relay agent, as
+  `messaging-agents-on-the-relay` describes. It does not open the jam id in
+  History.
 
 ## Starting Capy threads from Claude Code or Codex
 
@@ -198,6 +201,7 @@ can bind once an owner or admin has connected the Capy key.
 | Relay tools ask for `RELAY_API_KEY` | Old 0.1.0 plugin | Remove it, install from `plugins/capy/agent-relay` |
 | `spawn_capy_thread` missing, or refused as a "Shared sessions history token" | Connected to `shared-sessions`, or with a Sessions token | Add `relay-events` with OAuth (`setting-up-agent-relay-sessions` section 3b) |
 | A new thread did not join by itself | No organization `AGENTS.md` line, or the plugin is off for that thread | Ask the thread to bind, or add the line (step 3) |
+| Another agent cannot open the thread (`INVALID_ARGUMENT`) or finds no roster match | It treated the jam id as a History source, or the idle agent was omitted from the default agents list | Message the relay agent, as `messaging-agents-on-the-relay` describes |
 
 ## Undo
 
