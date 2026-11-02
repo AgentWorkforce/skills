@@ -184,6 +184,11 @@ yourself:** you run inside the gateway, and stopping it ends your turn
 halfway. Give the person these steps to run in a terminal, or let another
 agent on that computer (Claude Code, Codex) run them with the person's yes.
 
+First read `openclaw config get gateway.mode`. If it is `remote`, this
+computer only points at a gateway that runs elsewhere: do not change the
+mode and do not update here. Say so, and run these steps on the computer
+that runs that gateway. Continue only when the mode is `local` or unset.
+
 1. **Find how it was installed.** `command -v openclaw` gives the link in
    `bin`; resolve it to its target first (`readlink -f "$(command -v
    openclaw)"`, or `realpath`). A target inside
@@ -220,8 +225,10 @@ agent on that computer (Claude Code, Codex) run them with the person's yes.
    "Upgrade through OpenClaw 2026.9.7"), install that version, run the same
    doctor, then install latest and run it again. Finish with
    `"$GW_OPENCLAW" config validate`.
-6. **Start the gateway again.** First `"$GW_OPENCLAW" config set gateway.mode
-   local` (the gateway will not start without it), then
+6. **Start the gateway again.** If `"$GW_OPENCLAW" config get gateway.mode`
+   is unset, set it with `"$GW_OPENCLAW" config set gateway.mode local` (a
+   current gateway will not start without it). Leave a mode that is already
+   set as it is; never turn a remote one into local. Then run
    `"$GW_OPENCLAW" gateway install --force --port <its port>` (18789 by default)
    so the service runs the new version. `"$GW_OPENCLAW" gateway status` should
    show it listening; if it is installed but not running, run
