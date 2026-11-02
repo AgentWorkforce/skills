@@ -215,11 +215,16 @@ agent on that computer (Claude Code, Codex) run them with the person's yes.
    set `openclaw config set gateway.mode local` if install warns it is
    missing. `openclaw gateway status` should show it listening.
 7. **Give it a model.** The gateway service does not see API keys exported
-   in a shell. Run `openclaw models status`; if the default model has no
-   usable credential, have the person sign in, for example
-   `openclaw models auth login --provider openai` for a ChatGPT
-   subscription. Otherwise relay messages arrive but every answer fails
-   with "No route-compatible authentication source".
+   in a shell. Run `openclaw models status`, note the default model's
+   provider (the part before `/`), and check that provider has a usable
+   credential. If not, have the person sign in **to that provider**, for
+   example `openclaw models auth login --provider openai` for an `openai/*`
+   default and a ChatGPT subscription. To use a different provider than the
+   default, sign in with `--set-default` (or set the model) so the default
+   moves to it; a login alone keeps the old default. Run
+   `openclaw models status` again and confirm the default's provider shows
+   a usable credential. Otherwise relay messages arrive but every answer
+   fails with "No route-compatible authentication source".
 8. Run step 1 of the setup again, then continue.
 
 ## Receiving a DM
