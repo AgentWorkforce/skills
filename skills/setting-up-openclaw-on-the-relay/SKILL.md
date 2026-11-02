@@ -78,14 +78,12 @@ the page you give them.
      Desktop reuses an `mcp.servers` entry that already points at the
      shared-sessions URL, whatever its name, and leaves an `agent_relay`
      entry at another address as it is.
-   - `unavailable` or `refused`: if `detail` names an OpenClaw older than
-     2026.8.1, offer the update as in step 1. Do not continue. Trust the
-     version from step 1 over this text: Desktop also says "This version of
-     OpenClaw can't sign in to MCP servers" for its own token-auth entry
-     (`X-Agent-Relay-Managed-By: agent-relay-desktop`) on a current OpenClaw.
-     When step 1 passed, treat that detail as "continue with step 3". Any other `detail`: show
-     it and continue with step 3 only because step 1 already passed. Do not
-     update OpenClaw here without asking: updating restarts the gateway.
+   - `unavailable` or `refused`: show `detail` and continue with step 3.
+     Step 1 already checked the version, so do not stop or offer an update
+     because of this text: Desktop also says "This version of OpenClaw
+     can't sign in to MCP servers" for its own token-auth entry
+     (`X-Agent-Relay-Managed-By: agent-relay-desktop`) on a current
+     OpenClaw.
 
    If the probe is missing, or the status/connect command fails because the
    Desktop core is stopped, its socket is missing, the connection is refused,
@@ -188,32 +186,39 @@ agent on that computer (Claude Code, Codex) run them with the person's yes.
    `bin`; resolve it to its target first (`readlink -f "$(command -v
    openclaw)"`, or `realpath`). A target inside
    `.../lib/node_modules/openclaw` is a global npm install; it never
-   updates itself, which is why such gateways fall months behind. Update it
-   with the same npm (the one next to the Node that runs the gateway). For
-   another installer, use that installer.
+   updates itself, which is why such gateways fall months behind. For
+   another installer, use that installer instead of npm in step 5.
 2. **Check the Node the gateway runs.** Read the gateway's service
    definition (macOS: the LaunchAgent plist in `~/Library/LaunchAgents`;
-   Linux: the systemd unit) for its program and `PATH`, then run that Node's
-   `--version`. Current OpenClaw needs Node 24.22.1+ (below 25) or 26.12.1+.
+   Linux: the systemd unit) for its program and `PATH`, and find the `node`
+   that `PATH` resolves first (or the runtime path the service pins). Call
+   it `$GW_NODE` and run `"$GW_NODE" --version`. Current OpenClaw needs Node 24.22.1+ (below 25) or 26.12.1+.
    Upgrade it with the manager that installed it (for example
    `brew upgrade node`), and tell the person it changes Node for every other
    tool using that Node, and that the manager may upgrade dependents too.
 3. **Back up** `~/.openclaw` (or `OPENCLAW_STATE_DIR`) and the service
    definition. The config holds credentials: keep the backup private and do
    not print the config.
-4. **Stop the gateway.** Run `openclaw gateway stop`; a current OpenClaw
-   refuses with a warning unless you pass `--force`, which the person has
-   agreed to. Repairs and MCP changes are refused while it runs.
-5. **Install, then repair.** `npm i -g openclaw@latest`, then
+4. **Stop the gateway** with `openclaw gateway stop --force` (the person
+   has agreed; a current OpenClaw refuses without `--force`). An OpenClaw
+   too old to know the flag: stop its service instead (macOS
+   `launchctl bootout gui/$UID/<label>`, Linux `systemctl --user stop
+   <unit>`). Repairs and MCP changes are refused while it runs.
+5. **Install, then repair.** Use the npm next to the gateway's Node, not
+   whichever `npm` the shell finds first, or the service keeps the old
+   OpenClaw: `"$(dirname "$GW_NODE")/npm" i -g openclaw@latest`. Check
+   `"$(dirname "$GW_NODE")/openclaw" --version` shows the new version, then
    `openclaw doctor --fix --non-interactive`. If doctor says files are
    retired and names a version to upgrade through first (for example
    "Upgrade through OpenClaw 2026.9.7"), install that version, run the same
    doctor, then install latest and run it again. Finish with
    `openclaw config validate`.
-6. **Start the gateway again** with `openclaw gateway install --force --port
-   <its port>` (18789 by default) so the service runs the new version, and
-   set `openclaw config set gateway.mode local` if install warns it is
-   missing. `openclaw gateway status` should show it listening.
+6. **Start the gateway again.** First `openclaw config set gateway.mode
+   local` (the gateway will not start without it), then
+   `openclaw gateway install --force --port <its port>` (18789 by default)
+   so the service runs the new version. `openclaw gateway status` should
+   show it listening; if it is installed but not running, run
+   `openclaw gateway start`.
 7. **Give it a model.** The gateway service does not see API keys exported
    in a shell. Run `openclaw models status`, note the default model's
    provider (the part before `/`), and check that provider has a usable
