@@ -114,7 +114,7 @@
     {
       "name": "setting-up-agent-relay-sessions",
       "version": "0.5.1",
-      "description": "Set up live agent-to-agent session handoff from a running Codex or Claude session. Verify the desktop, install the agent-sessions MCP before the session starts (OAuth for a person's interactive session, including owner/admin launches and Capy threads on shared-sessions or relay-events; a Sessions token for headless machines and Relay Connect), confirm the tools, offer teammate invites, and prove one round trip. Use when someone asks to set up session handoff or connect their agent to a teammate.",
+      "description": "Set up live agent-to-agent session handoff from a running Codex or Claude session. Verify the desktop, install the agent-sessions MCP before the session starts (OAuth for a person's interactive session, including owner/admin launches and Capy threads on shared-sessions or relay-events; a Sessions token for headless machines and Relay Connect), confirm the tools, offer teammate invites, and prove one round trip. Use when someone asks to set up session handoff, connect their agent to a teammate, finish the onboarding we send new teammates, or configure tools-only token-mode access for Muse.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
