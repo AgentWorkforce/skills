@@ -642,6 +642,15 @@
       "files": ["skills/setting-up-openclaw-on-the-relay/SKILL.md"]
     },
     {
+      "name": "agent-relay-muse",
+      "version": "0.1.0",
+      "description": "Connect the Muse personal assistant to Agent Relay and recommend scheduled inbox polling, with verified OAuth, sender checks and history-access limits.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "muse", "mcp", "polling"],
+      "files": ["skills/agent-relay-muse/SKILL.md"]
+    },
+    {
       "name": "agent-relay-grok-bot",
       "version": "0.1.8",
       "description": "Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents.",
