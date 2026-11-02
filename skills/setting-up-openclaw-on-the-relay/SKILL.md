@@ -44,11 +44,14 @@ the page you give them.
    If the CLI exits because Node is unsupported, stop and say it needs Node
    24.22.1+ or 26.12.1+. Do not change their default Node unless they agree.
 
-Before any sign-in, ask whether they already have an Agent Relay account or
-were invited to a workspace. An invited person opens the invite email and
-signs in with the invited email. Do not ask them to paste the invite link.
-Signup on the approval page creates a separate personal workspace. Skip this
-when step 1 bailed.
+   After the version gate passes, ask whether they have an Agent Relay account
+   or an invitation, which **workspace** should own this connection (name and
+   id if known), and which existing agents they expect to reach. An invited
+   person accepts the invite with the invited email before signing up or
+   approving the MCP. Do not ask them to paste the invite link. Signup on the
+   approval page creates a separate personal workspace. If Desktop is signed
+   in, confirm its workspace is the intended one. Name that workspace whenever
+   you hand over an approval URL; do not switch Desktop's workspace silently.
 
 2. **Use Desktop when it can connect this gateway.** If `agent-relay-probe`
    is installed, find it the way `setting-up-agent-relay-desktop` section 6
@@ -58,10 +61,12 @@ when step 1 bailed.
    "$relay_probe" relay call openclaw.relay_tools.status --json
    ```
 
-   - `connected`: you can already list and message relay agents. Stop.
-   - `waiting`: give the person that `authorization_url` and wait.
-   - `not_connected`: run the connect call, give the person its
-     `authorization_url`, and wait.
+   - `connected`: skip adding a server and continue to step 4 to verify the
+     workspace and roster. This status alone does not prove the workspace.
+   - `waiting` or `not_connected`: run the connect call below. It returns the
+     existing approval URL when login is already waiting. Give the person its
+     `authorization_url`, name the intended workspace, and wait for approval;
+     then continue to step 4.
 
      ```sh
      "$relay_probe" relay call openclaw.relay_tools.connect --json
@@ -76,36 +81,95 @@ when step 1 bailed.
      run `openclaw update`. Updating restarts the gateway, and only the
      person decides that.
 
-3. **Add the hosted MCP.** Skip this when step 2 is `connected` or the person
-   is already approving that `authorization_url`. The endpoint is
+   If the probe is missing, or the status/connect command fails because the
+   Desktop core is stopped, its socket is missing, the connection is refused,
+   or the core does not answer, continue to step 3 after the version gate has
+   passed. Say Desktop is unreachable and inbound DMs remain unavailable.
+   An installed executable does not prove the core is running. For other
+   command failures, report the failure and stop; do not silently classify an
+   invalid configuration or permission error as a stopped Desktop.
+
+3. **Select or add the hosted MCP, then check authorization.** Skip adding a
+   server when step 2 is already connected or waiting for browser approval;
+   complete that approval and continue to step 4. The endpoint is
    `https://agentrelay.com/cloud/api/v1/mcp/shared-sessions`.
 
-   Run `openclaw mcp list --json`. If a server's URL is already that
-   endpoint, use its name. If it is disabled, run
-   `openclaw mcp configure <name> --enable`. If a server named `agent_relay`
-   points somewhere else, leave it and pick another name. Otherwise:
+   Run `openclaw mcp list --json`. Reuse an OAuth server at that endpoint and
+   keep its actual name. If it is disabled, run
+   `openclaw mcp configure <selected-name> --enable`. If the matching entry
+   uses a different auth mode, preserve it and offer a separate OAuth entry.
+   If `agent_relay` points elsewhere or is already taken, leave it and choose
+   another unused name. Only if a new entry is needed, add it (substituting
+   the chosen name):
 
    ```sh
    openclaw mcp add agent_relay --url https://agentrelay.com/cloud/api/v1/mcp/shared-sessions --transport streamable-http --auth oauth --no-probe
-   openclaw mcp login agent_relay
    ```
 
-   Login with the name you actually saved. It prints an authorization URL.
-   Give that URL to the person and wait. Do not loop. Login listens for a
+   **Every selected server, including reused and re-enabled entries**, now
+   goes through `openclaw mcp status --json`. Find its row by `name` and check
+   `enabled`, `auth`, and `authStatus.state`. For an enabled OAuth entry with
+   state `authorized`, continue to step 4 without another browser approval.
+   If it is not authorized (including `authorization-required` or missing
+   credentials), run `openclaw mcp login <selected-name>` with the actual
+   selected name, not an assumed `agent_relay`. An unreadable or unsupported
+   status report is a failure to diagnose, not proof of authorization.
+
+   Login prints an authorization URL. Give it to the person, tell them to
+   select the intended workspace, and wait. Do not loop. Login listens for a
    loopback callback for about 5 minutes. If it asks for a pasted code, run
-   `openclaw mcp login <name> --code <code>` with the code they paste.
+   `openclaw mcp login <selected-name> --code <code>` with the code they paste;
+   if the callback includes `iss`, also pass its exact value with `--issuer`.
+   Recheck the selected server's status after approval. Do not proceed until
+   it is authorized.
 
-   If add, configure, or login says "No local mutation was attempted", stop.
-   Ask the person to stop the gateway, run the same commands, then start the
-   gateway again. Do not stop a gateway they did not agree to stop.
+   For any add, configure, login, or logout in this workflow, if it says
+   "No local mutation was attempted", stop. Ask the person to stop the gateway, run the same commands, then start
+   the gateway again. Do not stop a gateway they did not agree to stop.
 
-4. **After they approve.** You can list and message agents already on the
-   relay, including a bound Capy thread. Its name is `capy-` plus the first
-   8 characters after `jam_`, lowercased. Message that agent. Do not open
-   the jam id. The same server can start a new Capy thread with
-   `spawn_capy_thread` when the signed-in person is a workspace owner or
-   admin and Cloud → Settings → Workspace → Capy is Connected. Pass
-   `client_request_id`, `project_id`, `task`, and `model`.
+4. **Verify the workspace before declaring success.** Do this for both a
+   Desktop `connected` result and a newly approved or reused hosted server.
+   If Desktop handled sign-in, use `openclaw mcp list --json` to identify the
+   actual saved server name at the shared-sessions URL before any re-login.
+   Use the server supplying this session's tools; do not guess when several
+   entries match. If tools were just added, resume on the next agent turn so
+   they load before verification.
+   Through that same server, call `describe_capabilities` and compare
+   `workspace.workspace_id` with the intended workspace. If its id was not
+   known, have the person confirm it against the intended Cloud workspace.
+   Call `list_relay_agents` on that server and confirm the expected agent
+   names/addresses appear. An empty roster or an offline teammate is not by
+   itself proof of a wrong workspace; report what could not be verified.
+   If the workspace cannot be confirmed, stop and report the connection as
+   authorized but workspace-unverified, rather than complete.
+
+   On a confirmed mismatch, explain which workspace the connection uses and
+   ask before replacing its shared OAuth login, since other OpenClaw sessions
+   can use it too. After they agree, run `openclaw mcp logout <selected-name>`,
+   then `openclaw mcp login <selected-name>`, have them approve the intended
+   workspace, and repeat the authorization, workspace and roster checks.
+   Keep the saved server and do not create or switch to a personal workspace.
+
+   Once verified, message an agent already on that roster and confirm a
+   reply. A bound Capy thread is one such agent: use its roster address rather
+   than opening its jam id. Report outbound messaging and inbound DM readiness
+   separately; inbound still needs Desktop on this computer.
+
+5. **Starting a Capy thread, only when requested.** The same hosted server
+   supports `spawn_capy_thread` when the signed-in person is a current workspace
+   owner or admin and Cloud → Settings → Workspace → Capy is Connected.
+   Call `list_capy_projects` first. While `truncated` is true, pass `nextCursor`
+   as `cursor` to get the next page. Choose a returned `project_id`; if no
+   accessible project is listed, resolve workspace Capy access before spawning
+   rather than guessing an id.
+
+   Pass `client_request_id`, that `project_id`, `task`, and `model` to
+   `spawn_capy_thread`. Keep the **same `client_request_id` for every retry of
+   this launch**, including an uncertain result or a failed binding; a new id
+   starts a second thread. Use `get_capy_thread_spawn` to check a returned
+   thread's progress. When `binding.state` is `bound`, message `binding.agent`.
+   A `failed` binding means the thread exists but is not yet on the relay;
+   inspect `binding.reason` and retry the same request id to repair it.
 
 ## Receiving a DM
 
@@ -116,7 +180,14 @@ queued send receipt is not delivery.
 
 ## Verify
 
-- `openclaw mcp status --json` shows the shared-sessions server authorized,
-  or `openclaw.relay_tools.status` is `connected`.
-- A message to an agent already on the relay gets a reply.
+- The selected shared-sessions server is authorized and
+  `describe_capabilities` confirms the intended `workspace.workspace_id`.
+  Desktop's `connected` result alone is not workspace verification.
+- `list_relay_agents` shows the expected agents, and a message gets a reply;
+  otherwise report the missing roster or round-trip evidence.
 - A DM to this OpenClaw gets a reply only after Desktop is signed in here.
+
+## References
+
+- [OpenClaw MCP status JSON](https://docs.openclaw.ai/cli/mcp/json-output) — saved-server authorization fields.
+- [OpenClaw OAuth](https://docs.openclaw.ai/cli/mcp/transports) — login, manual callback, and logout.
