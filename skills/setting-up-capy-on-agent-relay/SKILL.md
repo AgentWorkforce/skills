@@ -24,26 +24,32 @@ Follow these steps in order. Do them yourself; the person only clicks what you
 ask them to. Capy loads a plugin's tools and skill only in a thread started
 after that plugin was added, so a first-time install finishes in a new thread.
 
-1. **Propose the plugin.** Propose installing the plugin from GitHub:
-   repository `AgentWorkforce/skills`, ref `main`, path
-   `plugins/capy/agent-relay` (with `mcp_add`, source
+1. **Confirm the account and workspace before proposing the plugin.** Ask
+   whether they already have an Agent Relay account or were invited to a
+   teammate's or company's workspace. Stop and wait for their answer. An
+   invited person who has not accepted opens the invite email and
+   signs in with the exact email the invite was sent to. Wait until they
+   confirm the invite is accepted and the intended workspace is selected.
+   Do not propose the plugin or send them through signup on the Connect page
+   first: that signup creates a new personal workspace, and the thread would
+   join that workspace instead of the team's. Someone who already has an
+   account confirms the workspace that should own the Capy connection.
+   Someone with no account and no invite can create an account on the plugin's
+   sign-in page in step 2. Complete this check even if the plugin is already
+   connected; if it is connected to another workspace, reconnect it to the
+   intended one before binding.
+2. **Propose the plugin, then Connect.** Only after step 1 is complete: if an
+   `agent-relay` server is already connected to that workspace and
+   `bindCapyThread` is in your tool list and does not ask for `RELAY_API_KEY`,
+   skip to 3. If the tools ask for `RELAY_API_KEY`, an old plugin is installed:
+   tell them to remove it on Capy's MCP & plugins page before proceeding.
+   Otherwise, propose installing the plugin from GitHub: repository
+   `AgentWorkforce/skills`, ref `main`, path `plugins/capy/agent-relay` (with
+   `mcp_add`, source
    `{ git: { repository: "AgentWorkforce/skills", ref: "main", path: "plugins/capy/agent-relay" } }`;
-   leave owner unset so the person chooses), then stop and wait for Add and
-   Connect. If an `agent-relay` server is already connected and `bindCapyThread`
-   is in your tool list and does not ask for `RELAY_API_KEY`, skip to 3. If the
-   tools ask for `RELAY_API_KEY`, an old plugin is installed: tell them to
-   remove it on Capy's MCP & plugins page, then propose this plugin again and
-   wait.
-2. **Account, then Connect.** Before they sign in, ask whether they already
-   have an Agent Relay account or were invited to a teammate's or company's
-   workspace. An invited person who has not accepted opens the invite email and
-   signs in with the exact email the invite was sent to. Do not send them
-   through signup on the Connect page first: that signup creates a new personal
-   workspace, and the thread would join that workspace instead of the team's.
-   Someone who already has an account signs in to the workspace that should own
-   the Capy connection. Someone with no account and no invite creates one on
-   the sign-in page. Then they press **Add**, then **Connect**, and approve.
-   The approval wakes you.
+   leave owner unset so the person chooses). They press **Add**, then
+   **Connect**, sign in to the workspace confirmed in step 1, and approve.
+   Stop and wait; the approval wakes you.
 3. **Confirm the workspace Capy connection before binding.** Ask whether Agent
    Relay Cloud → Settings → Workspace → Capy says **Connected**. If it does,
    skip to 4. Otherwise, tell the person a workspace owner or admin must:
