@@ -193,8 +193,9 @@ config the service uses and not the shell's. Then read the gateway mode
 with `openclaw config get gateway.mode`. If the CLI cannot start (an
 unsupported Node), read only `gateway.mode` from that same config file
 instead: `OPENCLAW_CONFIG_PATH`, else `openclaw.json` in the state
-directory (`OPENCLAW_STATE_DIR`, default `~/.openclaw`; a profile has its
-own state directory), for example
+directory: the **service state directory**, which is `OPENCLAW_STATE_DIR`
+if set, else `~/.openclaw-<profile>` for a profile, else `~/.openclaw`. For
+example
 `jq -r '.gateway.mode // "unset"' <that file>`. Do not print the rest of
 the file; it holds credentials. If the mode is `remote`, this computer only
 points at a gateway that runs elsewhere: do not change the mode and do not
@@ -218,8 +219,9 @@ gateway. Continue when the mode is `local` or unset.
    Upgrade it with the manager that installed it (for example
    `brew upgrade node`), and tell the person it changes Node for every other
    tool using that Node, and that the manager may upgrade dependents too.
-3. **Back up** `~/.openclaw` (or `OPENCLAW_STATE_DIR`) and the service
-   definition. The config holds credentials: keep the backup private and do
+3. **Back up** the service state directory (above), the config file at
+   `OPENCLAW_CONFIG_PATH` if the service sets one outside that directory,
+   and the service definition. The config holds credentials: keep the backup private and do
    not print the config.
 4. **Stop the gateway** with `"$GW_OPENCLAW" gateway stop --force` (the person
    has agreed; a current OpenClaw refuses without `--force`). An OpenClaw
