@@ -194,14 +194,17 @@ agent on that computer (Claude Code, Codex) run them with the person's yes.
    definition (macOS: the LaunchAgent plist in `~/Library/LaunchAgents`;
    Linux: the systemd unit) for its program and `PATH`, and find the `node`
    that `PATH` resolves first (or the runtime path the service pins). Call
-   it `$GW_NODE` and run `"$GW_NODE" --version`. Current OpenClaw needs Node 24.22.1+ (below 25) or 26.12.1+.
+   it `$GW_NODE` and run `"$GW_NODE" --version`. Call the service's
+   `openclaw` program path `$GW_OPENCLAW`, and use it for every OpenClaw
+   command below, so they act on the installation the service runs and not
+   another `openclaw` the shell finds first. Current OpenClaw needs Node 24.22.1+ (below 25) or 26.12.1+.
    Upgrade it with the manager that installed it (for example
    `brew upgrade node`), and tell the person it changes Node for every other
    tool using that Node, and that the manager may upgrade dependents too.
 3. **Back up** `~/.openclaw` (or `OPENCLAW_STATE_DIR`) and the service
    definition. The config holds credentials: keep the backup private and do
    not print the config.
-4. **Stop the gateway** with `openclaw gateway stop --force` (the person
+4. **Stop the gateway** with `"$GW_OPENCLAW" gateway stop --force` (the person
    has agreed; a current OpenClaw refuses without `--force`). An OpenClaw
    too old to know the flag: stop its service instead (macOS
    `launchctl bootout gui/$UID/<label>`, Linux `systemctl --user stop
@@ -211,28 +214,27 @@ agent on that computer (Claude Code, Codex) run them with the person's yes.
    first, or the service keeps the old OpenClaw:
    `"$(dirname "$GW_NODE")/npm" i -g openclaw@latest`. For any other
    installer, update with that installer instead and do not add an npm
-   copy. Either way, check that the `openclaw` the service runs (its
-   program path from step 2) reports the new version, then run
-   `openclaw doctor --fix --non-interactive`. If doctor says files are
+   copy. Either way, check that `"$GW_OPENCLAW" --version` reports the new
+   version, then run `"$GW_OPENCLAW" doctor --fix --non-interactive`. If doctor says files are
    retired and names a version to upgrade through first (for example
    "Upgrade through OpenClaw 2026.9.7"), install that version, run the same
    doctor, then install latest and run it again. Finish with
-   `openclaw config validate`.
-6. **Start the gateway again.** First `openclaw config set gateway.mode
+   `"$GW_OPENCLAW" config validate`.
+6. **Start the gateway again.** First `"$GW_OPENCLAW" config set gateway.mode
    local` (the gateway will not start without it), then
-   `openclaw gateway install --force --port <its port>` (18789 by default)
-   so the service runs the new version. `openclaw gateway status` should
+   `"$GW_OPENCLAW" gateway install --force --port <its port>` (18789 by default)
+   so the service runs the new version. `"$GW_OPENCLAW" gateway status` should
    show it listening; if it is installed but not running, run
-   `openclaw gateway start`.
+   `"$GW_OPENCLAW" gateway start`.
 7. **Give it a model.** The gateway service does not see API keys exported
-   in a shell. Run `openclaw models status`, note the default model's
+   in a shell. Run `"$GW_OPENCLAW" models status`, note the default model's
    provider (the part before `/`), and check that provider has a usable
    credential. If not, have the person sign in **to that provider**, for
-   example `openclaw models auth login --provider openai` for an `openai/*`
+   example `"$GW_OPENCLAW" models auth login --provider openai` for an `openai/*`
    default and a ChatGPT subscription. To use a different provider than the
    default, sign in with `--set-default` (or set the model) so the default
    moves to it; a login alone keeps the old default. Run
-   `openclaw models status` again and confirm the default's provider shows
+   `"$GW_OPENCLAW" models status` again and confirm the default's provider shows
    a usable credential. Otherwise relay messages arrive but every answer
    fails with "No route-compatible authentication source".
 8. Run step 1 of the setup again, then continue.
