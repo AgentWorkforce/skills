@@ -1,0 +1,98 @@
+{
+  "a": {
+    "registration": {
+      "address": "e2b-a@e2b-244708573884702720",
+      "already_registered": false,
+      "name": "e2b-a"
+    },
+    "workspace": {
+      "base_url": "https://8787-ia8ks11l7j3c9x1c1sfto.e2b.app",
+      "checked_at_ms": 1794032664079,
+      "state": "found",
+      "verification": "verified",
+      "workspace_id": "244707588286177280",
+      "workspace_name": "e2b-qualification-20261107",
+      "workspace_plan": "free"
+    },
+    "account": {
+      "action": null,
+      "auth_checked_at": null,
+      "auth_error": null,
+      "auth_health": null,
+      "error": null,
+      "person": null,
+      "phase": null,
+      "progress": null,
+      "reused_login": null,
+      "site_url": null,
+      "state": "signed_out",
+      "workspace_avatar_url": null,
+      "workspace_choices": null,
+      "workspace_count": null,
+      "workspace_id": null,
+      "workspace_name": null
+    },
+    "session": {
+      "directory": "/app/shared",
+      "live": true,
+      "project": "shared",
+      "registration": null,
+      "running": true,
+      "suggested_name": "pi-shared-session",
+      "target": {
+        "id": "01a1b4ae-05fa-73e9-a45b-beb77d00339a",
+        "kind": "pi"
+      },
+      "title": "Pi session",
+      "updated_at_ms": null
+    }
+  },
+  "b": {
+    "registration": {
+      "address": "e2b-b@e2b-244708620722495488",
+      "already_registered": false,
+      "name": "e2b-b"
+    },
+    "workspace": {
+      "base_url": "https://8787-ia8ks11l7j3c9x1c1sfto.e2b.app",
+      "checked_at_ms": 1794032675663,
+      "state": "found",
+      "verification": "verified",
+      "workspace_id": "244707588286177280",
+      "workspace_name": "e2b-qualification-20261107",
+      "workspace_plan": "free"
+    },
+    "account": {
+      "action": null,
+      "auth_checked_at": null,
+      "auth_error": null,
+      "auth_health": null,
+      "error": null,
+      "person": null,
+      "phase": null,
+      "progress": null,
+      "reused_login": null,
+      "site_url": null,
+      "state": "signed_out",
+      "workspace_avatar_url": null,
+      "workspace_choices": null,
+      "workspace_count": null,
+      "workspace_id": null,
+      "workspace_name": null
+    },
+    "session": {
+      "directory": "/app/shared",
+      "live": true,
+      "project": "shared",
+      "registration": null,
+      "running": true,
+      "suggested_name": "pi-shared-session",
+      "target": {
+        "id": "01a1b4ae-3470-716a-be81-ada084afaf6d",
+        "kind": "pi"
+      },
+      "title": "Pi session",
+      "updated_at_ms": null
+    }
+  }
+}

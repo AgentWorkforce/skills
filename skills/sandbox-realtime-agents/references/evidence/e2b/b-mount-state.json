@@ -1,0 +1,76 @@
+{
+  "circuit": {
+    "open": false,
+    "openedAt": "0001-01-01T00:00:00Z",
+    "windowMs": 60000,
+    "cooldownMs": 30000,
+    "threshold": 5,
+    "nextRetry": "0001-01-01T00:00:00Z"
+  },
+  "counters": {},
+  "deniedPaths": 0,
+  "eventListener": {
+    "mode": "websocket",
+    "status": "listening",
+    "heartbeatAt": "2026-11-07T06:26:01.529889634Z",
+    "lastConnectedAt": "2026-11-07T06:25:35.856743728Z",
+    "lastAttemptAt": "2026-11-07T06:25:35.783677767Z"
+  },
+  "files": {
+    "/qualification-b48d42cd1d85/after-restart.txt": {
+      "revision": "rev_13",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-b48d42cd1d85/atomic.txt": {
+      "revision": "rev_4",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-b48d42cd1d85/disjoint-a": {
+      "revision": "rev_9",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-b48d42cd1d85/disjoint-b": {
+      "revision": "rev_8",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-b48d42cd1d85/offline.txt": {
+      "revision": "rev_10",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-b48d42cd1d85/renamed.txt": {
+      "revision": "rev_6",
+      "contentType": "text/plain",
+      "status": "ready"
+    }
+  },
+  "intervalMs": 5000,
+  "lastEventAt": "2026-11-07T06:25:43.717097747Z",
+  "lastReconcileAt": "2026-11-07T06:26:01.530122788Z",
+  "lastSuccessfulReconcileAt": "2026-11-07T06:26:01.530122788Z",
+  "localRoot": "/app/shared",
+  "mode": "poll",
+  "outbox": {
+    "pending": 0,
+    "needsAttention": 0,
+    "failed": 0,
+    "acked": 4
+  },
+  "pendingConflicts": 0,
+  "pendingWriteback": 0,
+  "remoteRoot": "/",
+  "staleAfter": "2026-11-07T06:26:11.530122788Z",
+  "states": {
+    "stale": false,
+    "offline": false,
+    "hasConflicts": false,
+    "hasPendingWriteback": false
+  },
+  "status": "ready",
+  "syncMode": "mirror",
+  "workspaceId": "ws_e2b_e2e"
+}

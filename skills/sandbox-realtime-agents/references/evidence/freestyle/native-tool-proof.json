@@ -1,0 +1,134 @@
+{
+  "sessions": {
+    "a": [
+      {
+        "type": "message",
+        "id": "e0efd031",
+        "parentId": "0ec2a64e",
+        "timestamp": "2026-11-07T06:26:09.769Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_freestyle-bdc0c09cccd444ada9aa",
+              "name": "bash",
+              "arguments": {
+                "command": "sha256sum /app/shared/qualification-da136c0d2cdd/atomic.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1794032769721,
+          "responseId": "fixture",
+          "rawStopReason": "tool_calls",
+          "durationMs": 44,
+          "thinkingLevel": "off"
+        }
+      },
+      {
+        "type": "message",
+        "id": "00ec52dc",
+        "parentId": "e0efd031",
+        "timestamp": "2026-11-07T06:26:09.784Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_freestyle-bdc0c09cccd444ada9aa",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb  /app/shared/qualification-da136c0d2cdd/atomic.txt\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 12,
+          "timestamp": 1794032769784
+        }
+      }
+    ],
+    "b": [
+      {
+        "type": "message",
+        "id": "7380a750",
+        "parentId": "fd2104bf",
+        "timestamp": "2026-11-07T06:25:55.808Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_freestyle-768594bca3d2429eb39f",
+              "name": "bash",
+              "arguments": {
+                "command": "sha256sum /app/shared/qualification-da136c0d2cdd/renamed.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1794032755756,
+          "responseId": "fixture",
+          "rawStopReason": "tool_calls",
+          "durationMs": 47,
+          "thinkingLevel": "off"
+        }
+      },
+      {
+        "type": "message",
+        "id": "336e9a00",
+        "parentId": "7380a750",
+        "timestamp": "2026-11-07T06:25:55.822Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_freestyle-768594bca3d2429eb39f",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70  /app/shared/qualification-da136c0d2cdd/renamed.txt\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 10,
+          "timestamp": 1794032755822
+        }
+      }
+    ]
+  },
+  "model": "deterministic loopback fixture; actual Pi sessions and shell tools",
+  "account_login": "signed_out; isolated self-hosted messaging binding verified independently"
+}

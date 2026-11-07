@@ -1,0 +1,24 @@
+{
+  "a": {
+    "listener": "listening",
+    "outbox": {
+      "pending": 0,
+      "needsAttention": 0,
+      "failed": 0,
+      "acked": 331
+    },
+    "pendingWriteback": 0,
+    "pendingConflicts": 0
+  },
+  "b": {
+    "listener": "listening",
+    "outbox": {
+      "pending": 0,
+      "needsAttention": 0,
+      "failed": 0,
+      "acked": 330
+    },
+    "pendingWriteback": 0,
+    "pendingConflicts": 0
+  }
+}

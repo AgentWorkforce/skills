@@ -1,0 +1,30 @@
+{
+  "checked_utc": "2026-11-07T06:34:29.932784+00:00",
+  "deleted_individually": [
+    "ierdn883pxt7dsnttm67z",
+    "i1vkv9m3fzr24j56gddr9",
+    "ia8ks11l7j3c9x1c1sfto"
+  ],
+  "exact_id_reads_after_delete": {
+    "ierdn883pxt7dsnttm67z": {
+      "exit_code": 1,
+      "result": "not found"
+    },
+    "i1vkv9m3fzr24j56gddr9": {
+      "exit_code": 1,
+      "result": "not found"
+    },
+    "ia8ks11l7j3c9x1c1sfto": {
+      "exit_code": 1,
+      "result": "not found"
+    }
+  },
+  "credential_disposition": "Private fixture signing authority, mount bundles, driver keys and callback tokens removed with disposable VMs; no account API keys minted or included in evidence.",
+  "verification_command": "e2b sandbox list --state running,paused --limit 0 --format json",
+  "all_exact_ids_absent": true,
+  "unrelated_before_cleanup_still_present": 4,
+  "previously_deleted_setup_ids": {
+    "deleted_initial_probe": "i1s04pqs6rxjn4laij214",
+    "deleted_resource_constrained_hub": "i10f73smqqwd9n1o54ddf"
+  }
+}

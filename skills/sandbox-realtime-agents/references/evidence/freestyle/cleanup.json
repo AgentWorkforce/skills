@@ -1,0 +1,32 @@
+{
+  "checked_utc": "2026-11-07T06:34:38.404147+00:00",
+  "deleted_individually": [
+    "vm-beaeabb4080e457c8edd6ccd8a043de2",
+    "vm-b58c7422f99745b79da1ea793b8cf5e4",
+    "vm-580b44eaec1a4ec6bde6cc39aedb64f0"
+  ],
+  "exact_id_reads_after_delete": {
+    "vm-beaeabb4080e457c8edd6ccd8a043de2": {
+      "exit_code": 1,
+      "result": "not found"
+    },
+    "vm-b58c7422f99745b79da1ea793b8cf5e4": {
+      "exit_code": 1,
+      "result": "not found"
+    },
+    "vm-580b44eaec1a4ec6bde6cc39aedb64f0": {
+      "exit_code": 1,
+      "result": "not found"
+    }
+  },
+  "credential_disposition": "Private fixture signing authority, mount bundles, driver keys and callback tokens removed with disposable VMs; no account API keys minted or included in evidence.",
+  "deleted_tls_rule_ids": [
+    "tls-31f90593f09a4fc3bf75dd21448cee70",
+    "tls-a3675b070cdc4ed1ab100623acb81642",
+    "tls-af8efbd6960242288fd58ba060d3e89c",
+    "tls-a994b777cc8f4544b69accfb98d19479"
+  ],
+  "tls_verification_command": "freestyle --output json tls list",
+  "all_exact_tls_ids_absent": true,
+  "previously_deleted_setup_vm": "vm-6c9458ca6c1145f9a5350f4453f712b7"
+}
