@@ -94,5 +94,9 @@
       "title": "Pi session",
       "updated_at_ms": null
     }
+  },
+  "_evidence_scope": {
+    "captured_before_cleanup": true,
+    "current_status": "Historical snapshot; all exact qualification VMs have since been deleted. See cleanup.json."
   }
 }

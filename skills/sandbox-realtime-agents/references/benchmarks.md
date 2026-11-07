@@ -35,7 +35,7 @@ tail observation; these runs do not establish a service-level guarantee.
 | Freestyle | 133.1 / 199.4 ms | 150.7 / 216.7 ms | 266.7 / 345.7 ms |
 
 The [published Blaxel dataset](https://github.com/AgentWorkforce/skills/tree/66702ab/skills/blaxel-realtime-agents/references/benchmarks/2026-11-07)
-used the same runtime timing harness, six-cell order and sample counts. These
+used the same original runtime timing harness, six-cell order and sample counts. These
 are separate workload measurements. Resource sizes, runtimes, images, placement
 and run time differ, preventing a controlled provider performance ranking.
 
@@ -58,7 +58,7 @@ on a third VM. No shared drive, FUSE or shared volume was used. After correctnes
 qualification, native Pi sessions, model fixtures, probes, mounts and the
 combined messaging/file service were stopped. Settled qualification state was
 archived. A fresh filesystem-only Relayfile service and empty mirrors were then
-started on those same VMs, using the exact retained benchmark service fixture.
+started on those same VMs, using the archived original benchmark service fixture.
 
 Each trial follows these steps:
 
@@ -85,7 +85,8 @@ compression was not controlled. One outstanding transfer runs at a time,
 overwriting one dedicated file per direction/size. There is no `fsync` barrier.
 The fixed, nonrandomized order is A/1KiB, B/1MiB, A/64KiB, B/1KiB, A/1MiB,
 B/64KiB. Every cell has 10 warmups followed by 100 measured writes, with a
-30-second per-trial timeout.
+30-second ACK wait after writing (the original arming request had its own
+35-second timeout). All published cells completed with 110 successful rows.
 
 Mounts used exact layout, `--mode poll --interval 5s --startup-jitter 0s`, local
 filesystem notifications and WebSocket downloads. The isolated OSS service
@@ -94,6 +95,18 @@ its no-op provider writer; no external provider mutation occurred. Final
 listeners were active, conflicts/writebacks were zero, and outboxes had zero
 pending/attention/failed receipts. Public file and callback endpoints rejected
 unauthenticated requests with 401.
+
+Freestyle A reported 331 settled operation receipts for its 330 writer trials.
+The extra operation was not attributed before deletion and the operation ledger
+was not retained. The observed counter is preserved in the health artifact;
+receipts are not equated with unique transfer rounds. Transfer counts and
+percentiles come from the raw sample rows, not receipt counters.
+
+Historical messaging boundary checks covered the proxy only. Its original
+engine listened on all interfaces, and direct upstream-port confinement was
+not verified. Those disposable VMs are deleted; maintained qualification
+fixtures now force the engine to loopback before it binds. The historical check
+does not establish complete upstream ingress isolation.
 
 No model inference, native messaging or agent reasoning occurs inside this
 timing interval. The separate native qualification proves those session/tool
@@ -120,6 +133,18 @@ Output reproduces the committed summaries exactly. The raw `local_write_ms`
 field is diagnostic and already included in `write_to_ack_ms`; do not add or
 subtract it. Warmup rows are retained but excluded from percentiles.
 
+The [historical source manifest](evidence/harness-2026-11-07/manifest.json) maps
+the original executable hashes to immutable text archives. Maintained `scripts/`
+include review fixes for failure exits, concurrent cells, callback origins,
+private modes, subprocess lifecycle, path checks and isolated Pi homes. Those
+changes were locally regression-tested after measurement; the published 600-trial
+cloud datasets have not been rerun with the revised harness. Do not relabel old
+samples as results from the revised scripts. The old driver had a 600-second
+request limit and could exit zero on failure; published counts instead verify
+all 110 successful rows per cell. The new driver returns nonzero for any failure
+and budgets 110 × (30 + 0.1) + 60 seconds, with arming and ACK inside each trial's
+30-second total budget. Arming remains outside the measured write-to-ACK interval.
+
 ## Reproduce a live run
 
 After obtaining the task's nonproduction resource and isolated test-credential
@@ -130,9 +155,11 @@ and lifecycle limits before starting.
 1. Run the [correctness qualification](verification.md) and retain actual native
    session/tool evidence and settled receipts.
 2. Stop those isolated sessions and services. Archive their settled data/state;
-   start the retained [filesystem-only service](../scripts/benchmark/hub.mjs)
+   start the maintained [filesystem-only service](../scripts/benchmark/hub.mjs)
    on the service VM with `/tmp/relayfile-server` executable and a fresh
-   `/app/bench-private` directory (0700). It generates scoped two-hour mount
+   `/app/bench-private` directory (0700). Preserve its relative helper import by
+   uploading the scripts tree as described in [runtime setup](runtime.md).
+   It generates scoped two-hour mount
    bundles for workspace `ws_relayfile_benchmark`.
 3. Privately transfer the matching `mount-a.json` / `mount-b.json` bundle to each
    peer as `/app/bench-private/mount-creds.json` (0600). Start new mirrors with
@@ -142,7 +169,7 @@ and lifecycle limits before starting.
    private directory with `run`, `role`, `peer_role`, `peer_url` (other peer's
    HTTPS callback origin), and `callback_token`. Never reuse this dataset's IDs
    or files, or put tokens in command arguments/shared data/evidence.
-5. Upload the exact [peer server](../scripts/benchmark/peer.py) and
+5. Upload the maintained [peer server](../scripts/benchmark/peer.py) and
    [cell driver](../scripts/benchmark/cell.py) there. Start `peer.py` on both
    nodes at port 9092 and verify unauthenticated requests return 401. Require
    HTTPS origins for network callbacks; only `cell.py` uses loopback HTTP.
@@ -151,6 +178,9 @@ and lifecycle limits before starting.
    advancing. A submitted/running process with default exit code zero is not
    completion proof. Keep the provider and command timeouts long enough for a
    whole cell, while retaining a bounded overall sandbox lifetime.
+   The maintained driver allows 3,371 seconds per cell; for that full budget,
+   use at least `--timeout-ms 3371000` with Freestyle and ensure the VM has enough
+   authorized lifetime remaining. Ordinary published cells were much faster.
 7. Retrieve both `samples.jsonl` files, concatenate their rows and recompute.
    Keep incomplete/failed trials. A timeout stops its cell; an exception before
    a row is written is a harness/run failure, not an excluded success.

@@ -1,6 +1,13 @@
 """Deterministic loopback model fixture; actual Pi tool execution and Relay transports remain real."""
 import http.server,json,re,shlex,time,pathlib
 ROOT=pathlib.Path('/app/relay-test')
+
+def safe_relative(name):
+ parts=name.split('/')
+ if not parts or any(part in ('', '.', '..', '.relay') for part in parts):
+  raise ValueError('Bad fixture path')
+ return pathlib.PurePosixPath(*parts)
+
 class Handler(http.server.BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def do_GET(self):
@@ -16,8 +23,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
    digest=re.search(r'\b[a-f0-9]{64}\b',t)
    delta={'content':f'ACK {query[1]} {digest[0]}' if digest else 'E2E_FAILED missing peer file hash'}
   elif query:
-   path=pathlib.PurePosixPath('/app/shared')/query[2]
-   if '..' in path.parts:raise ValueError('Bad fixture path')
+   path=pathlib.PurePosixPath('/app/shared')/safe_relative(query[2])
    delta={'tool_calls':[{'index':0,'id':'call_'+query[1],'type':'function','function':{'name':'bash','arguments':json.dumps({'command':'sha256sum '+shlex.quote(str(path))})}}]};finish='tool_calls'
   else:delta={'content':'Ready for isolated Relayfile qualification.'}
   self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
@@ -25,4 +31,5 @@ class Handler(http.server.BaseHTTPRequestHandler):
    event={'id':'fixture','object':'chat.completion.chunk','created':int(time.time()),'model':'test','choices':[{'index':0,'delta':delta,'finish_reason':reason}]}
    self.wfile.write(('data: '+json.dumps(event)+'\n\n').encode());self.wfile.flush()
   send({'role':'assistant'});send(delta);send({},finish);self.wfile.write(b'data: [DONE]\n\n');self.wfile.flush()
-http.server.ThreadingHTTPServer(('127.0.0.1',8099),Handler).serve_forever()
+if __name__ == '__main__':
+ http.server.ThreadingHTTPServer(('127.0.0.1',8099),Handler).serve_forever()

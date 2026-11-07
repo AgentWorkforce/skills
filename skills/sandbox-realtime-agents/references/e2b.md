@@ -43,10 +43,12 @@ placement from the account or hostname.
 
 Version 2.23.0 supports piped stdin with EOF on this envd version. For an
 authorized batch of files, build a local tar.gz containing only the reviewed
-files and send its bytes on stdin:
+files, with entries relative to a dedicated runtime directory, and send its
+bytes on stdin:
 
 ```sh
-e2b sandbox exec -u root YOUR_RECORDED_ID -- tar -xzf - -C / < private-bundle.tar.gz
+e2b sandbox exec -u root YOUR_RECORDED_ID -- install -d -m 0700 /app/relay-test
+e2b sandbox exec -u root YOUR_RECORDED_ID -- tar -xzf - -C /app/relay-test < private-bundle.tar.gz
 e2b sandbox exec -u root YOUR_RECORDED_ID -- cat /app/shared/.relay/state.json
 ```
 
@@ -54,7 +56,8 @@ Use archive entry modes 0600 for private bundles and a 0700 parent directory;
 upload executables separately or chmod only those reviewed executable paths.
 Do not place secret contents in the shell command. Piped input works for binary
 data; the qualification uploaded compressed binaries and scripts this way.
-Never extract an untrusted archive into `/`.
+The historical run extracted reviewed absolute-layout bundles into `/`; new
+runs use dedicated directories. Never extract an untrusted archive as root.
 
 The installed command implementation sets remote command timeout to zero.
 `--background` disconnects after returning the process ID; an explicit sandbox
@@ -67,8 +70,9 @@ liveness and fresh data, not just submission success.
 The stock Node was 20.9.0; Pi 1.3.0 needs Node >=22.19.0. The run installed
 official **Node 22.23.2** in `/opt/node`, verified its archive against official
 SHASUMS256, and used `PATH=/opt/node/bin:$PATH` for all supervised children.
-Set `HOME=/root` consistently when executing as root so the probe and Pi use
-the same fresh harness home.
+The historical fixture used `HOME=/root` on fresh disposable VMs. The maintained
+qualification uses `/app/relay-test/pi-home` for both the core and Pi; it never
+overwrites a person's Pi configuration. See [runtime setup](runtime.md).
 
 An initial Node 24.22.2 service install drove the `better-sqlite3` native build
 against the 512 MiB sandbox's memory limit; the guest became unresponsive. That

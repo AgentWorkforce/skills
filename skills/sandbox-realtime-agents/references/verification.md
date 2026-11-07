@@ -1,7 +1,7 @@
 # Correctness checks before timing
 
 Use scratch data in an explicitly authorized shared tree. The helper requires
-Python 3.9+ on POSIX with descriptor-relative operations and `O_NOFOLLOW`.
+Python 3.9+ with descriptor-relative operations and `O_NOFOLLOW`.
 It rejects symlinks, traversal and `.relay` at any depth. Pinned handles reduce
 path races; they are not a security boundary against a malicious same-OS-user
 process that can move directories or change process state.
@@ -15,9 +15,32 @@ python3 /app/relay-test/file-probe.py \
 ```
 
 `write`/`atomic` requests contain `path` and base64 **encoded bytes** in `content`.
-`rename` adds `destination`; `delete` names one exact file. `expect` needs either
+`rename` adds `destination`, whose parent must already exist; it uses a real
+atomic no-replace rename on Linux/macOS and never creates destination parents.
+`delete` names one exact file. `expect` needs either
 the expected `sha256` or `absent:true`, with a bounded `timeout`. Confirm that
 an existing file fails an absence check before relying on deletion evidence.
+Hashing checks its deadline between chunks, including after each read; it does
+not promise to interrupt an OS read that is itself blocked in the kernel.
+
+## Fresh runtime dependencies
+
+Obtain the Relayfile source from [AgentWorkforce/relayfile](https://github.com/AgentWorkforce/relayfile)
+at the recorded commit, then build/upload the binaries as described in
+[runtime setup](runtime.md). On approved fresh VMs with the pinned Node runtime:
+
+```sh
+# Service VM:
+npm install --prefix /opt/relay-test --no-audit --no-fund @relaycast/engine@8.12.0
+# Each peer VM:
+npm install --prefix /opt/relay-driver --no-audit --no-fund @relaycast/sdk@8.12.0
+npm install --prefix /opt/pi-test --no-audit --no-fund @earendil-works/pi-coding-agent@1.3.0
+```
+
+Upload the maintained `scripts/` tree under `/opt/relay-fixtures/scripts`,
+preserving relative imports (including `fixture-services.mjs`). Install the
+file/message helpers at the `/app/relay-test` paths used below. The historical
+source archives are text evidence, not executable setup entry points.
 
 The qualification passed these 17 checks separately on E2B and Freestyle:
 
@@ -43,7 +66,12 @@ The qualification passed these 17 checks separately on E2B and Freestyle:
 
 For message probes, securely transfer a 0600 owner-owned private file containing
 `base_url` and the isolated **agent** `token`. Write a public query file with
-fresh `round`, explicit `to`, relative `file` and expected SHA-256. Run:
+these exact keys: `round` (1–128 alphanumeric/underscore/hyphen characters),
+`to` (nonempty recipient), `file` (relative path with nonempty components,
+no `.`, `..` or `.relay` at any depth), and `expected` (lowercase 64-hex SHA-256).
+The maintained probe adds a random nonce to `round` on every invocation; use the
+returned effective `round` for correlation. The caller's label is returned as
+`request_round`. Run:
 
 ```sh
 RELAYCAST_SDK_MODULE=/opt/relay-driver/node_modules/@relaycast/sdk/dist/index.js \
@@ -55,10 +83,14 @@ Retain the matching shell tool call/result from the actual session transcript,
 reply ID, sender, round and hash. Do not retain private bundles. A roster entry
 alone does not prove message delivery or file convergence.
 
-The retained [model fixture](../scripts/qualification/model_fixture.py) and
-[PTY supervisor](../scripts/qualification/pi_terminal.py) were used only for
-isolated qualification. They require Pi 1.3.0 under `/opt/pi-test` and consistent
-`HOME=/root`, Node PATH, and `/app/relay-test` paths. Start the loopback model
+The maintained [model fixture](../scripts/qualification/model_fixture.py) and
+[PTY supervisor](../scripts/qualification/pi_terminal.py) are for isolated
+qualification. Their original measured versions are in the
+[historical source manifest](evidence/harness-2026-11-07/manifest.json).
+They require Pi 1.3.0 under `/opt/pi-test`, the pinned Node PATH, and a private
+`/app/relay-test/pi-home` used by both core and Pi. The supervisor refuses
+existing config files, keeps the person's HOME untouched and drains final PTY
+bytes. Start the loopback model
 only inside the VM; it requests real `bash sha256sum`, then produces an ACK from
 the actual tool result. This does not qualify paid inference or a customer's
 model credentials. Real customer agents use their supported model setup.

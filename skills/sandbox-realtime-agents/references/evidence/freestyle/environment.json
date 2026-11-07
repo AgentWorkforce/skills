@@ -114,5 +114,7 @@
     "cell.py": "93c6a3170507aee357e3d9ffd9aa6ced345772c083fa96fd7c16d1177edc10a8",
     "hub.mjs": "a5c7c381ae101c38c83709b2321b5882fa514b43d188ab58ea386ce4c7b0249a"
   },
-  "image_provenance": "Same immutable stock snapshot ID captured on all three VM creation responses."
+  "image_provenance": "Same immutable stock snapshot ID captured on all three VM creation responses.",
+  "historical_harness_manifest": "../harness-2026-11-07/manifest.json",
+  "historical_harness_note": "harness_sha256 identifies the archived source as executed, not the maintained scripts updated after review."
 }

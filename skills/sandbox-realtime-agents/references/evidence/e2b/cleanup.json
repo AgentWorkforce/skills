@@ -26,5 +26,30 @@
   "previously_deleted_setup_ids": {
     "deleted_initial_probe": "i1s04pqs6rxjn4laij214",
     "deleted_resource_constrained_hub": "i10f73smqqwd9n1o54ddf"
+  },
+  "followup_unrelated_resources": {
+    "checked_utc": "2026-11-07T07:00:04.465881+00:00",
+    "command": "e2b sandbox list --state running,paused --limit 0 --format json",
+    "privacy": "Unrelated IDs are represented by their exact UTF-8 SHA-256, not published as raw resource identifiers.",
+    "resources": [
+      {
+        "id_sha256": "3628588ca35615c91007b8fa9e250fae3b61e0cc56e399a8f5f9fde3a25a1009",
+        "state": "not listed"
+      },
+      {
+        "id_sha256": "cf0f0bc95b60710d66b0e55757f86cbe9748237f21db9988839d2b3453b81ebc",
+        "state": "not listed"
+      },
+      {
+        "id_sha256": "c5d8cf092d467d812eb1271f4dd55bf52c109328566d4c13a233be01a4d4e984",
+        "state": "not listed"
+      },
+      {
+        "id_sha256": "052586920ed9acad01d637bc9b162eed6cc9ad0dd1b83980670a9b9773bcaf91",
+        "state": "not listed"
+      }
+    ],
+    "historical_scope": "The original cleanup code compared the unrelated ID set against its post-delete listing; that listing was not retained. This is a separately timestamped follow-up, not reconstructed historical output.",
+    "limitation": "The later follow-up did not list any of the four unrelated IDs. It cannot independently reconstruct their states at the earlier cleanup time or attribute later absence. The original count was recorded only after the cleanup code asserted that all unrelated IDs remained in its post-delete listing; that raw post-delete listing was not retained."
   }
 }

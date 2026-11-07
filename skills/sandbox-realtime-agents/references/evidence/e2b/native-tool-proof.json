@@ -2,6 +2,183 @@
   "sessions": {
     "a": [
       {
+        "type": "session",
+        "version": 3,
+        "id": "01a1b4ae-05fa-73e9-a45b-beb77d00339a",
+        "timestamp": "2026-11-07T06:24:26.107Z",
+        "cwd": "/app/shared"
+      },
+      {
+        "type": "model_change",
+        "id": "c9e4caac",
+        "parentId": null,
+        "timestamp": "2026-11-07T06:24:26.455Z",
+        "provider": "relay-test",
+        "modelId": "test"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "4833544d",
+        "parentId": "c9e4caac",
+        "timestamp": "2026-11-07T06:24:26.455Z",
+        "thinkingLevel": "off"
+      },
+      {
+        "type": "message",
+        "id": "32daba0e",
+        "parentId": "4833544d",
+        "timestamp": "2026-11-07T06:25:55.678Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /opt/pi-test/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /opt/pi-test/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /opt/pi-test/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/app/shared\n</cwd>"
+          },
+          "timestamp": 1794032755676,
+          "toolsAdded": [
+            {
+              "name": "read",
+              "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to read (relative or absolute)"
+                  },
+                  "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (1-indexed)"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to read"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "bash",
+              "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "Shell command to execute"
+                  },
+                  "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds (optional, no default timeout)"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "edit",
+              "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "edits"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to edit (relative or absolute)"
+                  },
+                  "edits": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "oldText",
+                        "newText"
+                      ],
+                      "properties": {
+                        "oldText": {
+                          "type": "string",
+                          "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                        },
+                        "newText": {
+                          "type": "string",
+                          "description": "Replacement text for this targeted edit."
+                        }
+                      }
+                    },
+                    "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "write",
+              "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "content"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to write (relative or absolute)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Content to write to the file"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "a7824416",
+        "parentId": "32daba0e",
+        "timestamp": "2026-11-07T06:25:55.679Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "[via Agent Relay \u2014 from @driver-b to @e2b-a \u00b7 message 244708931017105408 \u00b7 ref e06abdf26be8]\n\nE2E_QUERY e2b-897271ddbfe641ea876f qualification-b48d42cd1d85/atomic.txt\n[end of Agent Relay message \u00b7 ref e06abdf26be8]\n\n[Agent Relay delivery e06abdf26be8454dbde04b342a29903a2baf70bb91553c659875ab1213cb2c26]"
+            }
+          ],
+          "timestamp": 1794032755675
+        }
+      },
+      {
         "type": "message",
         "id": "2590d032",
         "parentId": "a7824416",
@@ -62,9 +239,224 @@
           "durationMs": 13,
           "timestamp": 1794032755868
         }
+      },
+      {
+        "type": "message",
+        "id": "08600afd",
+        "parentId": "f2290b2c",
+        "timestamp": "2026-11-07T06:25:55.877Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "ACK e2b-897271ddbfe641ea876f 302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1794032755871,
+          "responseId": "fixture",
+          "rawStopReason": "stop",
+          "durationMs": 5,
+          "thinkingLevel": "off"
+        }
       }
     ],
     "b": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "01a1b4ae-3470-716a-be81-ada084afaf6d",
+        "timestamp": "2026-11-07T06:24:38.008Z",
+        "cwd": "/app/shared"
+      },
+      {
+        "type": "model_change",
+        "id": "5048d178",
+        "parentId": null,
+        "timestamp": "2026-11-07T06:24:38.394Z",
+        "provider": "relay-test",
+        "modelId": "test"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "8ebe6058",
+        "parentId": "5048d178",
+        "timestamp": "2026-11-07T06:24:38.394Z",
+        "thinkingLevel": "off"
+      },
+      {
+        "type": "message",
+        "id": "885dfe46",
+        "parentId": "8ebe6058",
+        "timestamp": "2026-11-07T06:25:46.519Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /opt/pi-test/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /opt/pi-test/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /opt/pi-test/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/app/shared\n</cwd>"
+          },
+          "timestamp": 1794032746516,
+          "toolsAdded": [
+            {
+              "name": "read",
+              "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to read (relative or absolute)"
+                  },
+                  "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (1-indexed)"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to read"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "bash",
+              "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "Shell command to execute"
+                  },
+                  "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds (optional, no default timeout)"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "edit",
+              "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "edits"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to edit (relative or absolute)"
+                  },
+                  "edits": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "oldText",
+                        "newText"
+                      ],
+                      "properties": {
+                        "oldText": {
+                          "type": "string",
+                          "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                        },
+                        "newText": {
+                          "type": "string",
+                          "description": "Replacement text for this targeted edit."
+                        }
+                      }
+                    },
+                    "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "write",
+              "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "content"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to write (relative or absolute)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Content to write to the file"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "15ad624a",
+        "parentId": "885dfe46",
+        "timestamp": "2026-11-07T06:25:46.520Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "[via Agent Relay \u2014 from @driver-a to @e2b-b \u00b7 message 244708892710526976 \u00b7 ref 2bc47b5e2f3d]\n\nE2E_QUERY e2b-95b4f01e63214816a9cc qualification-b48d42cd1d85/renamed.txt\n[end of Agent Relay message \u00b7 ref 2bc47b5e2f3d]\n\n[Agent Relay delivery 2bc47b5e2f3d6965eced645a3671131d62001cf8670c4668ccfe4a2bbdbdaa73]"
+            }
+          ],
+          "timestamp": 1794032746515
+        }
+      },
       {
         "type": "message",
         "id": "0ee16918",
@@ -126,9 +518,48 @@
           "durationMs": 14,
           "timestamp": 1794032746756
         }
+      },
+      {
+        "type": "message",
+        "id": "fae9bbde",
+        "parentId": "64a44856",
+        "timestamp": "2026-11-07T06:25:46.764Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "ACK e2b-95b4f01e63214816a9cc 05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1794032746759,
+          "responseId": "fixture",
+          "rawStopReason": "stop",
+          "durationMs": 5,
+          "thinkingLevel": "off"
+        }
       }
     ]
   },
   "model": "deterministic loopback fixture; actual Pi sessions and shell tools",
-  "account_login": "signed_out; isolated self-hosted messaging binding verified independently"
+  "account_login": "signed_out; isolated self-hosted messaging binding verified independently",
+  "evidence_scope": "Complete eight-entry Pi session chains, including header, user challenge, tool call/result and final ACK, retained from isolated qualification before cleanup."
 }

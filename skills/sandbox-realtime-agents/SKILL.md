@@ -37,16 +37,17 @@ or destructive changes.
 
 Use existing command-line sign-in or securely supplied environment credentials.
 Never ask for secrets in chat, print token values, or copy account credentials
-into sandboxes. Read-only account status and an authenticated resource listing
-establish usable access. Configured account names alone do not.
+into sandboxes. Read-only status and an authenticated listing establish account
+access, not sandbox-creation entitlement. Within an authorized nonproduction
+task, verify one bounded create before proceeding; billing gates remain human-owned.
 
 Open the official browser approval flow when necessary. Account creation, plan
 activation, payment details and workspace access changes stay with the human
 unless specifically authorized. A `plan_required` error is a billing gate, not
 a reason to mint keys, invent a workspace, or use another person's resources.
 
-Private runtime bundles belong in an owner-only directory outside the shared
-tree, mode 0600. Generate isolated fixture credentials only when authorized.
+Private runtime bundles belong in a 0700 owner-only directory outside the shared
+tree, with 0600 credential files. Generate isolated fixture credentials only when authorized.
 Transfer them through the authenticated file channel; keep values out of argv,
 logs, transcripts and evidence. Do not expose an account key to a coding agent.
 

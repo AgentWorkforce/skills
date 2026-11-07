@@ -2,16 +2,38 @@
 """Perform one authorized scratch-file mutation or bounded convergence check."""
 import argparse
 import base64
+import ctypes
 from contextlib import contextmanager
 import hashlib
 import json
 import os
 from pathlib import Path
 import stat
+import sys
 import time
 import uuid
 
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+
+def rename_noreplace(src_fd, source, dst_fd, destination):
+    """Perform a real atomic rename that never replaces a competing entry."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == 'linux':
+        function = getattr(libc, 'renameat2', None)
+        flags = 1  # RENAME_NOREPLACE, linux/fs.h
+    elif sys.platform == 'darwin':
+        function = getattr(libc, 'renameatx_np', None)
+        flags = 4  # RENAME_EXCL, sys/stdio.h
+    else:
+        function = None
+    if function is None:
+        raise NotImplementedError('Atomic no-replace rename requires Linux or macOS')
+    function.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    function.restype = ctypes.c_int
+    if function(src_fd, os.fsencode(source), dst_fd, os.fsencode(destination), flags):
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number), destination)
 
 
 class ScratchRoot:
@@ -108,14 +130,14 @@ class ScratchRoot:
         """Rename the requested entry between pinned, non-symlink parents."""
         with self.parent(source) as (src_fd, src):
             self.regular(src_fd, src)
-            with self.parent(destination, create=True) as (dst_fd, dst):
+            with self.parent(destination) as (dst_fd, dst):
                 try:
                     os.stat(dst, dir_fd=dst_fd, follow_symlinks=False)
                 except FileNotFoundError:
                     pass
                 else:
                     raise ValueError('Rename destination already exists')
-                os.rename(src, dst, src_dir_fd=src_fd, dst_dir_fd=dst_fd)
+                rename_noreplace(src_fd, src, dst_fd, dst)
 
     def delete(self, name):
         """Unlink only the named directory entry, never a symlink target."""
@@ -123,7 +145,7 @@ class ScratchRoot:
             self.regular(parent, leaf)
             os.unlink(leaf, dir_fd=parent)
 
-    def digest(self, name, absent=False):
+    def digest(self, name, absent=False, deadline=None):
         """Hash a no-follow file handle or verify that the entry is absent."""
         with self.parent(name) as (parent, leaf):
             self.regular(parent, leaf)
@@ -134,7 +156,14 @@ class ScratchRoot:
                 if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
                     raise IsADirectoryError(name)
                 digest = hashlib.sha256()
-                for chunk in iter(lambda: stream.read(65536), b''):
+                while True:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        raise TimeoutError('Convergence deadline exceeded')
+                    chunk = stream.read(65536)
+                    if deadline is not None and time.monotonic() >= deadline:
+                        raise TimeoutError('Convergence deadline exceeded')
+                    if not chunk:
+                        break
                     digest.update(chunk)
                 return True, digest.hexdigest()
 
@@ -164,14 +193,14 @@ def execute(root, request):
         while True:
             try:
                 try:
-                    exists, actual = root.digest(name, absent=absent)
+                    exists, actual = root.digest(name, absent=absent, deadline=started + timeout)
                 except FileNotFoundError:
                     exists, actual = False, None
                 matches = not exists if absent else actual == expected
                 if matches:
                     result['sha256'] = actual
                     break
-            except (PermissionError, IsADirectoryError):
+            except (PermissionError, IsADirectoryError, TimeoutError):
                 pass
             if time.monotonic() - started >= timeout:
                 result.update(ok=False, error='Convergence deadline exceeded')

@@ -7,22 +7,47 @@ from pathlib import Path
 import threading
 import time
 import urllib.request
+import urllib.parse
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path('/app/bench-private')
-CONFIG = json.loads((ROOT / 'config.json').read_text())
+CONFIG = {}
 SHARED = Path('/app/shared/benchmark')
-SHARED.mkdir(parents=True, exist_ok=True)
 PENDING = {}
 LOCK = threading.Lock()
+RUN_LOCK = threading.Lock()
+TRIAL_TIMEOUT = 30
+INTER_TRIAL_SLEEP = .1
 
 
-def post(url, body, timeout=35):
+def validate_origin(url):
+    """Accept only explicit HTTPS peer origins, without credentials or paths."""
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password
+            or parsed.path not in ('', '/') or parsed.query or parsed.fragment):
+        raise ValueError('An explicit HTTPS peer origin is required')
+    return url.rstrip('/')
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Keep bearer credentials on the configured origin, including redirects."""
+    def redirect_request(self, *_args, **_kwargs):
+        return None
+
+
+OPENER = urllib.request.build_opener(NoRedirect())
+
+
+def post(url, body, timeout=30):
+    origin = validate_origin(CONFIG['peer_url'])
+    if url not in (origin + '/arm', origin + '/ack'):
+        raise ValueError('Callback destination must match the peer origin')
     request = urllib.request.Request(url, json.dumps(body).encode(), {
         'Authorization': 'Bearer ' + CONFIG['callback_token'],
         'Content-Type': 'application/json',
     })
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with OPENER.open(request, timeout=timeout) as response:
         return json.load(response)
 
 
@@ -49,42 +74,53 @@ def observe(body):
 
 
 def run_cell(body):
+    """Record failures, release pending state, and never call a failed cell complete."""
     size = body['bytes']
     samples = []
+    invocation = uuid.uuid4().hex
     for index in range(body['warmups'] + body['samples']):
-        round_id = f"{CONFIG['run']}:{CONFIG['role']}:{size}:{index}"
-        header = (round_id + '\n').encode()
-        content = (header + bytes(range(256)) * ((size // 256) + 1))[:size]
+        round_id = f"{CONFIG['run']}:{CONFIG['role']}:{size}:{invocation}:{index}"
+        content = ((round_id + '\n').encode() + bytes(range(256)) * ((size // 256) + 1))[:size]
         digest = hashlib.sha256(content).hexdigest()
         filename = CONFIG['role'] + '-' + str(size) + '.bin'
         pending = {'event': threading.Event(), 'sha256': digest}
         with LOCK:
             PENDING[round_id] = pending
-        post(CONFIG['peer_url'] + '/arm', {
-            'round': round_id, 'file': filename, 'sha256': digest, 'size': size,
-        })
-        started = time.monotonic_ns()
-        with (SHARED / filename).open('wb') as stream:
-            stream.write(content)
-        written = time.monotonic_ns()
-        ok = pending['event'].wait(30)
-        ended = pending.get('ack_ns', time.monotonic_ns())
-        sample = {
-            'round': round_id, 'direction': CONFIG['role'] + '->' + CONFIG['peer_role'],
-            'bytes': size, 'index': index, 'warmup': index < body['warmups'],
-            'success': ok, 'sha256': digest,
-            'write_to_ack_ms': (ended - started) / 1e6,
-            'local_write_ms': (written - started) / 1e6,
-        }
+        sample = {'round': round_id, 'direction': CONFIG['role'] + '->' + CONFIG['peer_role'],
+                  'bytes': size, 'index': index, 'warmup': index < body['warmups'],
+                  'success': False, 'sha256': digest,
+                  'write_to_ack_ms': None, 'local_write_ms': None}
+        started = written = None
+        try:
+            # Arm and ACK share one bounded trial budget; arming remains outside the metric.
+            deadline = time.monotonic() + TRIAL_TIMEOUT
+            post(CONFIG['peer_url'] + '/arm', {
+                'round': round_id, 'file': filename, 'sha256': digest, 'size': size,
+            }, timeout=TRIAL_TIMEOUT)
+            started = time.monotonic_ns()
+            with (SHARED / filename).open('wb') as stream:
+                stream.write(content)
+            written = time.monotonic_ns()
+            sample['success'] = pending['event'].wait(max(0, deadline - time.monotonic()))
+        except Exception as error:
+            # A failed setup/write is evidence too; exception text may contain private data.
+            sample['error'] = type(error).__name__
+        finally:
+            ended = pending.get('ack_ns', time.monotonic_ns())
+            if started is not None:
+                sample['write_to_ack_ms'] = (ended - started) / 1e6
+            if written is not None:
+                sample['local_write_ms'] = (written - started) / 1e6
+            with LOCK:
+                PENDING.pop(round_id, None)
         samples.append(sample)
         with (ROOT / 'samples.jsonl').open('a') as stream:
             stream.write(json.dumps(sample) + '\n')
-        with LOCK:
-            PENDING.pop(round_id, None)
-        if not ok:
-            break  # Fail closed: no endless writes into a broken mirror.
-        time.sleep(0.1)
-    return {'samples': samples, 'complete': len(samples) == body['warmups'] + body['samples']}
+        if not sample['success']:
+            break
+        time.sleep(INTER_TRIAL_SLEEP)
+    complete = len(samples) == body['warmups'] + body['samples'] and all(r['success'] for r in samples)
+    return {'samples': samples, 'complete': complete}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -92,8 +128,8 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
-        if not hmac.compare_digest(self.headers.get('Authorization', ''),
-                                   'Bearer ' + CONFIG['callback_token']):
+        if not hmac.compare_digest(self.headers.get('Authorization', '').encode('utf-8'),
+                                   ('Bearer ' + CONFIG['callback_token']).encode('utf-8')):
             self.send_error(401)
             return
         try:
@@ -116,7 +152,13 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/run':
                 if body['bytes'] not in (1024, 65536, 1048576) or body['samples'] != 100 or body['warmups'] != 10:
                     raise ValueError('fixed benchmark parameters')
-                result = run_cell(body)
+                if not RUN_LOCK.acquire(blocking=False):
+                    self.send_error(409, 'A benchmark cell is already running')
+                    return
+                try:
+                    result = run_cell(body)
+                finally:
+                    RUN_LOCK.release()
             else:
                 self.send_error(404)
                 return
@@ -131,4 +173,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(500, type(error).__name__)
 
 
-ThreadingHTTPServer(('0.0.0.0', 9092), Handler).serve_forever()
+def main():
+    global CONFIG
+    CONFIG = json.loads((ROOT / 'config.json').read_text())
+    CONFIG['peer_url'] = validate_origin(CONFIG['peer_url'])
+    SHARED.mkdir(parents=True, exist_ok=True)
+    ThreadingHTTPServer(('0.0.0.0', 9092), Handler).serve_forever()
+
+
+if __name__ == '__main__':
+    main()

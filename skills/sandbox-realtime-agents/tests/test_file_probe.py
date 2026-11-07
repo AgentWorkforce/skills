@@ -48,6 +48,7 @@ class FileProbeTests(unittest.TestCase):
         (self.path / 'nested/file').write_bytes(b'old content before atomic save')
         self.write('nested/file', 'atomic')
         self.assertEqual((self.path / 'nested/file').read_bytes(), PAYLOAD)
+        (self.path / 'other').mkdir()
         probe.execute(self.root, {'op': 'rename', 'path': 'nested/file', 'destination': 'other/renamed'})
         self.assertFalse((self.path / 'nested/file').exists())
         self.assertFalse(probe.execute(self.root, {'op': 'expect', 'path': 'other/renamed', 'absent': True, 'timeout': .04})['ok'])
@@ -156,6 +157,30 @@ class FileProbeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.root.rename('source', 'destination')
         self.assertEqual((self.path / 'destination').read_bytes(), b'preserve')
+
+    def test_rename_racing_destination_is_preserved(self):
+        """The kernel no-replace flag closes the absent-check/rename race."""
+        self.write('source')
+        original = probe.rename_noreplace
+        def racing(*args):
+            (self.path / 'destination').write_bytes(b'competing data')
+            return original(*args)
+        with mock.patch.object(probe, 'rename_noreplace', racing), self.assertRaises(FileExistsError):
+            self.root.rename('source', 'destination')
+        self.assertEqual((self.path / 'destination').read_bytes(), b'competing data')
+        self.assertEqual((self.path / 'source').read_bytes(), PAYLOAD)
+
+    def test_failed_rename_creates_no_directories(self):
+        self.write('source')
+        with self.assertRaises(FileNotFoundError):
+            self.root.rename('source', 'new/deep/destination')
+        self.assertFalse((self.path / 'new').exists())
+
+    def test_hash_deadline_is_checked_between_chunks(self):
+        (self.path / 'large').write_bytes(b'x' * 200000)
+        with mock.patch.object(probe.time, 'monotonic', side_effect=[0, 1, 2]):
+            with self.assertRaises(TimeoutError):
+                self.root.digest('large', deadline=2)
 
 
 if __name__ == '__main__':

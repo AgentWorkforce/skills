@@ -51,20 +51,35 @@ parity with another provider.
 ```sh
 freestyle vm exec --linux-user root --timeout-ms 300000 YOUR_VM_ID -- \
   bash -lc 'echo ready; uname -m'
-freestyle vm scp private-bundle.tar.gz YOUR_VM_ID:/tmp/relay-stage.tar.gz
+# The default SCP identity owns this private staging directory. Record its UID.
+freestyle vm exec YOUR_VM_ID -- bash -lc \
+  'set -eu; umask 077; mkdir -m 0700 /tmp/relay-private-stage; id -u'
+freestyle vm scp private-bundle.tar.gz YOUR_VM_ID:/tmp/relay-private-stage/bundle.tar.gz
 freestyle vm exec --linux-user root YOUR_VM_ID -- \
-  bash -lc 'tar -xzf /tmp/relay-stage.tar.gz -C / && rm /tmp/relay-stage.tar.gz'
+  bash -lc 'set -eu
+    stage=/tmp/relay-private-stage
+    archive=$stage/bundle.tar.gz
+    trap '\''rm -f "$archive"'\'' EXIT
+    test -d "$stage" && test ! -L "$stage" && test ! -L "$archive"
+    chmod 0700 "$stage"; chmod 0600 "$archive"
+    chown root "$stage" "$archive"
+    install -d -m 0700 /app/relay-test
+    tar -xzf "$archive" -C /app/relay-test'
 ```
 
 The archive must contain only reviewed, task-owned paths; never extract
-untrusted content into `/`. Use a 0600 local archive in a private directory,
+untrusted content as root. Entries are relative to `/app/relay-test`. Use a 0600 local archive in a private directory,
 0600 private entries and 0700 runtime directories. Remove the temporary remote
-archive after extraction so credential copies do not linger. Do not put
+archive on both successful and failed extraction (the EXIT trap retains tar's
+failure status). Create a fresh 0700 staging directory as the SCP identity before
+copying; it stays private during transfer and becomes root-owned before
+extraction. Never reuse an unrelated or permissive staging path. Do not put
 credential values in argv or use account keys as agent runtime keys.
 
 The stock Node was 26.13.0. This run installed verified official Node 22.23.2
-in `/opt/node` to match E2B's tested runtime. Use that PATH and `HOME=/root`
-consistently for fresh root-owned probe/Pi homes. Supervisors used `nohup`,
+in `/opt/node` to match E2B's tested runtime. The historical fixture used
+`HOME=/root`; the maintained fixture gives the core and Pi a separate
+`/app/relay-test/pi-home`. Supervisors used `nohup`,
 closed stdin, private logs and exact PID files; actual fresh file/message
 checks establish that they keep running after the command returns.
 

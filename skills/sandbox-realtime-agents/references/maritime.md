@@ -64,7 +64,9 @@ The following is a documentation-based runbook, **not a verified integration**.
 7. Follow [runtime setup](runtime.md) and [verification](verification.md), then
    run the same six benchmark cells only after real file and message proofs.
    Preserve raw failures and provider-specific limitations.
-8. Kill only the exact sandboxes this run created, one at a time, using
+8. Inspect `maritime sandbox kill --help` before cleanup. Installed 2.2.0 help
+   confirms the singular group includes this lifecycle operation, alongside its
+   data-plane commands. Kill only exact sandboxes this run created, one at a time, using
    `maritime sandbox kill EXACT_ID --yes --json`, then read each exact ID and
    confirm ended/not-found state. Preserve shared templates and snapshots.
 

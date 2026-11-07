@@ -28,5 +28,27 @@
   ],
   "tls_verification_command": "freestyle --output json tls list",
   "all_exact_tls_ids_absent": true,
-  "previously_deleted_setup_vm": "vm-6c9458ca6c1145f9a5350f4453f712b7"
+  "previously_deleted_setup_vm": "vm-6c9458ca6c1145f9a5350f4453f712b7",
+  "followup_tls_reads": {
+    "checked_utc": "2026-11-07T07:00:09.842240+00:00",
+    "command": "freestyle --output json tls get EXACT_RULE_ID",
+    "results": {
+      "tls-31f90593f09a4fc3bf75dd21448cee70": {
+        "exit_code": 1,
+        "result": "not found"
+      },
+      "tls-a3675b070cdc4ed1ab100623acb81642": {
+        "exit_code": 1,
+        "result": "not found"
+      },
+      "tls-af8efbd6960242288fd58ba060d3e89c": {
+        "exit_code": 1,
+        "result": "not found"
+      },
+      "tls-a994b777cc8f4544b69accfb98d19479": {
+        "exit_code": 1,
+        "result": "not found"
+      }
+    }
+  }
 }

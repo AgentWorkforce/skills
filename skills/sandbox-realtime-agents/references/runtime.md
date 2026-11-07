@@ -40,6 +40,24 @@ and scopes **`fs:read`, `fs:write`, `ops:read`**. `ops:read` is required for
 receipt settlement even when bytes already converge. Keep signing authority on
 the service and give each participant a separate private scoped bundle.
 
+For an approved fresh isolated fixture, install the pinned dependencies from
+[verification](verification.md), preserve the `scripts/` tree under
+`/opt/relay-fixtures`, and run the maintained service:
+
+```sh
+RELAYFILE_TEST_WORKSPACE=ws_sandbox_e2e \
+  node /opt/relay-fixtures/scripts/qualification/hub.mjs
+```
+
+It reads `/app/relay-test/urls.json` with public `relayfile` and `relaycast`
+origins, creates private scoped bundles and an actual messaging workspace on
+engine loopback, and waits for both health endpoints before marking ready.
+`ready.json` labels `relayfile_workspace` separately from the independently
+assigned `relaycast_workspace_id`; these two services do not share an ID space.
+The fixtures enforce private file modes on existing files and stop children on
+startup failures, later exits, signals and bounded shutdown. Use a fresh
+qualification directory; an existing workspace binding is not silently reused.
+
 On each peer, create an empty shared tree and a 0700 private directory. Securely
 transfer a 0600 credential bundle with a `token` field, outside the shared tree:
 
@@ -77,10 +95,13 @@ Both tested providers used glibc linux/amd64; Alpine/musl is incompatible with
 this published probe. Verify `--version` and `--help` before copying commands.
 
 Create the supported harness home before starting the core so its shipped
-extension can be installed. Start one core in a fresh private directory:
+extension can be installed. For the isolated Pi fixture, use the dedicated home
+below for both the core and supervisor; a real customer session uses its chosen
+existing harness home instead. Start one core in a fresh private directory:
 
 ```sh
-/tmp/agent-relay-probe relay serve --headless \
+install -d -m 0700 /app/relay-test/pi-home/.pi/agent
+HOME=/app/relay-test/pi-home /tmp/agent-relay-probe relay serve --headless \
   --socket /app/relay-test/core.sock --app-data-dir /app/relay-test/core
 /tmp/agent-relay-probe relay call status.get --socket /app/relay-test/core.sock --json
 /tmp/agent-relay-probe relay call sessions.list --socket /app/relay-test/core.sock --json
@@ -112,7 +133,9 @@ new messaging workspace. This is a fixture binding, not Cloud account login.
 The retained evidence reports `account=signed_out` and independently verified
 messaging workspaces. Never fabricate account identity or overwrite a person's
 existing sign-in. The per-provider retained service sources demonstrate the
-test signing authority and loopback-only workspace bootstrap.
+test signing authority and the proxy bootstrap guard as originally implemented;
+their files are `.mjs.txt` historical evidence. Use the maintained service for
+new runs, including its upstream loopback confinement.
 
 ## Messaging transport and supervision
 
@@ -122,11 +145,22 @@ and block external anonymous `/v1/workspaces` creation. Forward WebSocket
 upgrades correctly: do not copy `sec-websocket-*` headers into a newly generated
 upstream handshake.
 
+The maintained proxy normalizes encoded paths before blocking the workspace
+bootstrap collection. It intentionally accepts traffic from peer VMs. Engine
+8.12.0 has no host flag; the maintained child wrapper forces its HTTP listener
+to `127.0.0.1` before importing the real entry point. The historical proxy check
+covered only the proxy, not direct upstream ingress; the old engine listened on
+all interfaces and no direct-port isolation proof was captured. Those test VMs
+are deleted. The historical sources remain archived, without claiming their
+guard check proves complete upstream confinement.
+
 A programmatic test identity uses matching `@relaycast/sdk@8.12.0` with
 `AgentClient(new HttpClient({apiKey:agentToken,baseUrl}))`. It negotiates
 `/v1/node/ws`; raw `/v1/ws` with an agent token is not the tested route.
 Subscribe before sending; match a fresh challenge, intended sender and expected
-file hash on both `dm.received` and **`thread.reply`**. Reject replayed replies.
+file hash on both `dm.received` and **`thread.reply`**. The maintained probe adds
+a cryptographic per-invocation nonce, ignores replies before send begins and
+deduplicates reply IDs; a replay from an earlier invocation cannot satisfy it.
 Do not connect multiple concurrent SDK clients using the same driver identity.
 
 Pi's tested path receives requests and sends automatic final answers. It does
