@@ -1,0 +1,11 @@
+{
+  "checked_utc": "2026-11-07T05:56:41.780942+00:00",
+  "deleted_individually": [
+    "relay-bench-20261106-a",
+    "relay-bench-20261106-b",
+    "relay-bench-20261106-hub"
+  ],
+  "verification_command": "bl get sandboxes --all -o json",
+  "all_exact_names_absent": true,
+  "credential_disposition": "Mount tokens and JWKS signing authority were isolated to the deleted VMs; callback fixture token had no authority outside them. Tokens expire after two hours. No live credentials are in these artifacts."
+}
