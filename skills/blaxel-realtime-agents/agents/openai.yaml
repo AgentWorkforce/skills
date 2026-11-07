@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blaxel real-time agents"
+  short_description: "Sync files and messages across Blaxel sandboxes"
+  default_prompt: "Use $blaxel-realtime-agents to connect Blaxel agents with live Relayfile mounts and Agent Relay messaging, then verify both directions."

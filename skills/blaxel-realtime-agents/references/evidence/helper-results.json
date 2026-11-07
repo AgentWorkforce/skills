@@ -1,0 +1,52 @@
+[
+  {
+    "test": "packaged-helper-post-restart-upload",
+    "ok": true,
+    "op": "expect",
+    "path": "collab/helper-1794019159974655000/post-restart.txt",
+    "sha256": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+    "elapsed_ms": 0.06903400003466231
+  },
+  {
+    "test": "packaged-helper-delete-and-recreate",
+    "ok": true,
+    "op": "expect",
+    "path": "collab/helper-1794019159974655000/post-restart.txt",
+    "sha256": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+    "elapsed_ms": 0.041882999994413694
+  },
+  {
+    "test": "packaged-helper-native-a-to-b",
+    "ok": true,
+    "peer": "blaxel-b-v3",
+    "message_id": "244651948322361344",
+    "event_type": "thread.reply",
+    "sha256": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+    "reply": "ACK helper-a-to-b-1794019161791361000 04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+    "round": "helper-a-to-b-1794019161791361000",
+    "observed": [
+      "open",
+      "thread.reply",
+      "agent.status.active",
+      "thread.reply"
+    ],
+    "elapsed_ms": 7904.0558359999995
+  },
+  {
+    "test": "packaged-helper-native-b-to-a",
+    "ok": true,
+    "peer": "blaxel-a-v3",
+    "message_id": "244651981797101568",
+    "event_type": "thread.reply",
+    "sha256": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+    "reply": "ACK helper-b-to-a-1794019170012055000 04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+    "round": "helper-b-to-a-1794019170012055000",
+    "observed": [
+      "open",
+      "thread.reply",
+      "agent.status.active",
+      "thread.reply"
+    ],
+    "elapsed_ms": 7250.322804
+  }
+]

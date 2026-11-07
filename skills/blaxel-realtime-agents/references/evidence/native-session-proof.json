@@ -1,0 +1,280 @@
+[
+  {
+    "sandbox": "a",
+    "round": "helper-b-to-a-1794019170012055000",
+    "sender_observation": {
+      "test": "packaged-helper-native-b-to-a",
+      "ok": true,
+      "peer": "blaxel-a-v3",
+      "message_id": "244651981797101568",
+      "event_type": "thread.reply",
+      "sha256": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+      "reply": "ACK helper-b-to-a-1794019170012055000 04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+      "round": "helper-b-to-a-1794019170012055000",
+      "observed": [
+        "open",
+        "thread.reply",
+        "agent.status.active",
+        "thread.reply"
+      ],
+      "elapsed_ms": 7250.322804
+    },
+    "actual_session_messages": [
+      {
+        "type": "message",
+        "id": "0f70d3d1",
+        "parentId": "345e7643",
+        "timestamp": "2026-11-07T02:39:31.243Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "[via Agent Relay \u2014 from @driver-b to @blaxel-a-v3 \u00b7 message 244651953284222976 \u00b7 ref a572adae61ed]\n\nE2E_QUERY helper-b-to-a-1794019170012055000 collab/helper-1794019159974655000/post-restart.txt\n[end of Agent Relay message \u00b7 ref a572adae61ed]\n\n[Agent Relay delivery a572adae61ed175ebb2cdd4002f9a8e93a10f4b3b28e75bb90bd0b3afff932a6]"
+            }
+          ],
+          "timestamp": 1794019171237
+        }
+      },
+      {
+        "type": "message",
+        "id": "8f6f3e5b",
+        "parentId": "0f70d3d1",
+        "timestamp": "2026-11-07T02:39:31.373Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_helper-b-to-a-1794019170012055000",
+              "name": "bash",
+              "arguments": {
+                "command": "sha256sum /app/shared/collab/helper-1794019159974655000/post-restart.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1794019171324,
+          "responseId": "fixture",
+          "rawStopReason": "tool_calls",
+          "durationMs": 47,
+          "thinkingLevel": "off"
+        }
+      },
+      {
+        "type": "message",
+        "id": "2489cb36",
+        "parentId": "8f6f3e5b",
+        "timestamp": "2026-11-07T02:39:31.392Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_helper-b-to-a-1794019170012055000",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38  /app/shared/collab/helper-1794019159974655000/post-restart.txt\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 16,
+          "timestamp": 1794019171392
+        }
+      },
+      {
+        "type": "message",
+        "id": "742ff1b1",
+        "parentId": "2489cb36",
+        "timestamp": "2026-11-07T02:39:31.435Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "ACK helper-b-to-a-1794019170012055000 04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1794019171414,
+          "responseId": "fixture",
+          "rawStopReason": "stop",
+          "durationMs": 21,
+          "thinkingLevel": "off"
+        }
+      }
+    ]
+  },
+  {
+    "sandbox": "b",
+    "round": "helper-a-to-b-1794019161791361000",
+    "sender_observation": {
+      "test": "packaged-helper-native-a-to-b",
+      "ok": true,
+      "peer": "blaxel-b-v3",
+      "message_id": "244651948322361344",
+      "event_type": "thread.reply",
+      "sha256": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+      "reply": "ACK helper-a-to-b-1794019161791361000 04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38",
+      "round": "helper-a-to-b-1794019161791361000",
+      "observed": [
+        "open",
+        "thread.reply",
+        "agent.status.active",
+        "thread.reply"
+      ],
+      "elapsed_ms": 7904.0558359999995
+    },
+    "actual_session_messages": [
+      {
+        "type": "message",
+        "id": "367cc20f",
+        "parentId": "d5993338",
+        "timestamp": "2026-11-07T02:39:22.721Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "[via Agent Relay \u2014 from @driver-a to @blaxel-b-v3 \u00b7 message 244651917213208576 \u00b7 ref 07bc1fe3d645]\n\nE2E_QUERY helper-a-to-b-1794019161791361000 collab/helper-1794019159974655000/post-restart.txt\n[end of Agent Relay message \u00b7 ref 07bc1fe3d645]\n\n[Agent Relay delivery 07bc1fe3d645c2649d66ce1da5a07d60c99989d2133996a948e5ca544554e0bc]"
+            }
+          ],
+          "timestamp": 1794019162718
+        }
+      },
+      {
+        "type": "message",
+        "id": "bb53700b",
+        "parentId": "367cc20f",
+        "timestamp": "2026-11-07T02:39:22.815Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_helper-a-to-b-1794019161791361000",
+              "name": "bash",
+              "arguments": {
+                "command": "sha256sum /app/shared/collab/helper-1794019159974655000/post-restart.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1794019162778,
+          "responseId": "fixture",
+          "rawStopReason": "tool_calls",
+          "durationMs": 36,
+          "thinkingLevel": "off"
+        }
+      },
+      {
+        "type": "message",
+        "id": "48d1e86f",
+        "parentId": "bb53700b",
+        "timestamp": "2026-11-07T02:39:22.851Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_helper-a-to-b-1794019161791361000",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38  /app/shared/collab/helper-1794019159974655000/post-restart.txt\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 28,
+          "timestamp": 1794019162850
+        }
+      },
+      {
+        "type": "message",
+        "id": "10658cc3",
+        "parentId": "48d1e86f",
+        "timestamp": "2026-11-07T02:39:22.865Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "ACK helper-a-to-b-1794019161791361000 04025da0dd903e39a0bd891c13bd5246ee0d99e496f1f8d19e9266538221cc38"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "relay-test",
+          "model": "test",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1794019162852,
+          "responseId": "fixture",
+          "rawStopReason": "stop",
+          "durationMs": 13,
+          "thinkingLevel": "off"
+        }
+      }
+    ]
+  }
+]

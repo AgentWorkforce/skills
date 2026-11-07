@@ -1,0 +1,169 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "test": "a-to-b-create",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/challenge.txt",
+      "sha256": "d0f33af58fa50135631e915442f7d2ffcad9b05202e252f0ee326cd569af3e67",
+      "elapsed_ms": 0.038017999941075686,
+      "controller_ms": 651.0833750362508
+    },
+    {
+      "test": "b-to-a-binary-128k",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/binary.bin",
+      "sha256": "59f410ae5e17962412e2aed4f815918f634932f2abf084f00bb638c4db017850",
+      "elapsed_ms": 0.2779300000383955,
+      "controller_ms": 529.760375036858
+    },
+    {
+      "test": "a-to-b-update",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/challenge.txt",
+      "sha256": "1f82066a2daf44211e24623f4aed5c9b22913d6953e9ad3611b21d6c9e41a750",
+      "elapsed_ms": 0.03275800008850638,
+      "controller_ms": 354.73862499929965
+    },
+    {
+      "test": "b-to-a-atomic-replace",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/atomic.txt",
+      "sha256": "302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "elapsed_ms": 0.03016000005118258,
+      "controller_ms": 334.6312079811469
+    },
+    {
+      "test": "rename-new-content",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/renamed.txt",
+      "sha256": "1f82066a2daf44211e24623f4aed5c9b22913d6953e9ad3611b21d6c9e41a750",
+      "elapsed_ms": 0.030713999876752496
+    },
+    {
+      "test": "rename-old-absent",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/challenge.txt",
+      "sha256": null,
+      "elapsed_ms": 0.020669000150519423
+    },
+    {
+      "test": "delete-propagates",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/binary.bin",
+      "sha256": null,
+      "elapsed_ms": 0.021317000118870055
+    },
+    {
+      "test": "disjoint-a-to-b",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/disjoint-a.txt",
+      "sha256": "ddacfe62bb97c67e83b0d96e679caa3eb0d92318067bf03a4e70d709945ea175",
+      "elapsed_ms": 0.031668000019635656
+    },
+    {
+      "test": "disjoint-b-to-a",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/disjoint-b.txt",
+      "sha256": "67b42390054395eff9aec7d23ad202823f7b1372d836d9a0183f74c7973b7225",
+      "elapsed_ms": 0.032443000009152456
+    },
+    {
+      "test": "offline-reconnect",
+      "ok": true,
+      "path": "collab/run-1794018900127845000/offline.txt",
+      "sha256": "db507ec8c6802a08570d3bc63f99b133b180c4355a4e3ca5138b08b5c624800d",
+      "elapsed_ms": 0.033071999951062026
+    },
+    {
+      "test": "native-probe-pi-message-a-to-b",
+      "ok": true,
+      "reply": "ACK a-to-b-1794018906189598000 1f82066a2daf44211e24623f4aed5c9b22913d6953e9ad3611b21d6c9e41a750",
+      "message_id": "244650877503967232",
+      "event_type": "thread.reply",
+      "peer": "blaxel-b-v2",
+      "observed": [
+        {
+          "type": "open",
+          "message": null
+        },
+        {
+          "type": "thread.reply",
+          "message": {
+            "id": "244650159324487680",
+            "agentId": "244649109167235072",
+            "agentName": "blaxel-b-v2",
+            "text": "ACK a-to-b-1794018735481315000 1f82066a2daf44211e24623f4aed5c9b22913d6953e9ad3611b21d6c9e41a750"
+          }
+        },
+        {
+          "type": "thread.reply",
+          "message": {
+            "id": "244650877503967232",
+            "agentId": "244649109167235072",
+            "agentName": "blaxel-b-v2",
+            "text": "ACK a-to-b-1794018906189598000 1f82066a2daf44211e24623f4aed5c9b22913d6953e9ad3611b21d6c9e41a750"
+          }
+        }
+      ],
+      "round": "a-to-b-1794018906189598000",
+      "elapsed_ms": 8217.540792
+    },
+    {
+      "test": "native-probe-pi-message-b-to-a",
+      "ok": true,
+      "reply": "ACK b-to-a-1794018914666246000 302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "message_id": "244650911456858112",
+      "event_type": "thread.reply",
+      "peer": "blaxel-a-v2",
+      "observed": [
+        {
+          "type": "open",
+          "message": null
+        },
+        {
+          "type": "thread.reply",
+          "message": {
+            "id": "244650193583562752",
+            "agentId": "244649073461125120",
+            "agentName": "blaxel-a-v2",
+            "text": "ACK b-to-a-1794018743525332000 302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb"
+          }
+        },
+        {
+          "type": "thread.reply",
+          "message": {
+            "id": "244650911456858112",
+            "agentId": "244649073461125120",
+            "agentName": "blaxel-a-v2",
+            "text": "ACK b-to-a-1794018914666246000 302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb"
+          }
+        }
+      ],
+      "round": "b-to-a-1794018914666246000",
+      "elapsed_ms": 7549.7326060000005
+    },
+    {
+      "test": "a-mount-listener-and-receipts",
+      "ok": true,
+      "listener": "listening",
+      "outbox": {
+        "pending": 0,
+        "needsAttention": 0,
+        "failed": 0,
+        "acked": 15
+      }
+    },
+    {
+      "test": "b-mount-listener-and-receipts",
+      "ok": true,
+      "listener": "listening",
+      "outbox": {
+        "pending": 0,
+        "needsAttention": 0,
+        "failed": 0,
+        "acked": 9
+      }
+    }
+  ]
+}

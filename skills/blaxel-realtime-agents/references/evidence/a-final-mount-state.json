@@ -1,0 +1,167 @@
+{
+  "circuit": {
+    "open": false,
+    "openedAt": "0001-01-01T00:00:00Z",
+    "windowMs": 60000,
+    "cooldownMs": 30000,
+    "threshold": 5,
+    "nextRetry": "0001-01-01T00:00:00Z"
+  },
+  "counters": {},
+  "deniedPaths": 0,
+  "eventListener": {
+    "mode": "websocket",
+    "status": "listening",
+    "heartbeatAt": "2026-11-07T02:39:34.443392994Z",
+    "lastConnectedAt": "2026-11-07T02:39:08.418663073Z",
+    "lastAttemptAt": "2026-11-07T02:39:08.316620565Z"
+  },
+  "files": {
+    "/collab/atomic.txt": {
+      "revision": "rev_4",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/challenge.txt": {
+      "revision": "rev_11",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/disjoint-a.txt": {
+      "revision": "rev_8",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/disjoint-b.txt": {
+      "revision": "rev_9",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/helper-1794019099578561000/post-restart.txt": {
+      "revision": "rev_43",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/helper-1794019159974655000/post-restart.txt": {
+      "revision": "rev_46",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/offline.txt": {
+      "revision": "rev_10",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/renamed.txt": {
+      "revision": "rev_6",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/restart-fresh.txt": {
+      "revision": "rev_12",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018565861165000/atomic.txt": {
+      "revision": "rev_16",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018565861165000/disjoint-a.txt": {
+      "revision": "rev_21",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018565861165000/disjoint-b.txt": {
+      "revision": "rev_20",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018565861165000/offline.txt": {
+      "revision": "rev_22",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018565861165000/renamed.txt": {
+      "revision": "rev_18",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018725299544000/atomic.txt": {
+      "revision": "rev_26",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018725299544000/disjoint-a.txt": {
+      "revision": "rev_30",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018725299544000/disjoint-b.txt": {
+      "revision": "rev_31",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018725299544000/offline.txt": {
+      "revision": "rev_32",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018725299544000/renamed.txt": {
+      "revision": "rev_28",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018900127845000/atomic.txt": {
+      "revision": "rev_36",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018900127845000/disjoint-a.txt": {
+      "revision": "rev_41",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018900127845000/disjoint-b.txt": {
+      "revision": "rev_40",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018900127845000/offline.txt": {
+      "revision": "rev_42",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/collab/run-1794018900127845000/renamed.txt": {
+      "revision": "rev_38",
+      "contentType": "text/plain",
+      "status": "ready"
+    }
+  },
+  "intervalMs": 5000,
+  "lastAppliedRevision": "rev_12",
+  "lastEventAt": "2026-11-07T02:39:21.697444659Z",
+  "lastReconcileAt": "2026-11-07T02:39:34.443695072Z",
+  "lastSuccessfulReconcileAt": "2026-11-07T02:39:34.443695072Z",
+  "localRoot": "/app/shared",
+  "mode": "poll",
+  "outbox": {
+    "pending": 0,
+    "needsAttention": 0,
+    "failed": 0,
+    "acked": 15
+  },
+  "pendingConflicts": 0,
+  "pendingWriteback": 0,
+  "remoteRoot": "/",
+  "staleAfter": "2026-11-07T02:39:44.443695072Z",
+  "states": {
+    "stale": false,
+    "offline": false,
+    "hasConflicts": false,
+    "hasPendingWriteback": false
+  },
+  "status": "ready",
+  "syncMode": "mirror",
+  "workspaceId": "ws_blaxel_e2e"
+}

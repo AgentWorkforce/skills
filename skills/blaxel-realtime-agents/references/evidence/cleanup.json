@@ -1,0 +1,25 @@
+{
+  "checked_utc": "2026-11-07T02:41:39.761468+00:00",
+  "deleted_individually": [
+    "relay-e2e-20261106-hub",
+    "relay-e2e-20261106-a",
+    "relay-e2e-20261106-b",
+    "relay-e2e-20261106-a-glibc",
+    "relay-e2e-20261106-b-glibc"
+  ],
+  "read_after_delete": {
+    "relay-e2e-20261106-hub": "not listed",
+    "relay-e2e-20261106-a": "not listed",
+    "relay-e2e-20261106-b": "not listed",
+    "relay-e2e-20261106-a-glibc": "not listed",
+    "relay-e2e-20261106-b-glibc": "not listed"
+  },
+  "no_active_test_sandboxes": true,
+  "credential_disposition": "Isolated signing authority, service keys, agent keys and mount bundles removed with the exact session-owned sandboxes; file tokens also expire after two hours. No real credentials were written to this skill.",
+  "preserved": [
+    "Blaxel sign-in",
+    "official global Blaxel skills",
+    "preexisting project files",
+    "preexisting cloud resources"
+  ]
+}
