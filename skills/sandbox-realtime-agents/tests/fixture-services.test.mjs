@@ -14,6 +14,7 @@ test('private writes revoke permissive modes before replacing credential bytes',
   try {
     fs.chmodSync(root,0o755);privateRoot(root);
     const target=path.join(root,'credential.json');fs.writeFileSync(target,'old',{mode:0o644});
+    fs.chmodSync(target,0o644); // Exercise replacement even under an owner-only umask.
     savePrivate(target,{token:'synthetic-fixture-value'});
     assert.deepEqual(JSON.parse(fs.readFileSync(target,'utf8')),{token:'synthetic-fixture-value'});
     assert.equal(fs.statSync(root).mode&0o777,0o700);

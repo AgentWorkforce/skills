@@ -45,7 +45,7 @@ class ServiceIntegrationTests(unittest.TestCase):
         self.temp.cleanup()
     def start(self, kind):
         self.process = subprocess.Popen([NODE, str(SCRIPTS/kind/'hub.mjs')], env=self.env,
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     def ready(self):
         deadline = time.monotonic()+8
         while time.monotonic()<deadline:

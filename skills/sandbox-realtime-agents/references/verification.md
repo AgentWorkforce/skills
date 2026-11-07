@@ -105,6 +105,13 @@ Recompute statistics from all raw rows using
 [summarize.py](../scripts/benchmark/summarize.py). Preserve warmups and failures,
 report partial runs as partial, and clean up only recorded resource IDs.
 
+The hash-pinned historical PTY supervisor in the
+[source manifest](evidence/harness-2026-11-07/manifest.json) can drop output still
+queued after its child exits and overwrites `~/.pi/agent` configuration under
+its HOME. Its bytes remain unchanged as evidence. Use the maintained supervisor
+for new runs: it drains queued output, cleans up the owned process group and
+uses a private qualification home while refusing existing configuration files.
+
 The review fixes also passed a separate [12-test Linux file-helper check](evidence/review-linux-check.json)
 in one 120-second E2B sandbox, deleted immediately with a not-found read after
 cleanup. This verifies Linux `renameat2` and the file guards; it is not a new

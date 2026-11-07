@@ -1,5 +1,6 @@
 """Run one cell, retain all returned rows, and fail the process on any failed trial."""
 import json
+import os
 from pathlib import Path
 import sys
 import urllib.request
@@ -9,7 +10,7 @@ CELL_TIMEOUT = 110 * (30 + .1) + 60
 
 
 def main():
-    root = Path('/app/bench-private')
+    root = Path(os.environ.get('RELAY_BENCH_ROOT', '/app/bench-private'))
     config = json.loads((root / 'config.json').read_text())
     size = int(sys.argv[1])
     request = urllib.request.Request('http://127.0.0.1:9092/run',

@@ -156,11 +156,14 @@ and lifecycle limits before starting.
    session/tool evidence and settled receipts.
 2. Stop those isolated sessions and services. Archive their settled data/state;
    start the maintained [filesystem-only service](../scripts/benchmark/hub.mjs)
+   with `node /opt/relay-fixtures/scripts/benchmark/hub.mjs`
    on the service VM with `/tmp/relayfile-server` executable and a fresh
    `/app/bench-private` directory (0700). Preserve its relative helper import by
    uploading the scripts tree as described in [runtime setup](runtime.md).
    It generates scoped two-hour mount
    bundles for workspace `ws_relayfile_benchmark`.
+   For a custom private directory, set `RELAY_BENCH_ROOT` consistently for the
+   hub, peer and cell processes; the default is `/app/bench-private` throughout.
 3. Privately transfer the matching `mount-a.json` / `mount-b.json` bundle to each
    peer as `/app/bench-private/mount-creds.json` (0600). Start new mirrors with
    those bundles, empty `/app/shared`, private state and the recorded flags.

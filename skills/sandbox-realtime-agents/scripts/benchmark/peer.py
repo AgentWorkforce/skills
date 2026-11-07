@@ -11,7 +11,7 @@ import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-ROOT = Path('/app/bench-private')
+ROOT = Path(os.environ.get('RELAY_BENCH_ROOT', '/app/bench-private'))
 CONFIG = {}
 SHARED = Path('/app/shared/benchmark')
 PENDING = {}

@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -85,6 +86,15 @@ class BenchmarkTests(unittest.TestCase):
         with mock.patch.object(peer.threading,'Event',return_value=event), mock.patch.object(peer,'post'), mock.patch.object(peer.time,'monotonic',side_effect=[0,6]):
             peer.run_cell({'bytes':1024,'samples':1,'warmups':0})
         self.assertEqual(event.wait.call_args.args[0],24)
+    def test_custom_private_root_is_shared_by_peer_and_cell(self):
+        root=peer.ROOT
+        (root/'config.json').write_text(json.dumps(peer.CONFIG))
+        rows=[{'success':True} for _ in range(110)]
+        response=io.BytesIO(json.dumps({'complete':True,'samples':rows}).encode())
+        with mock.patch.dict(os.environ,{'RELAY_BENCH_ROOT':str(root)}), mock.patch.object(cell.sys,'argv',['cell.py','1024']), mock.patch.object(cell.urllib.request,'urlopen',return_value=response), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(load('peer').ROOT,root)
+            self.assertEqual(cell.main(),0)
+        self.assertEqual(json.loads((root/'cell-1024.json').read_text())['samples'],rows)
     def test_unsafe_callback_origins_fail_before_network(self):
         for url in ['http://example.invalid','https://user:password@example.invalid','https://example.invalid/path','https://example.invalid/?token=value']:
             peer.CONFIG['peer_url']=url

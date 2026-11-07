@@ -6,6 +6,7 @@ from pathlib import Path
 import pty
 import select
 import signal
+import stat
 import subprocess
 import time
 
@@ -17,8 +18,29 @@ def write_new(path, value):
         json.dump(value, stream)
 
 
+def private_root(root):
+    """Validate the root itself without following a final symlink before writes."""
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+            raise ValueError('Invalid private qualification directory')
+        os.fchmod(fd, 0o700)
+    finally:
+        os.close(fd)
+
+
+def kill_group(process):
+    """The owned session can retain helpers after its direct leader has exited."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
 def configure(root):
     """Keep the person's HOME untouched; prepare the same home used by the core."""
+    private_root(root)
     home = root / 'pi-home'
     agent = home / '.pi/agent'
     for directory in (home, home / '.pi', agent):
@@ -42,13 +64,14 @@ def configure(root):
 
 def drain(master, control_fd, process, output, stop_deadline=lambda: None):
     """Drain buffered PTY output even when the child has already exited."""
+    ended = False
     while True:
+        if process.poll() is not None and not ended:
+            kill_group(process)
+            ended = True
         deadline = stop_deadline()
         if deadline is not None and time.monotonic() >= deadline and process.poll() is None:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            kill_group(process)
         watched = [master] + ([control_fd] if process.poll() is None else [])
         ready, _, _ = select.select(watched, [], [], 1)
         if control_fd in ready:
@@ -101,8 +124,8 @@ def main():
             drain(master, control_fd, process, output, lambda: stop_by[0])
         return process.wait(timeout=5)
     finally:
+        kill_group(process)
         if process.poll() is None:
-            os.killpg(process.pid, signal.SIGKILL)
             process.wait()
         os.close(master)
         os.close(slave)

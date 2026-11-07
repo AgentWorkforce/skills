@@ -63,8 +63,9 @@ async function finish(result) {
 
 agent.connect();
 agent.on.any(event => {
-  if (finished || !sendStarted) return;
+  if (finished) return;
   if (observed.length < 32) observed.push(event.type);
+  if (!sendStarted) return;
   if (!['dm.received', 'thread.reply'].includes(event.type) || event.message?.agentName !== query.to) return;
   const id = event.message.id;
   if (typeof id !== 'string' || !id || seenReplies.has(id)) return;

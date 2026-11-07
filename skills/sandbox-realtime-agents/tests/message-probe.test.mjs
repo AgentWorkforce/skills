@@ -25,7 +25,7 @@ function run(query, replyHash = valid.expected, rawCredential = null) {
       let receiver;
       export class HttpClient {}
       export class AgentClient {
-        on = { any: h => { receiver = h; }, connected: h => queueMicrotask(h) };
+        on = { any: h => { receiver = h; queueMicrotask(()=>h({type:'node.ready'})); }, connected: h => queueMicrotask(h) };
         connect() {}
         async disconnect() {}
       }
@@ -85,6 +85,7 @@ test('valid strings require matching peer, fresh round and hash', () => {
   assert.equal(response.ok, true);
   assert.equal(response.message_id, 'reply-id');
   assert.equal(response.sha256, valid.expected);
+  assert.ok(response.observed.includes('node.ready'));
 });
 
 test('a correlated reply containing the wrong file hash fails', () => {

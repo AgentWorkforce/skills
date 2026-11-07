@@ -63,7 +63,7 @@ freestyle vm exec --linux-user root YOUR_VM_ID -- \
     test ! -L "$stage"
     test -f "$archive"
     test ! -L "$archive"
-    trap '\''rm -f "$archive"'\'' EXIT
+    trap '\''status=$?; rm -f "$archive"; rmdir "$stage" 2>/dev/null || :; exit "$status"'\'' EXIT
     chmod 0700 "$stage"; chmod 0600 "$archive"
     chown root "$stage" "$archive"
     install -d -m 0700 /app/relay-test

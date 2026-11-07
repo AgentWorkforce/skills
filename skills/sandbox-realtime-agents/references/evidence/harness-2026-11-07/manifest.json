@@ -1,5 +1,8 @@
 {
   "purpose": "Immutable source as executed for the published November 7 dataset. Text archives are historical evidence, not maintained executable entry points.",
+  "known_limitations": {
+    "scripts/qualification/pi_terminal.py": "The historical supervisor can drop PTY bytes queued after child exit and overwrites ~/.pi/agent configuration under its HOME. The disposable measured VMs were deleted. Do not execute this archive against an operator home; use the maintained private-home supervisor, which drains final PTY output and refuses existing configs."
+  },
   "files": {
     "scripts/file-probe.py": {
       "archive": "references/evidence/harness-2026-11-07/file-probe.py.txt",
