@@ -101,14 +101,14 @@ def run_cell(body):
             with (SHARED / filename).open('wb') as stream:
                 stream.write(content)
             written = time.monotonic_ns()
-            sample['success'] = pending['event'].wait(max(0, deadline - time.monotonic()))
+            acknowledged = pending['event'].wait(max(0, deadline - time.monotonic()))
+            sample['success'] = acknowledged and isinstance(pending.get('ack_ns'), int)
         except Exception as error:
             # A failed setup/write is evidence too; exception text may contain private data.
             sample['error'] = type(error).__name__
         finally:
-            ended = pending.get('ack_ns', time.monotonic_ns())
-            if started is not None:
-                sample['write_to_ack_ms'] = (ended - started) / 1e6
+            if sample['success'] and started is not None and 'ack_ns' in pending:
+                sample['write_to_ack_ms'] = (pending['ack_ns'] - started) / 1e6
             if written is not None:
                 sample['local_write_ms'] = (written - started) / 1e6
             with LOCK:

@@ -22,7 +22,7 @@ test('private writes revoke permissive modes before replacing credential bytes',
 
 test('bootstrap collection spellings are denied before proxying', () => {
   for (const url of ['/v1/workspaces','/v1/workspaces/','/v1/workspaces?x=1','/v1%2fworkspaces',
-    '/v1%252fworkspaces','/foo/../v1/workspaces','/%2fv1/workspaces','/v1//workspaces','http://other.invalid/v1/workspaces'])
+    '/v1%252fworkspaces','/v1/%77orkspaces','/foo/../v1/workspaces','/%2fv1/workspaces','/v1//workspaces','http://other.invalid/v1/workspaces'])
     assert.equal(allowedPath(url),false,url);
   for (const url of ['/health','/v1/node/ws','/v1/dm','/v1/workspaces/one']) assert.equal(allowedPath(url),true,url);
 });

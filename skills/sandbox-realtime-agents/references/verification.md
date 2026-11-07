@@ -104,3 +104,9 @@ mount tokens; do not reuse a production signing authority.
 Recompute statistics from all raw rows using
 [summarize.py](../scripts/benchmark/summarize.py). Preserve warmups and failures,
 report partial runs as partial, and clean up only recorded resource IDs.
+
+The review fixes also passed a separate [12-test Linux file-helper check](evidence/review-linux-check.json)
+in one 120-second E2B sandbox, deleted immediately with a not-found read after
+cleanup. This verifies Linux `renameat2` and the file guards; it is not a new
+performance dataset. Local tests additionally cover the real Relayfile/engine
+startup, readiness, child failure and cleanup paths.

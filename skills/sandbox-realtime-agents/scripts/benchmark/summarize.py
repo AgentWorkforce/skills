@@ -1,8 +1,8 @@
 """Recompute nearest-rank percentiles from the retained benchmark samples."""
+import argparse
 import json
 import math
 from pathlib import Path
-import sys
 
 
 def summarize(samples):
@@ -32,7 +32,9 @@ def summarize(samples):
 
 
 if __name__ == '__main__':
-    source = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name('samples.jsonl')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('samples', type=Path, help='Explicit raw samples.jsonl path')
+    source = parser.parse_args().samples
     rows = [json.loads(line) for line in source.read_text().splitlines() if line]
     print(json.dumps({
         'per_direction': summarize(rows),

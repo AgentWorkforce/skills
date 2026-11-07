@@ -30,7 +30,13 @@ class BenchmarkTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
     def run_results(self, results):
-        event = mock.Mock(); event.wait.side_effect = results
+        event = mock.Mock(); outcomes = iter(results)
+        def acknowledge(_timeout):
+            ok = next(outcomes)
+            if ok:
+                next(iter(peer.PENDING.values()))['ack_ns'] = peer.time.monotonic_ns()
+            return ok
+        event.wait.side_effect = acknowledge
         with mock.patch.object(peer.threading, 'Event', return_value=event), mock.patch.object(peer, 'post'), mock.patch.object(peer.time, 'sleep'):
             return peer.run_cell({'bytes':1024,'samples':len(results),'warmups':0})
     def test_final_trial_failure_is_incomplete_and_retained(self):
@@ -39,6 +45,23 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(len(result['samples']), 2)
         rows = [json.loads(x) for x in (peer.ROOT/'samples.jsonl').read_text().splitlines()]
         self.assertFalse(rows[-1]['success']); self.assertFalse(peer.PENDING)
+        self.assertIsNone(rows[-1]['write_to_ack_ms'])
+    def test_successful_cells_have_ack_latencies_and_unique_retry_rounds(self):
+        first = self.run_results([True, True]); second = self.run_results([True, True])
+        self.assertTrue(first['complete']); self.assertTrue(second['complete'])
+        self.assertTrue(all(r['write_to_ack_ms'] >= r['local_write_ms'] >= 0 for r in first['samples']))
+        self.assertTrue({r['round'] for r in first['samples']}.isdisjoint(r['round'] for r in second['samples']))
+    def test_late_ack_cannot_turn_a_timeout_into_an_ack_latency(self):
+        event=mock.Mock()
+        def expired(_timeout):
+            pending=next(iter(peer.PENDING.values()))
+            pending['ack_ns']=peer.time.monotonic_ns()
+            return False
+        event.wait.side_effect=expired
+        with mock.patch.object(peer.threading,'Event',return_value=event), mock.patch.object(peer,'post'):
+            result=peer.run_cell({'bytes':1024,'samples':1,'warmups':0})
+        self.assertFalse(result['complete'])
+        self.assertIsNone(result['samples'][0]['write_to_ack_ms'])
     def test_arm_and_write_failures_release_pending_round(self):
         for stage in ('arm','write'):
             with self.subTest(stage=stage):

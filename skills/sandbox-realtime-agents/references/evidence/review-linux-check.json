@@ -1,0 +1,16 @@
+{
+  "checked_utc": "2026-11-07T07:20:55.004674+00:00",
+  "sandbox_id": "i37d6ooo5o7seeoesx6hi",
+  "timeout_seconds": 120,
+  "command": "python3 -m unittest discover -s /tmp/relay-review-208/tests -p test_file_probe.py",
+  "tests": 12,
+  "exit_code": 0,
+  "purpose": "Linux atomic renameat2 no-replace, racing destination, symlink/hardlink guards and chunk deadlines. This is a helper regression run, not a new performance dataset.",
+  "cleanup": {
+    "deleted_exact_id": "i37d6ooo5o7seeoesx6hi",
+    "post_delete_read_exit_code": 1,
+    "post_delete_result": "not found"
+  },
+  "helper_sha256": "18e755671acb0f8fa852ab4630a4acf23025b72b42d22b8e11edccaeb1067d49",
+  "tests_sha256": "3f50821eb9eea3031a73fab7cb81e8e09011ad4b4cc082671a9ae4b976ab2930"
+}
