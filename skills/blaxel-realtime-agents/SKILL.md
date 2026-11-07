@@ -37,7 +37,10 @@ available sign-in without changing source files. Install and verify:
 ```sh
 npx -y skills add blaxel-ai/agent-skills -g --all
 npx -y skills list -g --json
-curl -fsSL https://blaxel.ai/install.sh | sh
+curl -fsSL https://blaxel.ai/install.sh -o /tmp/blaxel-install.sh
+# Review this downloaded script before executing it.
+less /tmp/blaxel-install.sh
+sh /tmp/blaxel-install.sh
 bl version
 bl --help
 bl workspaces --current
@@ -49,6 +52,11 @@ The installer may already run setup. Otherwise use `bl setup` in a terminal or
 secure device flow, and continue after browser approval. A configured workspace
 name alone does not prove account access. Do not create a workspace or API key
 to work around a login failure.
+
+For an agent, read the downloaded script with its file-reading tool in place
+of `less`, then execute that same reviewed file. The installer verifies the
+downloaded executable against release checksums; that does not independently
+authenticate the installer script itself.
 
 Use a **glibc Linux image**, such as `blaxel/ts-app:latest`, for the published
 Linux probe. The default `blaxel/base-image:latest` is Alpine/musl: the probe

@@ -27,5 +27,16 @@
     "relay-e2e-20261106-b",
     "relay-e2e-20261106-a-glibc",
     "relay-e2e-20261106-b-glibc"
-  ]
+  ],
+  "sandbox_images": {
+    "agent_participants": {
+      "observed_reference": "blaxel/ts-app:latest",
+      "immutable_reference": null
+    },
+    "service": {
+      "observed_reference": "blaxel/base-image:latest",
+      "immutable_reference": null
+    }
+  },
+  "image_provenance_limitation": "Only catalog image tags were retained. Resolved immutable digests were not captured before sandbox deletion and cannot be reconstructed from the saved manifests."
 }

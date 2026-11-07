@@ -24,6 +24,21 @@ for their final disposition. No production workspace or provider was changed.
 - [provenance.json](evidence/provenance.json): exact versions, source commit,
   archive checksum, binary hashes, region, and session-owned sandbox names.
 
+The original snapshots are retained unchanged. Their `lastAppliedRevision:
+rev_12` is a full-snapshot delete-reconciliation watermark, not the maximum
+revision received over WebSocket/incremental updates. In the qualified source,
+only `applyRemoteSnapshotDeletesRev` advances it after a successful snapshot
+pass; individual files can therefore report later ready revisions such as
+`rev_46`. See [the qualified implementation](https://github.com/AgentWorkforce/relayfile/blob/5c13009a/internal/mountsync/syncer.go#L9563).
+Fresh peer hashes and empty outboxes provide the convergence evidence.
+
+Image reproducibility is limited: the historical participants used the moving
+tag `blaxel/ts-app:latest`, and its immutable digest was not recorded before
+the sandboxes were removed. Future runs must capture an immutable image version.
+The cleanup verification used `bl get sandboxes -o json` and checked that none
+of the five exact names remained in that listing; it was not five individual
+GET requests. The evidence now names that observation explicitly.
+
 The four main writer/check operations took **335–651 ms** as observed by the
 controller, including remote command and verification overhead. This is a
 small functional sample, not a latency benchmark. The main native session

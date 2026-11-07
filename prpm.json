@@ -36,7 +36,9 @@
         "skills/blaxel-realtime-agents/references/setup.md",
         "skills/blaxel-realtime-agents/references/verification.md",
         "skills/blaxel-realtime-agents/scripts/file-probe.py",
-        "skills/blaxel-realtime-agents/scripts/message-probe.mjs"
+        "skills/blaxel-realtime-agents/scripts/message-probe.mjs",
+        "skills/blaxel-realtime-agents/tests/message-probe.test.mjs",
+        "skills/blaxel-realtime-agents/tests/test_file_probe.py"
       ]
     },
     {

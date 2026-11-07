@@ -7,8 +7,10 @@ content cannot satisfy a repeated challenge.
 
 ## Files
 
-Copy `scripts/file-probe.py` to each participant. Requests are JSON files, with
-no shell interpolation of content. For example:
+Copy `scripts/file-probe.py` to each participant (POSIX, Python 3.9+).
+Requests are JSON files with no shell interpolation. The `content` field for
+`write` and `atomic` is **base64**, not raw text; `aGVsbG8K` below encodes
+`hello` followed by a newline. For example:
 
 ```json
 {"op":"write","path":"qualification-UNIQUE/challenge.txt","content":"aGVsbG8K"}
@@ -31,6 +33,23 @@ Other operations:
 - `rename`: `path` plus `destination`; refuses an existing destination.
 - `delete`: `path`; removes only that exact scratch file.
 - `expect` with `absent: true`: proves a peer deletion or rename's old path.
+
+The helper rejects symlinks and `.relay` at every path depth. Directory handles
+and `O_NOFOLLOW` keep concurrent symlink replacement from redirecting an
+operation outside the selected root. The helper is a scratch-data verifier,
+not isolation from malicious code with the same operating-system identity.
+
+The included regression tests exercise binary/atomic operations, observed and
+concurrently replaced symlinks, nested runtime paths, transient permission
+errors, and message validation before any SDK/network work:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s skills/blaxel-realtime-agents/tests -p 'test_*.py' -v
+node --test skills/blaxel-realtime-agents/tests/message-probe.test.mjs
+```
+
+Run those commands from the skills repository. The message regression uses a
+local SDK fixture; it does not replace or rerun the retained live qualification.
 
 Required checks: A→B create/update, B→A binary content, atomic replace, rename
 (new bytes and old-path absence), delete, and simultaneous disjoint writes.
@@ -116,7 +135,8 @@ bootstrap responses. Check source and generated output for secrets before
 committing.
 
 After evidence is durable, remove only exact session-owned sandbox names,
-individually. Confirm deletion with reads. Do not delete images, drives,
+individually. Confirm deletion with a post-delete listing or individual reads
+and record the exact command and observed result. Do not delete images, drives,
 volumes, account workspaces, or preexisting resources as part of this test.
 Deleting the disposable service sandbox removes its isolated credential
 authority; test file tokens also have a two-hour expiry. Preserve the person's

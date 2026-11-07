@@ -14,6 +14,11 @@ if (!stat.isFile() || (stat.mode & 0o077) !== 0 || stat.uid !== process.getuid()
 }
 const config = JSON.parse(fs.readFileSync(credentialPath, 'utf8'));
 const query = JSON.parse(fs.readFileSync(queryPath, 'utf8'));
+if (!query || typeof query !== 'object' || Array.isArray(query) ||
+    !['round', 'expected', 'file', 'to'].every(field => typeof query[field] === 'string') ||
+    !query.to.trim()) {
+  throw new Error('round, expected, file, and to must be explicit strings');
+}
 const origin = new URL(config.base_url);
 if (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.username || origin.password) {
   throw new Error('An explicit HTTPS messaging origin is required');
@@ -30,6 +35,7 @@ let finished = false;
 let sent = false;
 const deadline = setTimeout(() => void finish({ ok: false, error: 'Reply deadline exceeded' }), 45000);
 
+/** Close the test identity within a bounded grace period and report the result. */
 async function finish(result) {
   if (finished) return;
   finished = true;

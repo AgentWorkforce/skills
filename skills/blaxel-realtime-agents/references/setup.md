@@ -18,7 +18,8 @@ the qualification proves Relayfile replication rather than a shared disk.
 
 ## Sandbox creation
 
-Example manifest for one participant; choose an approved, unique name for each:
+Example manifest for one participant; choose an approved, unique name for each
+and replace the image placeholder with an approved **immutable image version**:
 
 ```yaml
 apiVersion: blaxel.ai/v1alpha1
@@ -27,7 +28,7 @@ metadata:
   name: REPLACE_WITH_APPROVED_NAME
 spec:
   runtime:
-    image: blaxel/ts-app:latest
+    image: sandbox/APPROVED_GLIBC_IMAGE:IMMUTABLE_TAG
     memory: 2048
   lifecycle:
     expirationPolicies:
@@ -39,6 +40,13 @@ spec:
 Apply the `.yaml` file, then read the exact sandbox to confirm its image,
 region, and status. The verified run used `us-pdx-1`. Use the Blaxel SDK's
 binary upload for executables, and batch source uploads when appropriate.
+
+The historical run used `blaxel/ts-app:latest`. Its resolved image digest was
+not captured before deletion; `provenance.json` records that limitation instead
+of inventing a historical digest. For a reproducible new run, select an existing
+immutable Blaxel image tag, or build/import an image under the task's resource
+authorization, and record its immutable tag/digest before creating sandboxes.
+Do not describe a moving catalog tag as a pinned environment.
 
 For managed long-lived processes:
 
@@ -71,6 +79,19 @@ env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
 Published `@relayfile/mount-linux-x64` is another distribution route. Check the
 actual executable and version; do not claim that a source build tests a newer
 published release. FUSE is unnecessary for this materialized mirror.
+
+Upload the compiled binary to `/tmp/relayfile-mount` on **each participant**
+using the Blaxel filesystem API, then install it inside that sandbox:
+
+```sh
+install -d /opt/relay
+install -m 0755 /tmp/relayfile-mount /opt/relay/relayfile-mount
+/opt/relay/relayfile-mount --version
+```
+
+Upload the server binary separately to the isolated service sandbox if using
+one; it is not needed on either participant. The `/tmp` build outputs above
+are local to the build machine until explicitly uploaded.
 
 An isolated server needs an approved strong internal HMAC secret, a trusted
 JWKS endpoint, and RS256 bearer tokens with audience `relayfile`, a matching
@@ -110,6 +131,11 @@ document is `/app/shared/.relay/state.json`; private tracking is under the
 chosen state directory. Outbox data remains mount-owned under `.relay`.
 Inspect `eventListener`, `pendingWriteback`, `pendingConflicts`, and `outbox`.
 `eventListener.status=listening` alone is insufficient; verify fresh file bytes.
+`lastAppliedRevision` is the successful **full-snapshot delete-reconciliation
+watermark**, not the highest revision applied by every transport. Incremental
+and WebSocket file updates can advance individual `files[path].revision`
+without advancing that watermark. Use actual hashes, per-file state, and
+receipt settlement when interpreting a ready mirror.
 
 ## Native probe and real sessions
 
@@ -123,8 +149,19 @@ https://github.com/AgentWorkforce/relay-desktop-releases/releases/download/v2026
 ```
 
 Download its adjacent `.sha256`, verify the archive, and extract only
-`agent_relay/helpers/agent-relay-probe`. Verify `--version` and `--help` on the
-actual sandbox. The release installer expects a systemd user session and a
+`agent_relay/helpers/agent-relay-probe`. On the sandbox, after uploading the
+verified archive there, install the extracted binary at the path used below:
+
+```sh
+tar -xzf /tmp/AgentRelay-2026.11.3-Linux-x64-probe.tar.gz -C /tmp \
+  agent_relay/helpers/agent-relay-probe
+install -d /opt/relay
+install -m 0755 /tmp/agent_relay/helpers/agent-relay-probe /opt/relay/agent-relay-probe
+/opt/relay/agent-relay-probe --version
+/opt/relay/agent-relay-probe --help
+```
+
+The release installer expects a systemd user session and a
 non-root user; a Blaxel supervisor can run the extracted core directly.
 
 For a person's account, use the installed probe's `setup --help` and secure
@@ -144,12 +181,12 @@ and an independently verified messaging workspace.
 Start one core, in an owner-only directory. Commands below use 2026.11.3:
 
 ```sh
-agent-relay-probe relay serve --headless \
+/opt/relay/agent-relay-probe relay serve --headless \
   --socket /app/relay-private/core.sock \
   --app-data-dir /app/relay-private/core
 
-agent-relay-probe relay call status.get --socket /app/relay-private/core.sock --json
-agent-relay-probe relay call sessions.list --socket /app/relay-private/core.sock --json
+/opt/relay/agent-relay-probe relay call status.get --socket /app/relay-private/core.sock --json
+/opt/relay/agent-relay-probe relay call sessions.list --socket /app/relay-private/core.sock --json
 ```
 
 Start the actual supported coding harness in `/app/shared`. For Pi, create its
@@ -163,10 +200,10 @@ Register that discovered target and enable automatic final answers if the
 chosen harness cannot send through its own session tools:
 
 ```sh
-agent-relay-probe relay call agents.register \
+/opt/relay/agent-relay-probe relay call agents.register \
   --socket /app/relay-private/core.sock --json \
   --params '{"target":{"kind":"pi","id":"ACTUAL_DISCOVERED_ID"},"name":"agent-a"}'
-agent-relay-probe relay call agents.reply_setting \
+/opt/relay/agent-relay-probe relay call agents.reply_setting \
   --socket /app/relay-private/core.sock --json \
   --params '{"name":"agent-a","enabled":true}'
 ```
