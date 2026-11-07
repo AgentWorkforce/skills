@@ -19,7 +19,8 @@ the qualification proves Relayfile replication rather than a shared disk.
 ## Sandbox creation
 
 Example manifest for one participant; choose an approved, unique name for each
-and replace the image placeholder with an approved **immutable image version**:
+and replace the image placeholder with an approved **immutable linux/amd64,
+glibc image version** for the amd64 binaries and Linux x64 probe used below:
 
 ```yaml
 apiVersion: blaxel.ai/v1alpha1
@@ -41,9 +42,13 @@ Apply the `.yaml` file, then read the exact sandbox to confirm its image,
 region, and status. The verified run used `us-pdx-1`. Use the Blaxel SDK's
 binary upload for executables, and batch source uploads when appropriate.
 
-The historical run used `blaxel/ts-app:latest`. Its resolved image digest was
-not captured before deletion; `provenance.json` records that limitation instead
-of inventing a historical digest. For a reproducible new run, select an existing
+Verify `uname -m` reports `x86_64` before uploading these executables. For another
+architecture, rebuild Relayfile and select a matching published probe instead.
+
+The historical run used `blaxel/ts-app:latest` for the agents and
+`blaxel/base-image:latest` for the service sandbox. Their resolved image digests
+were not captured before deletion; `provenance.json` records that limitation
+instead of inventing historical digests. For a reproducible new run, select an existing
 immutable Blaxel image tag, or build/import an image under the task's resource
 authorization, and record its immutable tag/digest before creating sandboxes.
 Do not describe a moving catalog tag as a pinned environment.

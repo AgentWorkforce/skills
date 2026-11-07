@@ -91,3 +91,7 @@ paid-model access, same-file conflict resolution, scale, or standby/resume.
 No Relayfile or probe source changes were needed. The skill's file helper also
 passed local binary/mutation, absence, negative-deadline, and path-confinement
 checks. The skill structure validator passed.
+
+A later review follow-up repeated the listing with `--all` and confirmed each
+of the original five exact names was absent across all pages; its timestamp and
+command are retained in `cleanup.json`. The original evidence is preserved.

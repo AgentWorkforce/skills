@@ -46,10 +46,18 @@ class FileProbeTests(unittest.TestCase):
         self.assertEqual(self.write('nested/file')['sha256'], DIGEST)
         self.assertTrue(probe.execute(self.root, {'op': 'expect', 'path': 'nested/file', 'sha256': DIGEST})['ok'])
         self.write('nested/file', 'atomic')
+        self.assertEqual((self.path / 'nested/file').read_bytes(), PAYLOAD)
         probe.execute(self.root, {'op': 'rename', 'path': 'nested/file', 'destination': 'other/renamed'})
         self.assertFalse((self.path / 'nested/file').exists())
+        self.assertFalse(probe.execute(self.root, {'op': 'expect', 'path': 'other/renamed', 'absent': True, 'timeout': .04})['ok'])
         probe.execute(self.root, {'op': 'delete', 'path': 'other/renamed'})
         self.assertTrue(probe.execute(self.root, {'op': 'expect', 'path': 'other/renamed', 'absent': True})['ok'])
+
+    def test_filesystem_root_aliases_are_rejected(self):
+        """Compare the opened inode so aliases cannot select the filesystem root."""
+        for path in ['/', '/usr/..', '/usr/../.']:
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                probe.ScratchRoot(path)
 
     def test_symlink_leaf_and_parent_are_rejected(self):
         """Every operation rejects observed links, including links inside root."""

@@ -23,5 +23,18 @@
     "relay-e2e-20261106-b-glibc": "not listed"
   },
   "verification_command": "bl get sandboxes -o json",
-  "verification_method": "Post-delete workspace listing filtered to the five recorded exact names; no individual sandbox GET was captured."
+  "verification_method": "Post-delete workspace listing filtered to the five recorded exact names; no individual sandbox GET was captured.",
+  "followup_all_pages_verification": {
+    "checked_utc": "2026-11-07T05:51:41.310207+00:00",
+    "command": "bl get sandboxes --all -o json",
+    "exact_names_checked": [
+      "relay-e2e-20261106-hub",
+      "relay-e2e-20261106-a",
+      "relay-e2e-20261106-b",
+      "relay-e2e-20261106-a-glibc",
+      "relay-e2e-20261106-b-glibc"
+    ],
+    "all_exact_names_absent": true,
+    "method": "All-pages workspace listing checked against each original exact name. Original single-page evidence above is preserved."
+  }
 }

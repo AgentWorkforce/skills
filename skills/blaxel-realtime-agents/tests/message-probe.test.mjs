@@ -29,7 +29,12 @@ function run(query, replyHash = valid.expected) {
         connect() {}
         async disconnect() {}
       }
-      globalThis.fetch = async (_url, options) => {
+      globalThis.fetch = async (url, options) => {
+        if (url !== 'https://example.invalid/v1/dm' || options.method !== 'POST' ||
+            options.headers.Authorization !== 'Bearer synthetic-fixture-value' ||
+            options.headers['Content-Type'] !== 'application/json' ||
+            options.headers['Idempotency-Key'] !== 'fresh-test-round' || !options.signal)
+          throw new Error('Incorrect transport request');
         const data = JSON.parse(options.body);
         if (data.to !== 'peer' || data.text !== 'E2E_QUERY fresh-test-round scratch/file') throw new Error('Incorrect send');
         setImmediate(() => {
@@ -58,6 +63,15 @@ test('missing and non-string fields fail before SDK import or network work', () 
       assert.equal(result.imported, false);
       assert.match(result.stderr, /must be explicit strings/);
     }
+  }
+});
+
+test('empty recipients fail before SDK import or network work', () => {
+  for (const to of ['', '  ']) {
+    const result = run({ ...valid, to });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.imported, false);
+    assert.match(result.stderr, /must be explicit strings/);
   }
 });
 

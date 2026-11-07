@@ -19,9 +19,12 @@ class ScratchRoot:
 
     def __init__(self, path):
         """Open the explicitly selected directory, rejecting a symlink root."""
-        if Path(path).absolute() == Path('/'):
-            raise ValueError('Use a dedicated shared directory')
         self.fd = os.open(path, DIRECTORY_FLAGS)
+        root = os.stat('/')
+        selected = os.fstat(self.fd)
+        if (selected.st_dev, selected.st_ino) == (root.st_dev, root.st_ino):
+            os.close(self.fd)
+            raise ValueError('Use a dedicated shared directory')
 
     def close(self):
         """Release the root handle."""
@@ -125,7 +128,7 @@ class ScratchRoot:
         with self.parent(name) as (parent, leaf):
             self.regular(parent, leaf)
             if absent:
-                return False, None
+                return True, None
             fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
             with os.fdopen(fd, 'rb') as stream:
                 if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
