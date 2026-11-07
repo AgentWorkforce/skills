@@ -1,0 +1,93 @@
+{
+  "date_utc": "2026-11-07",
+  "blaxel_region": "us-pdx-1",
+  "topology": "two independent materialized mirrors plus a third VM hosting the real Relayfile service; HTTPS preview ingress; no shared drive or volume",
+  "sandbox_count": 3,
+  "image_reference": "blaxel/base-image:0.2.77",
+  "image_reference_kind": "Blaxel immutable version tag",
+  "image_digest": null,
+  "image_upstream_source_commit": "8d349c13bb9744bef29da3530fbd95c5344725b7",
+  "image_tag_policy_source": "https://github.com/blaxel-ai/sandbox/blob/8d349c13bb9744bef29da3530fbd95c5344725b7/.github/workflows/build.yaml",
+  "memory_mib_per_vm": 2048,
+  "cpu_allocation": "Not separately configured; visible CPU observations in health.json are not a reserved-core guarantee.",
+  "os": "Alpine Linux 3.23.8",
+  "node": "24.22.2",
+  "python": "3.12.16",
+  "architecture": "linux/amd64",
+  "go": "1.26.1",
+  "blaxel_cli": "0.1.129",
+  "blaxel_sdk_python": "0.4.23",
+  "relayfile_source_commit": "5c13009ac26684a7b48a19811456fe949a899f80",
+  "relayfile_mount_version": "0.10.56-blaxel-5c13009a",
+  "binary_vcs_modified": true,
+  "binary_vcs_modified_note": "Build metadata reports modified=true. The tracked working-tree difference was .trajectories/index.json, with no tracked Go source changes; executable SHA-256 values identify the exact artifacts.",
+  "relayfile_server_sha256": "2d5271418058ff526bf452473017ba3183693543f883b96136938540e484f19c",
+  "relayfile_mount_sha256": "d02db692f2fbfc688ebf3e1aa78787b39472cc410d0a16e234b28c5654d5cb33",
+  "mount_flags": {
+    "local_layout": "exact",
+    "mode": "poll",
+    "interval": "5s",
+    "startup_jitter": "0s",
+    "local_dir": "/app/shared",
+    "state_dir": "/app/bench-private/mount-state"
+  },
+  "daemon_policy": {
+    "keep_alive": true,
+    "timeout": 0
+  },
+  "expiration": {
+    "type": "ttl-max-age",
+    "value": "2h"
+  },
+  "server_environment": {
+    "RELAYFILE_EXTERNAL_WRITEBACK": "false",
+    "RELAYFILE_RATE_LIMIT_MAX": "100000",
+    "RELAYFILE_STATE_FILE": "/app/bench-private/state.json"
+  },
+  "provider_writeback": "Built-in OSS no-op provider writer; no external provider mutations.",
+  "sizes_bytes": [
+    1024,
+    65536,
+    1048576
+  ],
+  "cell_order": [
+    [
+      "a",
+      1024
+    ],
+    [
+      "b",
+      1048576
+    ],
+    [
+      "a",
+      65536
+    ],
+    [
+      "b",
+      1024
+    ],
+    [
+      "a",
+      1048576
+    ],
+    [
+      "b",
+      65536
+    ]
+  ],
+  "warmups_per_cell": 10,
+  "measured_samples_per_cell": 100,
+  "inter_trial_sleep_s": 0.1,
+  "observer_poll_sleep_s": 0.001,
+  "sample_deadline_s": 30,
+  "clock": "writer time.monotonic_ns(), before open(wb) to matching SHA-256 ACK received at writer",
+  "payload": "Unique round header followed by repeated bytes 0..255, truncated to exact size; deterministic compressible binary content.",
+  "operations": "Sequential ordinary open/write/close overwrites of one dedicated file per direction and size. No fsync.",
+  "ack_transport": "Python urllib HTTPS POST via peer preview, fresh request; includes return transport/TLS/ingress and observer/hash costs.",
+  "harness_sha256": {
+    "peer.py": "e5145fe04960cb1be3a3addcb698813d3aa0f6868d055ce43ab0e88220683d0e",
+    "cell.py": "93c6a3170507aee357e3d9ffd9aa6ced345772c083fa96fd7c16d1177edc10a8",
+    "hub.mjs": "a5c7c381ae101c38c83709b2321b5882fa514b43d188ab58ea386ce4c7b0249a"
+  }
+}

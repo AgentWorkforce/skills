@@ -45,6 +45,7 @@ class FileProbeTests(unittest.TestCase):
         """Exercise binary writes, atomic saves, rename, delete and absence."""
         self.assertEqual(self.write('nested/file')['sha256'], DIGEST)
         self.assertTrue(probe.execute(self.root, {'op': 'expect', 'path': 'nested/file', 'sha256': DIGEST})['ok'])
+        (self.path / 'nested/file').write_bytes(b'old content before atomic save')
         self.write('nested/file', 'atomic')
         self.assertEqual((self.path / 'nested/file').read_bytes(), PAYLOAD)
         probe.execute(self.root, {'op': 'rename', 'path': 'nested/file', 'destination': 'other/renamed'})

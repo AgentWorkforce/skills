@@ -1,0 +1,123 @@
+{
+  "per_direction": [
+    {
+      "direction": "a->b",
+      "bytes": 1024,
+      "warmups": 10,
+      "warmup_failures": 0,
+      "measured": 100,
+      "failures": 0,
+      "p50_ms": 157.508779,
+      "p95_ms": 178.170422,
+      "p99_ms": 187.694014,
+      "min_ms": 153.967618,
+      "max_ms": 211.643849
+    },
+    {
+      "direction": "a->b",
+      "bytes": 65536,
+      "warmups": 10,
+      "warmup_failures": 0,
+      "measured": 100,
+      "failures": 0,
+      "p50_ms": 183.922721,
+      "p95_ms": 199.17265,
+      "p99_ms": 209.372597,
+      "min_ms": 177.130346,
+      "max_ms": 209.650943
+    },
+    {
+      "direction": "a->b",
+      "bytes": 1048576,
+      "warmups": 10,
+      "warmup_failures": 0,
+      "measured": 100,
+      "failures": 0,
+      "p50_ms": 301.315199,
+      "p95_ms": 336.074106,
+      "p99_ms": 498.342089,
+      "min_ms": 264.58963,
+      "max_ms": 622.266535
+    },
+    {
+      "direction": "b->a",
+      "bytes": 1024,
+      "warmups": 10,
+      "warmup_failures": 0,
+      "measured": 100,
+      "failures": 0,
+      "p50_ms": 165.294105,
+      "p95_ms": 177.019454,
+      "p99_ms": 191.249981,
+      "min_ms": 157.012334,
+      "max_ms": 208.815141
+    },
+    {
+      "direction": "b->a",
+      "bytes": 65536,
+      "warmups": 10,
+      "warmup_failures": 0,
+      "measured": 100,
+      "failures": 0,
+      "p50_ms": 184.935819,
+      "p95_ms": 207.645408,
+      "p99_ms": 227.751057,
+      "min_ms": 179.22461,
+      "max_ms": 234.558726
+    },
+    {
+      "direction": "b->a",
+      "bytes": 1048576,
+      "warmups": 10,
+      "warmup_failures": 0,
+      "measured": 100,
+      "failures": 0,
+      "p50_ms": 275.729365,
+      "p95_ms": 308.815275,
+      "p99_ms": 337.052305,
+      "min_ms": 245.083383,
+      "max_ms": 599.120726
+    }
+  ],
+  "pooled_directions": [
+    {
+      "direction": "both",
+      "bytes": 1024,
+      "warmups": 20,
+      "warmup_failures": 0,
+      "measured": 200,
+      "failures": 0,
+      "p50_ms": 161.795189,
+      "p95_ms": 177.496887,
+      "p99_ms": 191.249981,
+      "min_ms": 153.967618,
+      "max_ms": 211.643849
+    },
+    {
+      "direction": "both",
+      "bytes": 65536,
+      "warmups": 20,
+      "warmup_failures": 0,
+      "measured": 200,
+      "failures": 0,
+      "p50_ms": 184.476946,
+      "p95_ms": 206.761488,
+      "p99_ms": 224.32646,
+      "min_ms": 177.130346,
+      "max_ms": 234.558726
+    },
+    {
+      "direction": "both",
+      "bytes": 1048576,
+      "warmups": 20,
+      "warmup_failures": 0,
+      "measured": 200,
+      "failures": 0,
+      "p50_ms": 282.208011,
+      "p95_ms": 328.930593,
+      "p99_ms": 498.342089,
+      "min_ms": 245.083383,
+      "max_ms": 622.266535
+    }
+  ]
+}

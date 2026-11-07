@@ -135,3 +135,8 @@ real transports and real Pi shell tools from the deterministic local model.
 Do not describe that test as paid-model inference, external-provider writeback,
 suspend/resume qualification, or production deployment. Report resource
 disposition and any remaining limitations.
+
+For measured filesystem performance, read the [600-transfer benchmark](references/benchmarks/2026-11-07/README.md)
+with raw samples, exact timing boundaries, environment, and a repeatable harness.
+Keep its same-region confirmed-sync results separate from native session reply
+time, provider writeback, throughput, and service-level guarantees.
