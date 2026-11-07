@@ -1,0 +1,102 @@
+{
+  "a": {
+    "registration": {
+      "address": "freestyle-a@freestyle-vm-244708263757668352",
+      "already_registered": false,
+      "name": "freestyle-a"
+    },
+    "workspace": {
+      "base_url": "https://relay-20261107-hub-8787.style.dev",
+      "checked_at_ms": 1794032588270,
+      "state": "found",
+      "verification": "verified",
+      "workspace_id": "244707549396393984",
+      "workspace_name": "freestyle-qualification-20261107",
+      "workspace_plan": "free"
+    },
+    "account": {
+      "action": null,
+      "auth_checked_at": null,
+      "auth_error": null,
+      "auth_health": null,
+      "error": null,
+      "person": null,
+      "phase": null,
+      "progress": null,
+      "reused_login": null,
+      "site_url": null,
+      "state": "signed_out",
+      "workspace_avatar_url": null,
+      "workspace_choices": null,
+      "workspace_count": null,
+      "workspace_id": null,
+      "workspace_name": null
+    },
+    "session": {
+      "directory": "/app/shared",
+      "live": true,
+      "project": "shared",
+      "registration": null,
+      "running": true,
+      "suggested_name": "pi-shared-session",
+      "target": {
+        "id": "01a1b4ac-e46e-77bf-a230-204ce4936c17",
+        "kind": "pi"
+      },
+      "title": "Pi session",
+      "updated_at_ms": null
+    }
+  },
+  "b": {
+    "registration": {
+      "address": "freestyle-b@freestyle-vm-244708343088734208",
+      "already_registered": false,
+      "name": "freestyle-b"
+    },
+    "workspace": {
+      "base_url": "https://relay-20261107-hub-8787.style.dev",
+      "checked_at_ms": 1794032607640,
+      "state": "found",
+      "verification": "verified",
+      "workspace_id": "244707549396393984",
+      "workspace_name": "freestyle-qualification-20261107",
+      "workspace_plan": "free"
+    },
+    "account": {
+      "action": null,
+      "auth_checked_at": null,
+      "auth_error": null,
+      "auth_health": null,
+      "error": null,
+      "person": null,
+      "phase": null,
+      "progress": null,
+      "reused_login": null,
+      "site_url": null,
+      "state": "signed_out",
+      "workspace_avatar_url": null,
+      "workspace_choices": null,
+      "workspace_count": null,
+      "workspace_id": null,
+      "workspace_name": null
+    },
+    "session": {
+      "directory": "/app/shared",
+      "live": true,
+      "project": "shared",
+      "registration": null,
+      "running": true,
+      "suggested_name": "pi-shared-session",
+      "target": {
+        "id": "01a1b4ad-2e85-77cb-a16f-fe6f014ab015",
+        "kind": "pi"
+      },
+      "title": "Pi session",
+      "updated_at_ms": null
+    }
+  },
+  "_evidence_scope": {
+    "captured_before_cleanup": true,
+    "current_status": "Historical snapshot; all exact qualification VMs have since been deleted. See cleanup.json."
+  }
+}

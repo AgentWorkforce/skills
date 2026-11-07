@@ -1,0 +1,20 @@
+{
+  "checked_utc": "2026-11-07T06:24:19.853480+00:00",
+  "cli_version": "2.2.0",
+  "sign_in": "completed native browser device flow",
+  "online_check": {
+    "command": "maritime doctor --json",
+    "api": "reachable",
+    "credentials": "valid"
+  },
+  "attempted_command": "maritime sandboxes create --name relay-proof-20261107-initial --idle 10m --time-limit 30m --vcpu 1 --memory 2 --for-end-user --json",
+  "http_status": 402,
+  "code": "plan_required",
+  "request_id": "req_85b87f6119afd986",
+  "message": "Sandboxes need a Maritime plan.",
+  "billing_url": "https://maritime.sh/dashboard/billing#plan",
+  "sandbox_created": false,
+  "qualification": "not run",
+  "benchmark": "not run",
+  "human_gate": "User must activate a plan/trial; no billing change was attempted."
+}

@@ -1,0 +1,120 @@
+{
+  "recorded_utc": "2026-11-07T06:33:24.021963+00:00",
+  "provider": "freestyle",
+  "cli_version": "0.2.21",
+  "execution_and_upload": "Official CLI: root exec plus private SCP archive and immediate remote archive removal",
+  "resources": {
+    "hub": {
+      "autoDeleteSeconds": 0,
+      "createdAt": "2026-11-07T06:17:12.899719Z",
+      "id": "vm-580b44eaec1a4ec6bde6cc39aedb64f0",
+      "idleTimeoutSeconds": 1800,
+      "resources": {
+        "cpu": 2,
+        "memory": 4096,
+        "storage": 16384
+      },
+      "snapshotId": "sh-3556b17912bc4dfc83142b4dcddf3fe5",
+      "sourceSnapshotSlugAtCreate": "freestyle/ubuntu-sm",
+      "state": "running"
+    },
+    "a": {
+      "autoDeleteSeconds": 0,
+      "createdAt": "2026-11-07T06:17:14.360055Z",
+      "id": "vm-beaeabb4080e457c8edd6ccd8a043de2",
+      "idleTimeoutSeconds": 1800,
+      "resources": {
+        "cpu": 2,
+        "memory": 4096,
+        "storage": 16384
+      },
+      "snapshotId": "sh-3556b17912bc4dfc83142b4dcddf3fe5",
+      "sourceSnapshotSlugAtCreate": "freestyle/ubuntu-sm",
+      "state": "running"
+    },
+    "b": {
+      "autoDeleteSeconds": 0,
+      "createdAt": "2026-11-07T06:17:15.509924Z",
+      "id": "vm-b58c7422f99745b79da1ea793b8cf5e4",
+      "idleTimeoutSeconds": 1800,
+      "resources": {
+        "cpu": 2,
+        "memory": 4096,
+        "storage": 16384
+      },
+      "snapshotId": "sh-3556b17912bc4dfc83142b4dcddf3fe5",
+      "sourceSnapshotSlugAtCreate": "freestyle/ubuntu-sm",
+      "state": "running"
+    }
+  },
+  "runtime_observations": {
+    "hub": "v22.23.2\nPython 3.12.3\nx86_64\n2\nMemTotal:        4009300 kB\nPRETTY_NAME=\"Ubuntu 24.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\n2d5271418058ff526bf452473017ba3183693543f883b96136938540e484f19c  /tmp/relayfile-server\n",
+    "a": "v22.23.2\nPython 3.12.3\nx86_64\n2\nMemTotal:        4009300 kB\nPRETTY_NAME=\"Ubuntu 24.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\nd02db692f2fbfc688ebf3e1aa78787b39472cc410d0a16e234b28c5654d5cb33  /tmp/relayfile-mount\n6f06d136a25d48c24d4c7b99e653489c53d4bcc044b5a9b94404cefa3e4e1de3  /tmp/agent-relay-probe\n0.10.56-blaxel-5c13009a\nagent-relay-probe 2026.11.3\n",
+    "b": "v22.23.2\nPython 3.12.3\nx86_64\n2\nMemTotal:        4009300 kB\nPRETTY_NAME=\"Ubuntu 24.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\nd02db692f2fbfc688ebf3e1aa78787b39472cc410d0a16e234b28c5654d5cb33  /tmp/relayfile-mount\n6f06d136a25d48c24d4c7b99e653489c53d4bcc044b5a9b94404cefa3e4e1de3  /tmp/agent-relay-probe\n0.10.56-blaxel-5c13009a\nagent-relay-probe 2026.11.3\n"
+  },
+  "physical_region": "Not returned by retained CLI resource responses; provider-selected default placement. No physical-region parity is claimed.",
+  "node_archive_sha256": "d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307",
+  "node_archive": "node-v22.23.2-linux-x64.tar.xz",
+  "node_checksum_source": "https://nodejs.org/dist/v22.23.2/SHASUMS256.txt",
+  "relayfile_source_commit": "5c13009ac26684a7b48a19811456fe949a899f80",
+  "binary_provenance": "Reused exact linux/amd64 static Go1.26.1 artifacts from Blaxel qualification; vcs.modified=true due preexisting trajectory metadata, with no tracked Go source changes. Exact executable hashes retained above.",
+  "probe_release": "2026.11.3",
+  "pi": "@earendil-works/pi-coding-agent@1.3.0",
+  "relaycast_engine_and_sdk": "8.12.0",
+  "qualification_model": "Deterministic loopback generation; real Pi PTYs, extension discovery, native probe, bash and SHA-256 tools.",
+  "qualification_auth": "Account signed_out; actual isolated self-hosted messaging workspace verified separately. Existing human Cloud account/store was not overwritten.",
+  "qualification_boundary_checks": {
+    "unauthenticated_files": 401,
+    "external_anonymous_workspace_creation": 403
+  },
+  "benchmark_boundary_checks": {
+    "hub": 401,
+    "a": 401,
+    "b": 401
+  },
+  "benchmark_state": "Qualification native Pi/model/probes/mounts and compound service stopped; settled files/state archived; fresh filesystem-only service, scoped fixture tokens and empty mirrors on the same VMs.",
+  "benchmark_daemons": "Closed stdin, private nohup logs and exact PID files; bounded by provider TTL/explicit cleanup.",
+  "benchmark_mode": "poll with exact layout; filesystem notifications and WebSocket events; interval5s startup-jitter0s",
+  "benchmark_service": "Real Relayfile with fresh private JSON state; built-in OSS no-op provider writer; no external provider mutations.",
+  "benchmark_payload": "Unique round header plus repeated bytes0..255; deterministic compressible binary bytes. Sequential ordinary writes, no fsync.",
+  "benchmark_cells": [
+    [
+      "a",
+      1024
+    ],
+    [
+      "b",
+      1048576
+    ],
+    [
+      "a",
+      65536
+    ],
+    [
+      "b",
+      1024
+    ],
+    [
+      "a",
+      1048576
+    ],
+    [
+      "b",
+      65536
+    ]
+  ],
+  "samples_per_cell": 100,
+  "warmups_per_cell": 10,
+  "deadline_s": 30,
+  "observer_sleep_s": 0.001,
+  "intertrial_sleep_s": 0.1,
+  "metric": "Writer monotonic_ns before open/write/close to authenticated full-peer-SHA256 ACK received; includes callback HTTPS/TLS/ingress. Arming/controller overhead outside timing.",
+  "harness_sha256": {
+    "peer.py": "e5145fe04960cb1be3a3addcb698813d3aa0f6868d055ce43ab0e88220683d0e",
+    "cell.py": "93c6a3170507aee357e3d9ffd9aa6ced345772c083fa96fd7c16d1177edc10a8",
+    "hub.mjs": "a5c7c381ae101c38c83709b2321b5882fa514b43d188ab58ea386ce4c7b0249a"
+  },
+  "image_provenance": "Same immutable stock snapshot ID captured on all three VM creation responses.",
+  "historical_harness_manifest": "../harness-2026-11-07/manifest.json",
+  "historical_harness_note": "harness_sha256 identifies the archived source as executed, not the maintained scripts updated after review."
+}

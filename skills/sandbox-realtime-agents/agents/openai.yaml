@@ -1,0 +1,4 @@
+interface:
+  display_name: "Realtime sandbox agents"
+  short_description: "Sync files and message agents across cloud sandboxes"
+  default_prompt: "Use $sandbox-realtime-agents to connect my E2B, Freestyle, or Maritime agents with live filesystem sync and messaging, verify the result, and benchmark confirmed file transfers."

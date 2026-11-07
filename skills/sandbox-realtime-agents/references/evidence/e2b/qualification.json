@@ -1,0 +1,171 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "test": "a-to-b-create",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/text.txt",
+      "sha256": "5810e4cbdd15375448cef9c2bd9c9470792e8f1ce2a637418a3ddb0a3a2608de",
+      "elapsed_ms": 0.10723399998369132,
+      "controller_ms": 4776.029875036329
+    },
+    {
+      "test": "b-to-a-binary-128k",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/binary.bin",
+      "sha256": "59f410ae5e17962412e2aed4f815918f634932f2abf084f00bb638c4db017850",
+      "elapsed_ms": 0.29158500001358334,
+      "controller_ms": 3679.6854590065777
+    },
+    {
+      "test": "a-to-b-update",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/text.txt",
+      "sha256": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "elapsed_ms": 0.0770110000303248,
+      "controller_ms": 3327.6628329767846
+    },
+    {
+      "test": "b-to-a-atomic",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/atomic.txt",
+      "sha256": "302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "elapsed_ms": 0.08650600000237318,
+      "controller_ms": 3232.5230419519357
+    },
+    {
+      "test": "rename-new-hash",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/renamed.txt",
+      "sha256": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "elapsed_ms": 0.0996359999589913
+    },
+    {
+      "test": "rename-old-absent",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/text.txt",
+      "sha256": null,
+      "elapsed_ms": 0.053223999998408544
+    },
+    {
+      "test": "delete-propagates",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/binary.bin",
+      "sha256": null,
+      "elapsed_ms": 0.050533999910840066
+    },
+    {
+      "test": "disjoint-a-to-b",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/disjoint-a",
+      "sha256": "ddacfe62bb97c67e83b0d96e679caa3eb0d92318067bf03a4e70d709945ea175",
+      "elapsed_ms": 0.09283199995024916
+    },
+    {
+      "test": "disjoint-b-to-a",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/disjoint-b",
+      "sha256": "67b42390054395eff9aec7d23ad202823f7b1372d836d9a0183f74c7973b7225",
+      "elapsed_ms": 0.09638400001676928
+    },
+    {
+      "test": "offline-reconnect",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/offline.txt",
+      "sha256": "ecae7b16eb537b9dbe56c98e89e8fa8edd9113291396c39a43d0c4d580908ee2",
+      "elapsed_ms": 0.10080300000936404
+    },
+    {
+      "test": "upload-after-restart",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/after-restart.txt",
+      "sha256": "4ddc972c51251dd8ebedba88a5b6383b8fbda132e9ee20b6088941020504316e",
+      "elapsed_ms": 0.08285000001251319,
+      "controller_ms": 2483.0048749572597
+    },
+    {
+      "test": "delete-after-restart",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/after-restart.txt",
+      "sha256": null,
+      "elapsed_ms": 0.04514799991284235
+    },
+    {
+      "test": "recreate-after-delete",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-b48d42cd1d85/after-restart.txt",
+      "sha256": "bad35571d446826b163b36b88a3d889fe37b4677e13427ff9fbf1e9332debb03",
+      "elapsed_ms": 0.10257899998578068,
+      "controller_ms": 2555.7712920126505
+    },
+    {
+      "test": "native-session-message-a-to-b",
+      "ok": true,
+      "peer": "e2b-b",
+      "message_id": "244708922871767040",
+      "event_type": "thread.reply",
+      "sha256": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "reply": "ACK e2b-95b4f01e63214816a9cc 05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "round": "e2b-95b4f01e63214816a9cc",
+      "observed": [
+        "open",
+        "thread.reply"
+      ],
+      "elapsed_ms": 7572.466477999999
+    },
+    {
+      "test": "native-session-message-b-to-a",
+      "ok": true,
+      "peer": "e2b-a",
+      "message_id": "244708962281447424",
+      "event_type": "thread.reply",
+      "sha256": "302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "reply": "ACK e2b-897271ddbfe641ea876f 302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "round": "e2b-897271ddbfe641ea876f",
+      "observed": [
+        "open",
+        "thread.reply"
+      ],
+      "elapsed_ms": 7830.540106
+    },
+    {
+      "test": "a-listener-and-receipts",
+      "ok": true,
+      "listener": "listening",
+      "outbox": {
+        "pending": 0,
+        "needsAttention": 0,
+        "failed": 0,
+        "acked": 6
+      },
+      "pendingWriteback": 0,
+      "pendingConflicts": 0
+    },
+    {
+      "test": "b-listener-and-receipts",
+      "ok": true,
+      "listener": "listening",
+      "outbox": {
+        "pending": 0,
+        "needsAttention": 0,
+        "failed": 0,
+        "acked": 4
+      },
+      "pendingWriteback": 0,
+      "pendingConflicts": 0
+    }
+  ]
+}

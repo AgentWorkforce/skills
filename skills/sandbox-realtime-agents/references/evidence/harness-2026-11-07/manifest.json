@@ -1,0 +1,40 @@
+{
+  "purpose": "Immutable source as executed for the published November 7 dataset. Text archives are historical evidence, not maintained executable entry points.",
+  "known_limitations": {
+    "scripts/qualification/pi_terminal.py": "The historical supervisor can drop PTY bytes queued after child exit and overwrites ~/.pi/agent configuration under its HOME. The disposable measured VMs were deleted. Do not execute this archive against an operator home; use the maintained private-home supervisor, which drains final PTY output and refuses existing configs."
+  },
+  "files": {
+    "scripts/file-probe.py": {
+      "archive": "references/evidence/harness-2026-11-07/file-probe.py.txt",
+      "sha256": "1345023666f779956c2caf5aee4de7ec251d955a660c20360cbe730ce21119a8"
+    },
+    "scripts/message-probe.mjs": {
+      "archive": "references/evidence/harness-2026-11-07/message-probe.mjs.txt",
+      "sha256": "95a71ccfb96fa7765bd80aa08e0a902873ad386a4774b9bdb8995d160b3e6e4a"
+    },
+    "scripts/benchmark/cell.py": {
+      "archive": "references/evidence/harness-2026-11-07/benchmark--cell.py.txt",
+      "sha256": "93c6a3170507aee357e3d9ffd9aa6ced345772c083fa96fd7c16d1177edc10a8"
+    },
+    "scripts/benchmark/summarize.py": {
+      "archive": "references/evidence/harness-2026-11-07/benchmark--summarize.py.txt",
+      "sha256": "430a6e4df3cb8d03d0ccf4edac24172a7b1733289f6cc3b1bd60500bf83c8d38"
+    },
+    "scripts/benchmark/peer.py": {
+      "archive": "references/evidence/harness-2026-11-07/benchmark--peer.py.txt",
+      "sha256": "e5145fe04960cb1be3a3addcb698813d3aa0f6868d055ce43ab0e88220683d0e"
+    },
+    "scripts/benchmark/hub.mjs": {
+      "archive": "references/evidence/harness-2026-11-07/benchmark--hub.mjs.txt",
+      "sha256": "a5c7c381ae101c38c83709b2321b5882fa514b43d188ab58ea386ce4c7b0249a"
+    },
+    "scripts/qualification/model_fixture.py": {
+      "archive": "references/evidence/harness-2026-11-07/qualification--model_fixture.py.txt",
+      "sha256": "dc322a6a791c5c1820060107ea43a16962723110053767f2548e93dcfff0a299"
+    },
+    "scripts/qualification/pi_terminal.py": {
+      "archive": "references/evidence/harness-2026-11-07/qualification--pi_terminal.py.txt",
+      "sha256": "8a6d7855e00ecf5271cc8ffb71eabcbed7db3a08815fb2097f074017b3909d98"
+    }
+  }
+}

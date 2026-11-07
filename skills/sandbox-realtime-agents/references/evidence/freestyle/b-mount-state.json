@@ -1,0 +1,76 @@
+{
+  "circuit": {
+    "open": false,
+    "openedAt": "0001-01-01T00:00:00Z",
+    "windowMs": 60000,
+    "cooldownMs": 30000,
+    "threshold": 5,
+    "nextRetry": "0001-01-01T00:00:00Z"
+  },
+  "counters": {},
+  "deniedPaths": 0,
+  "eventListener": {
+    "mode": "websocket",
+    "status": "listening",
+    "heartbeatAt": "2026-11-07T06:26:22.753555709Z",
+    "lastConnectedAt": "2026-11-07T06:25:25.087481922Z",
+    "lastAttemptAt": "2026-11-07T06:25:25.034475317Z"
+  },
+  "files": {
+    "/qualification-da136c0d2cdd/after-restart.txt": {
+      "revision": "rev_13",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-da136c0d2cdd/atomic.txt": {
+      "revision": "rev_4",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-da136c0d2cdd/disjoint-a": {
+      "revision": "rev_9",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-da136c0d2cdd/disjoint-b": {
+      "revision": "rev_8",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-da136c0d2cdd/offline.txt": {
+      "revision": "rev_10",
+      "contentType": "text/plain",
+      "status": "ready"
+    },
+    "/qualification-da136c0d2cdd/renamed.txt": {
+      "revision": "rev_6",
+      "contentType": "text/plain",
+      "status": "ready"
+    }
+  },
+  "intervalMs": 5000,
+  "lastEventAt": "2026-11-07T06:25:47.57530793Z",
+  "lastReconcileAt": "2026-11-07T06:26:22.753727792Z",
+  "lastSuccessfulReconcileAt": "2026-11-07T06:26:22.753727792Z",
+  "localRoot": "/app/shared",
+  "mode": "poll",
+  "outbox": {
+    "pending": 0,
+    "needsAttention": 0,
+    "failed": 0,
+    "acked": 4
+  },
+  "pendingConflicts": 0,
+  "pendingWriteback": 0,
+  "remoteRoot": "/",
+  "staleAfter": "2026-11-07T06:26:32.753727792Z",
+  "states": {
+    "stale": false,
+    "offline": false,
+    "hasConflicts": false,
+    "hasPendingWriteback": false
+  },
+  "status": "ready",
+  "syncMode": "mirror",
+  "workspaceId": "ws_freestyle_e2e"
+}

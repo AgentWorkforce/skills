@@ -1,0 +1,25 @@
+{
+  "a": {
+    "listener": "listening",
+    "outbox": {
+      "pending": 0,
+      "needsAttention": 0,
+      "failed": 0,
+      "acked": 331
+    },
+    "pendingWriteback": 0,
+    "pendingConflicts": 0
+  },
+  "b": {
+    "listener": "listening",
+    "outbox": {
+      "pending": 0,
+      "needsAttention": 0,
+      "failed": 0,
+      "acked": 330
+    },
+    "pendingWriteback": 0,
+    "pendingConflicts": 0
+  },
+  "_evidence_note": "A reported 331 settled operation receipts for 330 writer trials. Receipt counters are not transfer counts. The extra operation was not attributed and its operation ledger was not retained before VM deletion. The original observed counter is preserved; transfer counts come from unique successful raw rounds. All pending/attention/failed counters were zero."
+}

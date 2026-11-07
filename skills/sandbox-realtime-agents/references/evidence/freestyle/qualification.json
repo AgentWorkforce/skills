@@ -1,0 +1,171 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "test": "a-to-b-create",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/text.txt",
+      "sha256": "5810e4cbdd15375448cef9c2bd9c9470792e8f1ce2a637418a3ddb0a3a2608de",
+      "elapsed_ms": 0.10512699373066425,
+      "controller_ms": 10045.368082995992
+    },
+    {
+      "test": "b-to-a-binary-128k",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/binary.bin",
+      "sha256": "59f410ae5e17962412e2aed4f815918f634932f2abf084f00bb638c4db017850",
+      "elapsed_ms": 0.2790329745039344,
+      "controller_ms": 8519.881124957465
+    },
+    {
+      "test": "a-to-b-update",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/text.txt",
+      "sha256": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "elapsed_ms": 0.12221909128129482,
+      "controller_ms": 7723.728708981071
+    },
+    {
+      "test": "b-to-a-atomic",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/atomic.txt",
+      "sha256": "302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "elapsed_ms": 0.09803404100239277,
+      "controller_ms": 8387.996917008422
+    },
+    {
+      "test": "rename-new-hash",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/renamed.txt",
+      "sha256": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "elapsed_ms": 0.10468601249158382
+    },
+    {
+      "test": "rename-old-absent",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/text.txt",
+      "sha256": null,
+      "elapsed_ms": 0.05879998207092285
+    },
+    {
+      "test": "delete-propagates",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/binary.bin",
+      "sha256": null,
+      "elapsed_ms": 0.07206504233181477
+    },
+    {
+      "test": "disjoint-a-to-b",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/disjoint-a",
+      "sha256": "ddacfe62bb97c67e83b0d96e679caa3eb0d92318067bf03a4e70d709945ea175",
+      "elapsed_ms": 0.09992800187319517
+    },
+    {
+      "test": "disjoint-b-to-a",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/disjoint-b",
+      "sha256": "67b42390054395eff9aec7d23ad202823f7b1372d836d9a0183f74c7973b7225",
+      "elapsed_ms": 0.1123710535466671
+    },
+    {
+      "test": "offline-reconnect",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/offline.txt",
+      "sha256": "ecae7b16eb537b9dbe56c98e89e8fa8edd9113291396c39a43d0c4d580908ee2",
+      "elapsed_ms": 0.09769201278686523
+    },
+    {
+      "test": "upload-after-restart",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/after-restart.txt",
+      "sha256": "4ddc972c51251dd8ebedba88a5b6383b8fbda132e9ee20b6088941020504316e",
+      "elapsed_ms": 0.1340309390798211,
+      "controller_ms": 8031.107874994632
+    },
+    {
+      "test": "delete-after-restart",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/after-restart.txt",
+      "sha256": null,
+      "elapsed_ms": 0.06132503040134907
+    },
+    {
+      "test": "recreate-after-delete",
+      "ok": true,
+      "op": "expect",
+      "path": "qualification-da136c0d2cdd/after-restart.txt",
+      "sha256": "bad35571d446826b163b36b88a3d889fe37b4677e13427ff9fbf1e9332debb03",
+      "elapsed_ms": 0.11501600965857506,
+      "controller_ms": 6818.841666041408
+    },
+    {
+      "test": "native-session-message-a-to-b",
+      "ok": true,
+      "peer": "freestyle-b",
+      "message_id": "244708964571340800",
+      "event_type": "thread.reply",
+      "sha256": "05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "reply": "ACK freestyle-768594bca3d2429eb39f 05d13719d1fabc4effb579b95d4f562222ed0a00eb49a6304205872abd2bfb70",
+      "round": "freestyle-768594bca3d2429eb39f",
+      "observed": [
+        "open",
+        "thread.reply"
+      ],
+      "elapsed_ms": 8449.284182000001
+    },
+    {
+      "test": "native-session-message-b-to-a",
+      "ok": true,
+      "peer": "freestyle-a",
+      "message_id": "244709021777453056",
+      "event_type": "thread.reply",
+      "sha256": "302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "reply": "ACK freestyle-bdc0c09cccd444ada9aa 302e31472075e2674836c9a1913aa5dbf07103e49c8adcd1868e6e91366590eb",
+      "round": "freestyle-bdc0c09cccd444ada9aa",
+      "observed": [
+        "open",
+        "thread.reply"
+      ],
+      "elapsed_ms": 8237.121346999998
+    },
+    {
+      "test": "a-listener-and-receipts",
+      "ok": true,
+      "listener": "listening",
+      "outbox": {
+        "pending": 0,
+        "needsAttention": 0,
+        "failed": 0,
+        "acked": 6
+      },
+      "pendingWriteback": 0,
+      "pendingConflicts": 0
+    },
+    {
+      "test": "b-listener-and-receipts",
+      "ok": true,
+      "listener": "listening",
+      "outbox": {
+        "pending": 0,
+        "needsAttention": 0,
+        "failed": 0,
+        "acked": 4
+      },
+      "pendingWriteback": 0,
+      "pendingConflicts": 0
+    }
+  ]
+}
