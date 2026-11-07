@@ -4,9 +4,12 @@ import io
 import os
 from pathlib import Path
 import pty
+import select
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 sys.dont_write_bytecode = True
@@ -49,5 +52,20 @@ class QualificationTests(unittest.TestCase):
             self.assertIn(b'final output',result.getvalue())
         finally:
             os.close(master);os.close(slave);os.close(control_read);os.close(control_write)
+    def test_pty_shutdown_kills_a_child_that_ignores_sigterm(self):
+        master,slave=pty.openpty();control_read,control_write=os.pipe()
+        child=subprocess.Popen([sys.executable,'-c',
+            'import os,signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);os.write(1,b"ready\\n");time.sleep(60)'],
+            stdout=slave,stderr=slave,start_new_session=True)
+        try:
+            self.assertTrue(select.select([master],[],[],3)[0]);os.read(master,1024)
+            os.killpg(child.pid,signal.SIGTERM)
+            started=time.monotonic()
+            terminal.drain(master,control_read,child,io.BytesIO(),lambda: started+.05)
+            self.assertEqual(child.wait(timeout=2),-signal.SIGKILL)
+            self.assertLess(time.monotonic()-started,3)
+        finally:
+            if child.poll() is None: os.killpg(child.pid,signal.SIGKILL);child.wait()
+            for fd in (master,slave,control_read,control_write): os.close(fd)
 
 if __name__ == '__main__': unittest.main()

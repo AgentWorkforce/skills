@@ -7,6 +7,7 @@ import pty
 import select
 import signal
 import subprocess
+import time
 
 
 def write_new(path, value):
@@ -39,9 +40,15 @@ def configure(root):
     return home, agent
 
 
-def drain(master, control_fd, process, output):
+def drain(master, control_fd, process, output, stop_deadline=lambda: None):
     """Drain buffered PTY output even when the child has already exited."""
     while True:
+        deadline = stop_deadline()
+        if deadline is not None and time.monotonic() >= deadline and process.poll() is None:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         watched = [master] + ([control_fd] if process.poll() is None else [])
         ready, _, _ = select.select(watched, [], [], 1)
         if control_fd in ready:
@@ -76,7 +83,10 @@ def main():
     # Keep our slave handle until draining finishes; some PTYs discard queued
     # bytes when the last slave closes immediately after child exit.
     control_fd = None
+    stop_by = [None]
     def stop(*_args):
+        if stop_by[0] is None:
+            stop_by[0] = time.monotonic() + 2
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
@@ -88,7 +98,7 @@ def main():
         control_fd = os.open(control, os.O_RDWR | os.O_NONBLOCK)
         write_new(root / 'pi-pid.json', {'pid': process.pid})
         with open(root / 'pi-terminal.log', 'ab', buffering=0) as output:
-            drain(master, control_fd, process, output)
+            drain(master, control_fd, process, output, lambda: stop_by[0])
         return process.wait(timeout=5)
     finally:
         if process.poll() is None:

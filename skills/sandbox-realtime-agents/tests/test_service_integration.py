@@ -104,5 +104,26 @@ class ServiceIntegrationTests(unittest.TestCase):
             self.assertNotEqual(self.process.wait(timeout=5),0)
             self.assertFalse(json.loads((self.root/'ready.json').read_text())['ready'])
         self.assert_ports_closed()
+    def specific_ipv6_binding(self,kind):
+        for name in ('FILE','PROXY'):
+            try:
+                with socket.socket(socket.AF_INET6) as server:
+                    server.bind(('::1',0));self.ports[name]=server.getsockname()[1]
+            except OSError: self.skipTest('IPv6 loopback is unavailable')
+            self.env['RELAY_TEST_'+name+'_PORT']=str(self.ports[name])
+        self.env['RELAY_TEST_HOST']='::1'
+        (self.root/'urls.json').write_text(json.dumps({
+            'relayfile':f'http://[::1]:{self.ports["FILE"]}',
+            'relaycast':f'http://[::1]:{self.ports["PROXY"]}'}))
+        self.start(kind);self.ready()
+        self.process.terminate();self.assertEqual(self.process.wait(timeout=5),0)
+        for name in ('FILE','PROXY'):
+            with socket.socket(socket.AF_INET6) as client:
+                client.settimeout(.2)
+                self.assertNotEqual(client.connect_ex(('::1',self.ports[name])),0)
+    def test_benchmark_checks_the_specific_ipv6_binding(self):
+        self.specific_ipv6_binding('benchmark')
+    def test_qualification_checks_the_specific_ipv6_binding(self):
+        self.specific_ipv6_binding('qualification')
 
 if __name__ == '__main__': unittest.main()

@@ -16,3 +16,10 @@ export function allowedPath(raw) {
     return parsed.pathname.replace(/\/+$/, '') !== '/v1/workspaces';
   } catch { return false; }
 }
+
+/** Never append an error message to a partially streamed upstream body. */
+export function unavailable(response) {
+  if (response.headersSent) { response.destroy(); return; }
+  response.writeHead(502);
+  response.end('Backend unavailable');
+}

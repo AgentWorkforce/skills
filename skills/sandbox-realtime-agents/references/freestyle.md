@@ -59,8 +59,11 @@ freestyle vm exec --linux-user root YOUR_VM_ID -- \
   bash -lc 'set -eu
     stage=/tmp/relay-private-stage
     archive=$stage/bundle.tar.gz
+    test -d "$stage"
+    test ! -L "$stage"
+    test -f "$archive"
+    test ! -L "$archive"
     trap '\''rm -f "$archive"'\'' EXIT
-    test -d "$stage" && test ! -L "$stage" && test ! -L "$archive"
     chmod 0700 "$stage"; chmod 0600 "$archive"
     chown root "$stage" "$archive"
     install -d -m 0700 /app/relay-test

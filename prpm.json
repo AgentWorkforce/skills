@@ -78,6 +78,7 @@
         "skills/sandbox-realtime-agents/scripts/qualification/model_fixture.py",
         "skills/sandbox-realtime-agents/scripts/qualification/pi_terminal.py",
         "skills/sandbox-realtime-agents/scripts/qualification/proxy-path.mjs",
+        "skills/sandbox-realtime-agents/scripts/qualification/socket-proxy.mjs",
         "skills/sandbox-realtime-agents/tests/fixture-services.test.mjs",
         "skills/sandbox-realtime-agents/tests/message-probe.test.mjs",
         "skills/sandbox-realtime-agents/tests/test_benchmark.py",

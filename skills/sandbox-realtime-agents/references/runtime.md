@@ -139,6 +139,11 @@ new runs, including its upstream loopback confinement.
 
 ## Messaging transport and supervision
 
+The maintained proxy caps WebSocket payloads and queued/buffered output at
+256 KiB, pre-connection queues at 32 frames, and upstream handshakes at two
+seconds. Overloaded or stalled connections close both peers. Startup failures
+identify the failing step and error class without logging private error messages.
+
 The isolated service used `@relaycast/engine@8.12.0` behind an HTTP/WebSocket
 proxy. Create the fixture workspace on service loopback, retain its key privately,
 and block external anonymous `/v1/workspaces` creation. Forward WebSocket

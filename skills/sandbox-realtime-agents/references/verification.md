@@ -1,7 +1,7 @@
 # Correctness checks before timing
 
 Use scratch data in an explicitly authorized shared tree. The helper requires
-Python 3.9+ with descriptor-relative operations and `O_NOFOLLOW`.
+Python 3.9+ on Linux or macOS (POSIX), with descriptor-relative operations and `O_NOFOLLOW`.
 It rejects symlinks, traversal and `.relay` at any depth. Pinned handles reduce
 path races; they are not a security boundary against a malicious same-OS-user
 process that can move directories or change process state.

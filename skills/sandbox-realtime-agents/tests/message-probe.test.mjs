@@ -96,7 +96,9 @@ test('a correlated reply containing the wrong file hash fails', () => {
 test('absolute, runtime, empty and traversal path components fail before transport import', () => {
   for (const file of ['/etc/passwd', '.relay/state', 'a/.relay/state', 'a//b', './file', '../file', 'file/']) {
     const result = run({...valid, file});
-    assert.notEqual(result.status, 0, file);
+    assert.equal(result.status, 1, file);
+    assert.equal(result.error, undefined);
+    assert.match(result.stderr, /Invalid challenge, file path, or expected hash/);
     assert.equal(result.imported, false);
   }
 });
