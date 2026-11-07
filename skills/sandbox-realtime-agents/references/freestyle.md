@@ -73,8 +73,17 @@ untrusted content as root. Entries are relative to `/app/relay-test`. Use a 0600
 archive on both successful and failed extraction (the EXIT trap retains tar's
 failure status). Create a fresh 0700 staging directory as the SCP identity before
 copying; it stays private during transfer and becomes root-owned before
-extraction. Never reuse an unrelated or permissive staging path. Do not put
+extraction. The default SCP identity is trusted during this transfer; 0700
+prevents other guest UIDs from reading it, and this does not claim isolation
+from processes sharing that identity. Never reuse an unrelated or permissive
+staging path. Do not put
 credential values in argv or use account keys as agent runtime keys.
+
+Do not pipe private binary bundles through `vm exec -i` on command version
+0.2.21: its implementation opens a PTY and does not forward stdin EOF. That
+path can echo/corrupt binary input or leave `cat` waiting. Use the private SCP
+staging recipe above; a root-owned directory before copying would be
+inaccessible to the default SCP identity.
 
 The stock Node was 26.13.0. This run installed verified official Node 22.23.2
 in `/opt/node` to match E2B's tested runtime. The historical fixture used
