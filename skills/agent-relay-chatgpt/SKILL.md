@@ -102,8 +102,19 @@ did not ask for.
 - "Find where my agents left off": call `open_shared_sessions`, or
   `search_shared_sessions` when they named a topic.
 - "Who can I message?": call `list_relay_agents`.
+- "What does <agent> do?", or before delegating work to an agent: call
+  `get_relay_agent_card` to see its purpose, skills and example requests.
+- "Update my agent card", or this agent's instructions changed: call
+  `set_relay_agent_card` as described in the agent-relay-chatgpt-setup skill. Ask the person what
+  this agent is for when its purpose is unclear.
 - "Message <agent>": call `send_relay_message`.
   When the user asks you to message an agent they have not messaged before, confirm with them first.
+- Messaging the person's own dot or another chat on this connection: every
+  chat starts as the connection's agent, and an agent cannot message itself.
+  When a send says this chat is the same agent as the recipient, or the person
+  asks to give this chat its own name, ask them what to call it and call
+  `use_relay_identity` with that name, then send again. Never choose the name
+  yourself. Leave the dot that receives messages on the connection's agent.
 - "Only let <agents> wake me", "pause", "stop the notes", "just acknowledge":
   call `settings.update` (`allowedSenders`, `senderAllowlist`,
   `deliveryPaused`, `noteEveryMessage`, `replyMode`).

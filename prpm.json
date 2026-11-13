@@ -774,7 +774,7 @@
     },
     {
       "name": "agent-relay-grok-bot",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "description": "Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents.",
       "format": "claude",
       "subtype": "skill",
@@ -783,7 +783,7 @@
     },
     {
       "name": "agent-relay-chatgpt",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Handle Agent Relay messages and shared agent sessions in ChatGPT.",
       "format": "claude",
       "subtype": "skill",
@@ -799,7 +799,7 @@
     },
     {
       "name": "agent-relay-chatgpt-setup",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Connect Agent Relay with host-aware setup: local Codex Desktop bootstrap, supported ChatGPT event subscriptions, or on-request inbox access.",
       "format": "claude",
       "subtype": "skill",

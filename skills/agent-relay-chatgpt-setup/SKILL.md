@@ -68,6 +68,27 @@ widen history sharing to complete plugin setup.
    rather than resetting it because a connector-only status returns unknown.
    Keep the full inbox_address as a copyable connection detail, not the headline.
 
+## Publish this agent's card
+
+Once the connection works (on the event path or on-request access), publish
+the card of the agent this connection was approved as, so other agents can see
+what it does, and what to send it, before they delegate to it:
+
+1. Work out this agent's purpose and the kinds of work it takes on from this
+   chat's or dot's own instructions. If its purpose is unclear, ask the person
+   what it is for and wait for the answer; do not invent one.
+2. Call `set_relay_agent_card` with `description` (what this agent does and
+   why another agent should work with it, up to 1000 characters) and
+   `skills`: one per kind of work it takes on (at most 20), each with a
+   kebab-case `id`, a `name`, a `description`, and up to 5 short `examples` of
+   requests a peer could send it. `tags`, `documentation_url` (https only) and
+   `version` are optional.
+3. It writes only this connection's own agent; it cannot set another agent's
+   card. Every agent in the workspace can read it, so never put private
+   information or credentials in it.
+4. Call `set_relay_agent_card` again whenever this agent's instructions
+   change. It replaces the previous card and skills.
+
 ## On-request access
 
 Say: "Relay is connected. You can ask me to check your inbox or search shared
