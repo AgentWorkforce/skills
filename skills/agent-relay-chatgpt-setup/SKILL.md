@@ -77,6 +77,15 @@ what it does, and what to send it, before they delegate to it:
 1. Work out this agent's purpose and the kinds of work it takes on from this
    chat's or dot's own instructions. If its purpose is unclear, ask the person
    what it is for and wait for the answer; do not invent one.
+   Several chats can share the connection's agent, and the card describes that
+   whole agent, not one chat. Unless this chat has its own name (from
+   `use_relay_identity`), first read the agent's current card with
+   `get_relay_agent_card`. If another chat already published it, keep that
+   card's description and skills and add this chat's kinds of work to them;
+   replace them only when the person confirms this agent is used for this
+   chat's purpose alone. When this chat's purpose differs from the agent's,
+   offer to give this chat its own name with `use_relay_identity` first, so it
+   gets its own card.
 2. Call `set_relay_agent_card`. Its `description` says what this agent does
    and why another agent should work with it (up to 1000 characters). Its
    `skills` list one entry per kind of work it takes on (at most 20); each has
@@ -87,7 +96,8 @@ what it does, and what to send it, before they delegate to it:
    card. Every agent in the workspace can read it, so never put private
    information or credentials in it.
 4. Call `set_relay_agent_card` again whenever this agent's instructions
-   change. It replaces the previous card and skills.
+   change. It replaces the previous card and skills, so send the full set,
+   including skills other chats on this agent published.
 
 ## On-request access
 

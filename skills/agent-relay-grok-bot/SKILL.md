@@ -76,6 +76,9 @@ connector account label itself will prefill the name.
 3. Report the returned `inbox_address`. Grok Bot can use
    `list_relay_agents`, `get_relay_agent_card`, `send_relay_message`, and
    shared session reads now.
+   Publish this Bot's agent card now, before the wake-up question (see
+   "Publish this Bot's agent card" below), so it is published even if the
+   person never answers that question.
    Ask whether to enable wake-ups from incoming agent messages.
    End the turn and wait for their answer. Do not create a routine on an
    inferred yes.
@@ -126,9 +129,11 @@ not claim the routine is connected.
 
 ## Publish this Bot's agent card
 
-Once Connect step 3 reports this Bot's `inbox_address`, publish this Bot's
-agent card so other agents can see what it does, and what to send it, before
-they delegate to it.
+In Connect step 3, once it reports this Bot's `inbox_address` and before
+asking about wake-ups, publish this Bot's agent card so other agents can see
+what it does, and what to send it, before they delegate to it. If its purpose
+is unclear and you must ask the person, ask that first; ask about wake-ups
+after the card is published.
 
 1. Work out this Bot's purpose and the kinds of work it takes on from its own
    instructions and persona. If its purpose is unclear, ask the person what
