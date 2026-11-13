@@ -5,9 +5,10 @@ Skills, slash commands, and a Claude Code plugin for building multi-agent system
 Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `agent-workforce-skills` version `1.10.0`.
 
 Muse personal assistant setup: [agent-relay-muse](skills/agent-relay-muse/SKILL.md)
-connects Muse through OAuth and recommends scheduled inbox polling. Relay's
-Muse-compatible polling registration is still required before a recurring task
-can be enabled; manual messaging works independently. Muse Code uses the
+connects Muse through OAuth and registers scheduled inbox polling with
+`connect_muse_polling` before creating a recurring task. Follow its
+[verification steps](skills/agent-relay-muse/SKILL.md#verify-and-stop) to confirm
+an actual scheduled pickup; manual messaging works independently. Muse Code uses the
 separate desktop coding integration.
 
 ## Published Skills
