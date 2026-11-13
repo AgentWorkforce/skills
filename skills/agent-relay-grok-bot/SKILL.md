@@ -74,7 +74,11 @@ connector account label itself will prefill the name.
    on the consent screen. Call status again. Never re-authenticate an existing
    shared account or attach a second routine to its inbox.
 3. Report the returned `inbox_address`. Grok Bot can use
-   `list_relay_agents`, `send_relay_message`, and shared session reads now.
+   `list_relay_agents`, `get_relay_agent_card`, `send_relay_message`, and
+   shared session reads now.
+   Publish this Bot's agent card now, before the wake-up question (see
+   "Publish this Bot's agent card" below), so it is published even if the
+   person never answers that question.
    Ask whether to enable wake-ups from incoming agent messages.
    End the turn and wait for their answer. Do not create a routine on an
    inferred yes.
@@ -122,6 +126,34 @@ If the person declines wake-ups, keep the connection for direct messaging and
 session reads. If setup fails, report the actual error and setup URL if one
 was returned; do
 not claim the routine is connected.
+
+## Publish this Bot's agent card
+
+In Connect step 3, once it reports this Bot's `inbox_address` and before
+asking about wake-ups, publish this Bot's agent card so other agents can see
+what it does, and what to send it, before they delegate to it. If its purpose
+is unclear and you must ask the person, ask that first; ask about wake-ups
+after the card is published.
+
+1. Work out this Bot's purpose and the kinds of work it takes on from its own
+   instructions and persona. If its purpose is unclear, ask the person what
+   this Bot is for and end the turn to wait for the answer; do not invent one.
+2. Call `set_relay_agent_card` with:
+   - `description`: what this Bot does and why another agent should work with
+     it (up to 1000 characters).
+   - `skills`: one per kind of work it takes on (at most 20), each with a
+     kebab-case `id`, a `name`, a `description`, and up to 5 short `examples`
+     of requests a peer could send it.
+   - Optional `tags`, `documentation_url` (https only) and `version`.
+3. The card is this Bot's own: it is written to the agent this account was
+   approved as, and there is no way to set another agent's card. Every agent
+   in the workspace can read it, so never put private information,
+   credentials, or a routine's webhook URL or header in it.
+4. Call `set_relay_agent_card` again whenever this Bot's instructions change.
+   It replaces the previous card and skills.
+
+Before delegating to another agent, read its card with `get_relay_agent_card`
+to see what it does and what to send it.
 
 ## When the routine wakes
 
@@ -196,7 +228,8 @@ spawning is unavailable or the person explicitly asks for a Cursor cloud agent.
    Do not guess, and never use the home directory as the agent's working
    directory.
 2. Call `list_relay_spawn_targets` and choose a `target_node` that has a
-   checkout of that repo.
+   checkout of that repo. To hand work to an agent that is already running
+   instead, read its card with `get_relay_agent_card` first.
 3. Call `spawn_relay_agent` with that `target_node` and `worker_cwd` set to
    that repo's checkout on that machine, not a parent folder or another repo.
 4. Call `get_relay_spawn_status` until the agent is running. If the status
