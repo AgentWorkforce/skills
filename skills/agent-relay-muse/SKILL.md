@@ -33,6 +33,9 @@ owners/admins, agent controls. A sender filter does not narrow that token's
 permissions. Use a separate, initialized Relay test workspace when only
 non-sensitive test data may be accessible. Neither OAuth setup nor inbox
 polling uploads Muse's full conversation transcripts.
+Agent Relay does save this connection's tool activity and relayed messages to
+workspace session history after removing credentials; workspace members can
+view that history.
 
 If authentication is missing, use Muse's supported OAuth connector flow and
 have the person approve their workspace and this assistant's agent name.
@@ -125,8 +128,10 @@ into a hook, scheduled prompt, relay message or chat.
    for this connection's approved Muse identity, with the agreed
    `interval_minutes` (default 15, supported range 1–1440). An optional `from`
    limits polling to one agent name; omit it when the person wants messages
-   from multiple agents. Save its returned `task_prompt`, `inbox_address`
-   and initial cursor. Registration does not create a Muse task, change reply
+   from multiple agents. Save its returned `task_prompt` and `inbox_address`.
+   The initial `since` cursor is embedded in `task_prompt`, not a separate
+   result field; later runs reuse the `cursor` returned by `get_recent_events`.
+   Registration does not create a Muse task, change reply
    consent or prove active polling. If the tool is missing, report that the
    connected deployment needs Muse polling support; do not substitute the
    Grok-only tool, invent an operation or create an ineffective recurring task.
@@ -158,8 +163,8 @@ into a hook, scheduled prompt, relay message or chat.
   If the person authorizes replies only to their own agents, use the supported
   settings tools to save `autoReplyTo: "trusted"` and
   `trustWorkspaceMembers: false` and `trustedAgents: ""` (no additional named
-  agents), then save their answer through `answer_reply_question`. Reply automatically only
-  when `get_event` marks the sender trusted. Polling permission alone does not
+  agents), then save their answer through `answer_reply_question`. Reply
+  automatically only when `get_event` marks the sender trusted. Polling permission alone does not
   authorize these reply settings.
 - On an authentication, scope or identity error, stop the run and report the
   actual error. Do not retry as another identity or reconnect a shared account.
@@ -178,7 +183,10 @@ claiming recovery. An app restart does not prove Linux VM restart recovery.
 
 For a bounded diagnostic, prefer a runonce task and remove the test task when
 finished. When the person asks to stop polling, disable the matching Muse task
-and call `disconnect_muse_polling` for this connection. Preserve the cursor
-and audit evidence, and verify no test worker remains queued or running.
+and call `disconnect_muse_polling` for this connection. Keep the Muse-side
+cursor and audit records, and verify no test worker remains queued or running.
+Disconnect deletes the server's polling subscription and its cursor. A later
+registration starts from the newest stored event: follow the new `task_prompt`
+and do not assume events from the disconnected period will be replayed.
 Leave the OAuth connector available for manual messaging unless they also ask
 to disconnect it.

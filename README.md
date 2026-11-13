@@ -6,8 +6,9 @@ Package metadata lives in [prpm.json](prpm.json). The repo currently publishes `
 
 Muse personal assistant setup: [agent-relay-muse](skills/agent-relay-muse/SKILL.md)
 connects Muse through OAuth and registers scheduled inbox polling with
-`connect_muse_polling` before creating a recurring task. Verify an actual
-scheduled pickup; manual messaging works independently. Muse Code uses the
+`connect_muse_polling` before creating a recurring task. Follow its
+[verification steps](skills/agent-relay-muse/SKILL.md#verify-and-stop) to confirm
+an actual scheduled pickup; manual messaging works independently. Muse Code uses the
 separate desktop coding integration.
 
 ## Published Skills
