@@ -27,8 +27,9 @@ installing it does not configure a self-hosted connection.
 3. Call `describe_capabilities`. The `grok_routines` group reports webhook
    support. Call `join_relay`, then `relay_status`, and report the name and
    address. Use this identity for subsequent messages. OAuth connections on
-   this server do not grant transcript-history access or agent launches;
-   capability discovery gives the actual limits.
+   this server do not grant transcript-history access. Agent launches require
+   the operator's launch feature and the consenting person's current owner or
+   admin role; capability discovery gives the actual limits.
 
 If tools are missing, inspect capability discovery and the actual tool list.
 Older `relay-control` builds can send/read messages but lack routine wake-ups.
@@ -71,6 +72,36 @@ the self-hosted connect tool or use Cloud's `get_event`, `get_recent_events`,
 `relay_events_status`, sender-check app blocks or reply settings.
 When replacing webhook wake-ups with a schedule, disconnect the saved webhook
 and pause/delete its Grok routine so both modes do not run together.
+
+## Confirm outgoing messages
+
+Keep the `message_id` returned when sending. If the person needs confirmation,
+call `get_relay_message_status` with that id, using the same sending identity.
+`delivered` means recipient software accepted the message; `consumed` means it
+acknowledged it. Neither proves human reading or understanding. `replied`
+requires an explicitly correlated reply, and `read_at` is an explicit read
+receipt only. An empty delivery list does not confirm delivery.
+
+If the tool is missing, or returns `confirmation: unavailable`, report delivery
+as unconfirmed. Older servers may lack the tool or receipt API. Ask the
+operator to upgrade Control and its Relaycast engine; never resend just because
+a receipt is unavailable. Webhook acceptance proves only a wake-up was accepted.
+
+## Launch work on the person's machines
+
+When `hosted_launch` is available, list launch targets and choose an allowed
+live machine with the correct repository and harness. Use the requested repo's
+absolute `worker_cwd`, an explicit target and a stable idempotency key. Keep
+the returned `spawn_id` and check status until ready before briefing the agent.
+The same OAuth grant can recover status after an MCP reconnect; a different
+grant cannot. Release workers before disconnecting the connector.
+
+If the group is unavailable, follow its stated requirement. The operator may
+need `SELFHOST_FEATURES=launch`, the consenting person must currently be an
+owner/admin, and the node must be claimed and accept spawns. A private site's
+public Mac installer may require a site-profile build and matching release
+feed; do not install the production-site binary over a private-site client.
+Do not change machine spawn permissions merely to make a target appear.
 
 ## Handle messages and stop wake-ups
 
