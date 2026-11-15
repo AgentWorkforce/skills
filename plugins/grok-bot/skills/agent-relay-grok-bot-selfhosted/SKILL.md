@@ -92,7 +92,11 @@ a receipt is unavailable. Webhook acceptance proves only a wake-up was accepted.
 When `hosted_launch` is available, list launch targets and choose an allowed
 live machine with the correct repository and harness. Use the requested repo's
 absolute `worker_cwd`, an explicit target and a stable idempotency key. Keep
-the returned `spawn_id` and check status until ready before briefing the agent.
+the returned `spawn_id` and check status before briefing the agent. Stop on
+`failed` or `released` and report it. For `unknown`, preserve the id and report
+the unconfirmed outcome; never launch a replacement with a fresh key. Bound
+status checks to the current turn and report pending work with its spawn id
+instead of polling indefinitely. Brief the agent only after `ready`.
 The same OAuth grant can recover status after an MCP reconnect; a different
 grant cannot. Release workers before disconnecting the connector.
 
