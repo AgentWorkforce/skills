@@ -232,7 +232,7 @@ Keep the returned `message_id`. To check delivery, call
 for a message explicitly sent as the person. `delivered` means recipient
 software accepted it, `consumed` means acknowledged, and `replied` requires a
 correlated reply. These do not prove human reading or understanding; `read_at`
-is an explicit read receipt only. Missing tools, `confirmation: unavailable`
+is a protocol read marker that may be written on acknowledgement. Missing tools, `confirmation: unavailable`
 or an empty delivery list leave delivery unconfirmed. Never resend solely
 because a receipt is unavailable.
 

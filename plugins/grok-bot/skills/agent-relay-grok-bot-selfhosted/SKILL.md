@@ -79,8 +79,8 @@ Keep the `message_id` returned when sending. If the person needs confirmation,
 call `get_relay_message_status` with that id, using the same sending identity.
 `delivered` means recipient software accepted the message; `consumed` means it
 acknowledged it. Neither proves human reading or understanding. `replied`
-requires an explicitly correlated reply, and `read_at` is an explicit read
-receipt only. An empty delivery list does not confirm delivery.
+requires an explicitly correlated reply, and `read_at` is a protocol read
+marker that may be written on acknowledgement. An empty delivery list does not confirm delivery.
 
 If the tool is missing, or returns `confirmation: unavailable`, report delivery
 as unconfirmed. Older servers may lack the tool or receipt API. Ask the
