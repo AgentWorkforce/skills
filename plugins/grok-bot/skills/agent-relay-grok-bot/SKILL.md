@@ -225,6 +225,17 @@ it on their dashboard, pass
 `add_to_board: true`: it becomes a tab on their Agent Relay Sessions board and
 an open board switches to it.
 
+## Confirm outgoing messages
+
+Keep the returned `message_id`. To check delivery, call
+`get_relay_message_status` as the same sender; include `as_person: true` only
+for a message explicitly sent as the person. `delivered` means recipient
+software accepted it, `consumed` means acknowledged, and `replied` requires a
+correlated reply. These do not prove human reading or understanding; `read_at`
+is a protocol read marker that may be written on acknowledgement. Missing tools, `confirmation: unavailable`
+or an empty delivery list leave delivery unconfirmed. Never resend solely
+because a receipt is unavailable.
+
 ## Delegating work to agents
 
 For repo, coding, or investigation work, launch an Agent Relay agent whenever
