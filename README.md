@@ -11,6 +11,12 @@ connects Muse through OAuth and registers scheduled inbox polling with
 an actual scheduled pickup; manual messaging works independently. Muse Code uses the
 separate desktop coding integration.
 
+Gemini app setup: [agent-relay-gemini](skills/agent-relay-gemini/SKILL.md)
+connects Gemini through a Developer Mode custom MCP app. Pick the workspace
+explicitly on the consent screen: it pre-selects the previous one. Gemini has
+no push delivery, so it reads its inbox only when it calls a tool. Gemini CLI
+uses the desktop setup.
+
 ## Published Skills
 
 | Skill | Version | Description |
