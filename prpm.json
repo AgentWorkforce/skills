@@ -774,12 +774,21 @@
     },
     {
       "name": "agent-relay-grok-bot",
-      "version": "0.1.9",
-      "description": "Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents.",
+      "version": "0.1.10",
+      "description": "Connect Grok Bot to hosted Agent Relay Cloud and configure webhook or scheduled inbox routines. For customer-owned servers use agent-relay-grok-bot-selfhosted.",
       "format": "claude",
       "subtype": "skill",
       "tags": ["agent-relay", "grok-bot", "mcp", "routines"],
       "files": ["skills/agent-relay-grok-bot/SKILL.md"]
+    },
+    {
+      "name": "agent-relay-grok-bot-selfhosted",
+      "version": "0.1.0",
+      "description": "Connect Grok Bot to a customer's self-hosted Agent Relay server and configure webhook routine wake-ups through its approved MCP identity.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "grok-bot", "mcp", "self-hosted", "routines"],
+      "files": ["skills/agent-relay-grok-bot-selfhosted/SKILL.md"]
     },
     {
       "name": "agent-relay-chatgpt",

@@ -91,6 +91,11 @@ grok plugin install AgentWorkforce/skills#plugins/grok/agent-relay --trust
 
 ## Grok Bot and ChatGPT plugins
 
+For a customer-owned server, use
+[`agent-relay-grok-bot-selfhosted`](skills/agent-relay-grok-bot-selfhosted/SKILL.md).
+It connects to the customer's MCP endpoint and configures webhook wake-ups on
+that server; the hosted plugin below retains its fixed Cloud endpoint.
+
 [`plugins/grok-bot`](plugins/grok-bot) packages the hosted Agent Relay MCP
 connection and its [skill](skills/agent-relay-grok-bot/SKILL.md) together for
 Grok Bot. The skill is also a canonical prpm package. The repository's
