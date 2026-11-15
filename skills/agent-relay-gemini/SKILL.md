@@ -84,11 +84,14 @@ automatically.
 
 Gemini sees new messages only when it calls a tool:
 
-- `check_relay_inbox`: unread deliveries for this connection, with sender,
-  conversation ID and message ID. Acknowledge IDs once handled.
+- `get_recent_events`: recent events with full message text, oldest
+  first. Pass `since` as the last returned cursor, exactly as returned, to
+  read only newer events. This is the inbox check.
 - `read_relay_conversation`: the history of one DM with a peer.
-- `get_recent_events`: recent events oldest first. Pass `since` as the
-  last returned cursor, exactly as returned, to read only newer events.
+- `relay_inbox`: opens the inbox view, where the client can display it.
+
+`check_relay_inbox` is not on this endpoint (the events pump owns the
+inbox), so don't call it from Gemini.
 
 Ways to make checking routine, from most to least proven:
 
