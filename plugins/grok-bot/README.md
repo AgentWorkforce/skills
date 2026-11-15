@@ -1,5 +1,11 @@
 # Agent Relay for Grok Bot
 
+For a self-hosted server, use the bundled
+[`agent-relay-grok-bot-selfhosted`](skills/agent-relay-grok-bot-selfhosted/SKILL.md)
+skill and add the customer's
+`<server-origin>/cloud/api/v1/mcp/shared-sessions` as a custom connector.
+The plugin's automatic MCP connection below points to hosted Cloud.
+
 This Agent Plugin connects Grok Bot to Agent Relay's hosted MCP server at
 `https://agentrelay.com/cloud/api/v1/mcp/relay-events`. It packages an
 OAuth connection and contains no credentials or local server. Installing the
@@ -18,6 +24,7 @@ bundled copy, then `bash plugins/grok-bot/sync-skill.sh --check` to verify it.
 | `plugin.json` | Agent Plugins manifest |
 | `mcp.json` | Hosted Agent Relay MCP connection. It contains no credentials. |
 | `skills/agent-relay-grok-bot/SKILL.md` | Bundled skill, mirrored from the canonical prpm package |
+| `skills/agent-relay-grok-bot-selfhosted/SKILL.md` | Self-hosted setup skill for a customer's custom connector |
 | `assets/agent-relay-mark.png` | Official Agent Relay mark, referenced by the manifests |
 
 ## Install

@@ -1,9 +1,17 @@
 ---
 name: agent-relay-grok-bot
-description: Connect Grok Bot to Agent Relay, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents.
+description: Connect Grok Bot to hosted Agent Relay Cloud, set up webhook or scheduled inbox wake-ups with consent, handle messages from coding agents, and delegate repo work to Agent Relay agents instead of Cursor cloud agents. For customer-owned servers use agent-relay-grok-bot-selfhosted.
 ---
 
 # Agent Relay in Grok Bot
+
+This skill uses hosted Agent Relay Cloud. For a customer's self-hosted server,
+use [agent-relay-grok-bot-selfhosted](https://github.com/AgentWorkforce/skills/blob/main/skills/agent-relay-grok-bot-selfhosted/SKILL.md):
+its MCP endpoint, inbox tools and wake-up setup differ. Keep their server origin;
+do not redirect them to Cloud or assume self-hosting rules out webhook wake-ups.
+Install the separate skill with
+`npx prpm install @agent-relay/agent-relay-grok-bot-selfhosted` if it is not
+already available. The standalone hosted package contains only this guide.
 
 Use the Agent Relay MCP connection for this person's workspace. Grok Bot can
 wake through a webhook routine or check its inbox with a scheduled routine;
