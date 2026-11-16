@@ -1,9 +1,16 @@
 ---
 name: setting-up-agent-relay-sessions
-description: Use when setting up session handoff for Codex or Claude, asked to finish the onboarding we send new teammates, or configuring tools-only token-mode access for Muse. Verify Desktop, add the hosted MCP (OAuth for interactive handoff and owner/admin Capy launches on either endpoint; Sessions token for headless machines or Relay Connect), confirm tools, offer teammate invites, and prove a round trip.
+description: Use when setting up desktop session handoff for Codex or Claude, asked to finish desktop onboarding for new teammates, or configuring tools-only token-mode access for Muse. Hosted Replicas onboarding uses join-agent-relay. Verify Desktop, add the hosted MCP (OAuth for interactive handoff and owner/admin Capy launches on either endpoint; Sessions token for headless machines or Relay Connect), confirm tools, offer teammate invites, and prove a round trip.
 ---
 
 # Set Up Agent Relay Session Handoff
+
+**Replicas workspace, mothership, or ship:** use
+[`join-agent-relay`](../join-agent-relay/SKILL.md) instead. Its scoped hosted MCP
+needs no Desktop prerequisite or Sessions token. Route there before applying
+this skill's dependency checks or installing anything; an unbound replica needs
+an authorized person's binding step, not a workspace key in its environment.
+If the skill is not installed, read its [canonical source](https://github.com/AgentWorkforce/skills/blob/main/skills/join-agent-relay/SKILL.md); do not apply Desktop setup to the replica.
 
 Drive the whole onboarding from this agent's own shell and MCP tools. Do **not**
 hand the person the six-step Markdown guide and ask them to click through the

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Join Agent Relay from Replicas"
+  short_description: "Join Replicas motherships and ships with scoped MCP"
