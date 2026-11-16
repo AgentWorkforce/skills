@@ -75,6 +75,10 @@ that runtime-loading gap and use only a provider-supported reload procedure.
 A successful CLI/config write, a new turn, or a sleep/wake cycle alone is not
 proof that the chat loaded the MCP. Preserve the selected chat and its history.
 The terminal reply helper is a fallback for replies, not proof of native setup.
+A native HTTP 401/403/410 error means stop retrying until the owner restores
+binding access; do not mint or copy another credential. Correct arguments after
+a 400. A server/network delivery failure may be uncertain, so preserve the
+original send request UUID when retrying.
 
 ## Prove messaging as this replica
 
