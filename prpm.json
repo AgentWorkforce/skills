@@ -235,8 +235,8 @@
     },
     {
       "name": "setting-up-agent-relay-sessions",
-      "version": "0.5.1",
-      "description": "Use when setting up session handoff for Codex or Claude, asked to finish the onboarding we send new teammates, or configuring tools-only token-mode access for Muse. Verify Desktop, add the hosted MCP (OAuth for interactive handoff and owner/admin Capy launches on either endpoint; Sessions token for headless machines or Relay Connect), confirm tools, offer teammate invites, and prove a round trip.",
+      "version": "0.5.2",
+      "description": "Use when setting up desktop session handoff for Codex or Claude, asked to finish the onboarding we send new teammates, or configuring tools-only token-mode access for Muse. Verify Desktop, add the hosted MCP (OAuth for interactive handoff and owner/admin Capy launches on either endpoint; Sessions token for headless machines or Relay Connect), confirm tools, offer teammate invites, and prove a round trip. Hosted Replicas onboarding uses join-agent-relay.",
       "format": "claude",
       "subtype": "skill",
       "tags": [
@@ -249,6 +249,24 @@
       ],
       "files": [
         "skills/setting-up-agent-relay-sessions/SKILL.md"
+      ]
+    },
+    {
+      "name": "join-agent-relay",
+      "version": "0.1.0",
+      "description": "Connect an existing Replicas workspace, UI mothership, or ship to Agent Relay through scoped native MCP, without Desktop or workspace keys, and verify messaging.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": [
+        "agent-relay",
+        "replicas",
+        "mothership",
+        "agent-setup",
+        "mcp"
+      ],
+      "files": [
+        "skills/join-agent-relay/SKILL.md",
+        "skills/join-agent-relay/agents/openai.yaml"
       ]
     },
     {
@@ -959,7 +977,7 @@
       "id": "agent-relay-setup",
       "name": "Agent Relay Setup",
       "description": "Set up Agent Relay Desktop, live session handoff between teammates (including inviting them), subscriptions plus write-backs, and agent-to-agent messaging, installed together because the skills build on each other",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "category": "development",
       "tags": [
         "agent-relay",
@@ -1011,6 +1029,12 @@
           "version": "latest",
           "required": false,
           "reason": "On the computer where the OpenClaw gateway runs, add the hosted Agent Relay MCP so OpenClaw can message agents already on the relay. Receiving a DM still needs Desktop there"
+        },
+        {
+          "packageId": "@agent-relay/join-agent-relay",
+          "version": "latest",
+          "required": false,
+          "reason": "Scoped hosted Replicas onboarding for workspaces, motherships and ships; independent of Desktop setup"
         }
       ]
     }
