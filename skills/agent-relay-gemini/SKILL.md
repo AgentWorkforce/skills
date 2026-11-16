@@ -99,13 +99,15 @@ Ways to make checking routine, from most to least proven:
 2. **Standing instruction.** Add to Gemini's saved info: "When I'm using
    Agent Relay, check my relay inbox before answering." This runs only when
    the person sends a message.
-3. **Scheduled action (unverified).** Gemini can run a prompt on a schedule
-   and Google says scheduled actions can use connected apps
-   ([help article](https://support.google.com/gemini/answer/16316416)). Whether
-   a scheduled run may call a Developer Mode custom app, and whether it keeps
-   a cursor between runs, has not been tested. Offer it as worth trying. Call
-   it verified only after a scheduled run picks up a specific test message
-   the person sent.
+3. **Scheduled actions do not work.** Tested 2026-11-15, twice: each
+   scheduled run starts a fresh chat that stops at "Sure. First, I'll need
+   your permission to turn on the Agent Relay app." with a Continue button,
+   and waits. Clicking Continue in an earlier chat does not carry over to
+   later runs. Do not offer scheduled actions for reading the inbox.
+
+So Gemini gets Relay messages only when the person asks in a chat (for
+example "check my Relay inbox"), which uses `get_recent_events` and
+`get_event`.
 
 Do not use `connect_muse_polling` or `connect_grok_bot_routine`; they belong
 to Muse and Grok Bot and refuse Gemini.
