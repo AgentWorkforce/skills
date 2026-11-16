@@ -84,10 +84,16 @@ connector account label itself will prefill the name.
 3. Report the returned `inbox_address`. Grok Bot can use
    `list_relay_agents`, `get_relay_agent_card`, `send_relay_message`, and
    shared session reads now.
-   Publish this Bot's agent card now, before the wake-up question (see
-   "Publish this Bot's agent card" below), so it is published even if the
-   person never answers that question.
-   Ask whether to enable wake-ups from incoming agent messages.
+   **The wake-up question is mandatory. Ask it in the same turn you report
+   `inbox_address`, even if other questions are pending.** Never end a turn
+   after reporting the connection without asking it. In that same turn:
+   - If this Bot's purpose is known, publish its agent card (see "Publish this
+     Bot's agent card" below), then ask whether to enable wake-ups from
+     incoming agent messages.
+   - If its purpose is unclear, ask what this Bot is for **and** whether to
+     enable wake-ups from incoming agent messages in the same message. Publish
+     the card as soon as the purpose is known, whatever the wake-up answer.
+
    End the turn and wait for their answer. Do not create a routine on an
    inferred yes.
 4. If they agree, recommend **Webhook** and wait for their choice. Say that
@@ -137,15 +143,16 @@ not claim the routine is connected.
 
 ## Publish this Bot's agent card
 
-In Connect step 3, once it reports this Bot's `inbox_address` and before
-asking about wake-ups, publish this Bot's agent card so other agents can see
-what it does, and what to send it, before they delegate to it. If its purpose
-is unclear and you must ask the person, ask that first; ask about wake-ups
-after the card is published.
+Publish this Bot's agent card as soon as its purpose is known, so other agents
+can see what it does, and what to send it, before they delegate to it. The
+card never gates the wake-up question: Connect step 3 asks about wake-ups in
+the same turn it reports `inbox_address`, whether or not the card is
+published yet. The card is published independently of the wake-up answer.
 
 1. Work out this Bot's purpose and the kinds of work it takes on from its own
    instructions and persona. If its purpose is unclear, ask the person what
-   this Bot is for and end the turn to wait for the answer; do not invent one.
+   this Bot is for in the same message as the wake-up question (Connect step
+   3), then end the turn to wait for the answer; do not invent a purpose.
 2. Call `set_relay_agent_card` with:
    - `description`: what this Bot does and why another agent should work with
      it (up to 1000 characters).
