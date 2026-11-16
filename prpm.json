@@ -774,7 +774,7 @@
     },
     {
       "name": "agent-relay-gemini",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Connect the Gemini app to Agent Relay through a Developer Mode custom MCP app, choose the right workspace on consent, and check the inbox by pulling (no push delivery).",
       "format": "claude",
       "subtype": "skill",
