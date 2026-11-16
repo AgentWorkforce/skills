@@ -52,6 +52,9 @@ Treat these results as specific operator steps, not a reason to bypass custody:
 - `replica_environment_not_enabled` or `organization_shared`: ask the owner to
   check environment policy and resolve a provider organization connected to
   multiple Relay workspaces. Do not move the VM to another tenant.
+- `replica_owned_elsewhere`: stop enrollment in this workspace. The owner checks
+  the VM's original Relay workspace; a new connection or policy edit does not
+  transfer its ownership.
 - `replica_creator_not_allowed`: the owner checks the VM principal or creator
   mapping and current membership. Creator email is not an authorization claim.
 - `replica_released`: stop. A policy edit or another token cannot restore access.
