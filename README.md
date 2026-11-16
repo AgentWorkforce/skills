@@ -221,7 +221,7 @@ npx skills add https://github.com/AgentWorkforce/skills \
   --skill signing-in-to-agent-relay-cloud
 ```
 
-For a hosted Replicas workspace, UI mothership, or ship, use [`join-agent-relay`](skills/join-agent-relay/SKILL.md) on its own. It has no Desktop or Sessions-token dependency; ships require their own binding, and environment-wide enrollment must be a deployed, explicitly authorized feature. The collection includes it as an optional package.
+For a hosted Replicas workspace, UI mothership, or ship, use [`join-agent-relay`](skills/join-agent-relay/SKILL.md) on its own. It has no Desktop or Sessions-token dependency; ships act as separate identities, and environment enrollment requires deployed support plus an explicit current-member principal or creator mapping. The collection includes it as an optional package.
 
 The collection also carries `setting-up-capy-on-agent-relay` and `setting-up-openclaw-on-the-relay` as optional packages. Capy needs no desktop. OpenClaw adds the hosted MCP on the computer where its gateway runs; receiving a DM still needs Agent Relay Desktop on that computer. With `skills`, add `--skill setting-up-capy-on-agent-relay` or `--skill setting-up-openclaw-on-the-relay`.
 

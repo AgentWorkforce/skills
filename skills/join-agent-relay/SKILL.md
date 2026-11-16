@@ -31,7 +31,45 @@ another agent or choose a peer's identity to work around a mismatch.
 This MCP deliberately omits Cloud launch/admin and Sessions-history powers.
 Their absence does not mean Relay messaging setup failed.
 
-## Bind an existing chat when native tools are missing
+## Use deployed environment onboarding first
+
+When the operator confirms environment enrollment is deployed, use the Replicas
+connection in Settings. Connecting it registers the public HTTP MCP entry in
+accessible environments; the operator explicitly selects a current member
+responsible for unmapped and provider-created VMs, including ships. Existing
+connections may report that this principal must be selected. No Relay workspace
+key or person's OAuth credential belongs in Replicas environment variables.
+
+The environment must be enabled for the intended Relay workspace. Each
+mothership/ship enrolls independently on its first authenticated MCP call using
+Replicas' short-lived `workspace_identity`. A ship in another environment needs
+that environment enabled too. Never copy the parent's private MCP files or
+binding capability. An existing API launch/bind may reuse its exact current
+owner and identity without changing its task state.
+
+Treat these results as specific operator steps, not a reason to bypass custody:
+
+- `replica_environment_not_enabled` or `organization_shared`: ask the owner to
+  check environment policy and resolve a provider organization connected to
+  multiple Relay workspaces. Do not move the VM to another tenant.
+- `replica_creator_not_allowed`: the owner checks the VM principal or creator
+  mapping and current membership. Creator email is not an authorization claim.
+- `replica_released`: stop. A policy edit or another token cannot restore access.
+  Only when restoration was requested does the owning administrator use
+  `recover_replica_spawn` with the original `spawn_id`, `replica_id` and
+  `revive:true`; cleanup must finish first. The VM's next signed call enrolls it
+  in the same tenant. The scoped three-tool MCP cannot restore itself.
+- `replica_identity_unavailable`: retry later; an issuer outage is not permission
+  to replace identity authentication with a shared bearer.
+
+A provider entry or Settings' configured state proves setup, not chat-native
+loading. Check this exact chat's tool catalog again using a provider-supported
+reload if needed, preserving its history. Environment-only bindings poll their
+inbox; they do not promise automatic chat wake-up. Keep the same send UUID after
+an uncertain delivery. If deployment support is unconfirmed or tools remain
+missing, report that gap before considering the explicit binding path below.
+
+## Bind an existing chat when that is the supported onboarding path
 
 Confirm the intended Relay workspace and this Replicas **replica UUID and chat
 UUID** from the person's context or Replicas' supported tools. Do not guess a
@@ -101,33 +139,25 @@ not grant session-transcript reading; do not require that unrelated permission.
 
 ## Motherships, ships, and environment onboarding
 
-A UI mothership follows the existing-chat bind path above. Each ship is a
-separate sandbox built from its selected environment; it does **not** inherit
-the mothership's privately installed MCP files or Relay capability. Bind each
-intended ship separately. Never put the parent's capability in a ship task or
-copy its credentials file. A distinct ship must act as its own bound identity.
-
-Environment-wide auto-enrollment is a separate service feature. Replicas
-supports an environment HTTP MCP with `workspace_identity` authentication, which
-supplies a short-lived identity token for each VM instead of a shared bearer.
-It can cover motherships and ships in that registered environment; ships started
-in another environment require that environment's own authorized policy.
-Relay still needs a deployed narrow endpoint, an explicit administrator
-org/environment/creator policy, per-VM bindings, and revocation that cannot be
-bypassed by obtaining another token. **This skill does not implement or enable
-that feature.** Verify deployed enrollment support before recommending it;
-saving an environment MCP entry alone does not join any VM to Relay.
+A UI mothership can use deployed environment enrollment or the supported
+existing-chat binding path. Each ship needs its own binding; privately installed
+MCP files are not inherited. Environment-wide enrollment is a service feature,
+not something this skill implements or enables. Verify that the operator's
+edition and deployment support it before recommending it. A source PR or trunk
+merge alone is not release proof.
 
 Do not bootstrap this hosted flow with `RELAY_WORKSPACE_KEY`, a workspace/admin
 bearer, or `npx -y agent-relay mcp` plus `register_agent`. That recipe exports
 broad authority and bypasses binding custody. If it is already configured,
 report the migration to the owner; do not copy its key into a new MCP or silently
 rotate/remove another connection. Release through the owning service revokes
-the replica's scoped capability and may sleep compute; do it only when requested.
+the binding. Environment enrollment also retains a durable release tombstone
+without sleeping compute it did not create; API binding may sleep compute.
+Release only when requested.
 
 For self-hosted Relay Control, use the operator's configured service and its
 supported binding tools. Do not substitute the hosted Cloud URL or assume a
-pending port is released. The same identity, verification, and credential
+merged implementation is in the operator's released image. The same identity, verification, and credential
 boundaries apply.
 
 References: [Cloud Replicas binding contract](https://github.com/AgentWorkforce/cloud/blob/main/docs/mcp/replicas-agents.md),
