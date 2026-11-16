@@ -207,6 +207,14 @@ For Codex, do **not** use `--as codex` for these skills: the conversion drops ex
     install -m 0644 "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
     cmp "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
   done
+  # The Replicas onboarding package is optional in the collection.
+  pkg=join-agent-relay
+  src="$HOME/.claude/skills/$pkg/SKILL.md"
+  if test -f "$src"; then
+    mkdir -p "$HOME/.codex/skills/$pkg"
+    install -m 0644 "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+    cmp "$src" "$HOME/.codex/skills/$pkg/SKILL.md"
+  fi
 ) && echo "mirrored to ~/.codex/skills"
 ```
 

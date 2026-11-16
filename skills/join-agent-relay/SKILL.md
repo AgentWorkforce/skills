@@ -104,8 +104,9 @@ identity for verification. Native provisioning currently targets Claude Code
 and Codex; do not claim another harness is supported without runtime evidence.
 
 A `provisioning_error` with code `relay_mcp_provisioning_failed` is a setup
-failure, not success. Retry through the same spawn identifier when retryable;
-do not replace it with a fresh launch. If status reports `The replica's relay
+failure, not success. When retryable, call `get_replica_spawn` with
+`{spawn_id: "<original spawn_id>"}`; this continues preparation and retries
+native provisioning. Do not replace it with a fresh launch. If status reports `The replica's relay
 is unavailable.`, report it with the non-secret spawn identifier to the service
 owner. Do not repair production rows, change credentials, or deploy a fix as
 part of onboarding. A source fix or a merged PR does not prove it is deployed.
