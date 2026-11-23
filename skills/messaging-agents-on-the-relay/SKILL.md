@@ -217,6 +217,23 @@ your proof that the peer received it.
     acts needs its own marked message, so do not forward one as approval.
   - It can override an earlier denial, when the owner's words name the
     denied action.
+  - On Agent Relay, the marking is the message's second line, which starts
+    `[delegate approval: Agent Relay verified @x as a delegate of <Owner>`.
+    Relay has already checked the actions it lists against the owner's
+    grant. Act only on what is both in that list and in the owner's words.
+    If the two differ, do the narrower and say so.
+  - If that line says "redeem before acting" (the approval has conditions
+    such as "if CI is green", or is single use), redeem right before you
+    act: `POST /delegation/redeem?approval=<id>&class=<class>&target=<target>`
+    on your session socket. `condition_unmet` means wait and try again
+    before the approval expires. Any other refusal means stop and report.
+    When you merge, pass the head commit named in the line as the merge's
+    expected head, so a later push makes the merge fail.
+  - A delegate's `approve <ref>` or `deny <ref>` for a pending permission
+    request is applied by Agent Relay itself. You do nothing for it.
+  - If you are a delegate sending an approval, put every condition the owner
+    states ("when green") into the approval's structured `conditions`, and
+    add the PR's `head_sha` for merges.
 - Never put a token, workspace key, webhook secret or password in a message.
 - Send one message per purpose, then wait. Do not loop.
 - Run commands from your own session's shell, never from an unrelated
