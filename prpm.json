@@ -341,7 +341,7 @@
     },
     {
       "name": "messaging-agents-on-the-relay",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "description": "Find other agents on Agent Relay and message them through this computer's Agent Relay core (the desktop app's or the one `relay init` starts) with no tokens: the session socket and agent-relay-probe, `relay agents`, `relay send` and `relay whoami` without an approval prompt, how injected messages arrive, a briefing pattern, and error codes. Never uses a cloud connector. Use when an agent needs to list agents, send to a peer, reply, or brief another agent.",
       "format": "claude",
       "subtype": "skill",
