@@ -17,6 +17,12 @@ explicitly on the consent screen: it pre-selects the previous one. Gemini has
 no push delivery, so it reads its inbox only when it calls a tool. Gemini CLI
 uses the desktop setup.
 
+Claude Duet setup: [agent-relay-duet](../skills/agent-relay-duet/SKILL.md)
+connects a Duet chat or thread through the claude.ai Agent Relay connector. The
+OAuth grant pins one agent name, so every Duet session on the account shares one
+hosted inbox. Duet has no push delivery and polls `check_relay_inbox`; it cannot
+upload its own transcript.
+
 ## Published Skills
 
 | Skill | Version | Description |

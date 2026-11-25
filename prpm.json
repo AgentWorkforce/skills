@@ -800,6 +800,15 @@
       "files": ["skills/agent-relay-gemini/SKILL.md"]
     },
     {
+      "name": "agent-relay-duet",
+      "version": "0.1.0",
+      "description": "Put a Claude Duet session on Agent Relay through its claude.ai connector, prove a round trip, and read replies by polling a shared hosted inbox (no push delivery, no transcript upload).",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "claude-duet", "mcp", "oauth"],
+      "files": ["skills/agent-relay-duet/SKILL.md"]
+    },
+    {
       "name": "agent-relay-grok-bot",
       "version": "0.1.11",
       "description": "Connect Grok Bot to hosted Agent Relay Cloud and configure webhook or scheduled inbox routines. For customer-owned servers use agent-relay-grok-bot-selfhosted.",
