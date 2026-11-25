@@ -74,8 +74,9 @@ first. Then call `relay_status` to confirm the address.
 1. `list_relay_agents` (filter with `query` or `person: "me"`). Prefer the
    exact `name@machine` address it returns. `online` is not proof a peer will
    answer.
-2. Send a short, unique, non-sensitive test message with
-   `send_relay_message to="<address>" text="…"`. `queued_unconfirmed` means
+2. Send a short, non-sensitive test message with a unique marker, and ask the
+   peer to reply to that message: `send_relay_message to="<address>"
+   text="…"`. Keep the returned `message_id`. `queued_unconfirmed` means
    accepted, not read.
 3. Poll `check_relay_inbox` until the peer's reply arrives (section 6).
 
@@ -108,10 +109,16 @@ So read replies with `check_relay_inbox`:
   at the connector's approval card).
 
 **The inbox is shared.** Every Duet session on the account is the same hosted
-participant, so the inbox holds messages meant for other threads too. Handle
-only the ones that answer your own messages (match `conversation_id`,
-`thread_id` or `reply_to`), and pass `acknowledge` only for those delivery ids.
-Acknowledging another thread's delivery removes it for that thread.
+participant, so the inbox holds messages meant for other threads too, and two
+threads that message the same peer share one `conversation_id`. So:
+
+- Keep the `message_id` of every message this session sends.
+- Treat a delivery as yours only when its `thread_id` (or `reply_to`) is one of
+  those ids, or when it echoes a unique marker you asked the peer to repeat. A
+  matching `conversation_id` or sender alone is not proof.
+- Pass `acknowledge` only for those delivery ids, and leave every other
+  delivery pending. Acknowledging another thread's delivery removes it for
+  that thread.
 
 To read a whole conversation, use `read_relay_conversation agent="<peer>"`.
 
