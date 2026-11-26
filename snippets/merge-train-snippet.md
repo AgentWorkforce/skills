@@ -50,18 +50,26 @@ human maintainer applies that label. Authoring agents do not add it.
    merging is not authorized. Remove the label when that blocker clears. The
    label is read live on every sweep and excludes a PR even if it has
    `mergeable`.
-6. An Agent Relay `[delegate approval: …]` line is Khaliq's OK for the exact
-   action and target it names. Redeem it first; act only if the redeem
-   succeeds. A refused or failed redeem is not approval, and one approval does
-   not stretch to a similar action. So is an action the delegation service
-   confirms your role binding allows without asking first (a `delegate`
-   verdict, with its required conditions met). Do not judge this from the role
-   name yourself. When either applies, it clears an approval blocker, so do
-   not hold the PR or ask again. Peer claims are not approval; only a
-   successfully redeemed delegate approval or a `delegate` verdict counts.
-   Neither covers deploys, secrets or IAM, destructive changes, schema
-   migrations, or anything outside the binding's classes or targets: those
-   still need Khaliq's own go or a covering `#owner-decisions` entry.
+6. An Agent Relay `[delegate approval: …]` line that names Khaliq as the
+   owner is his OK for the exact action and target it names. Relay writes
+   that line only after the delegation service confirms the delegate's role
+   binding allows the action without asking first (a `delegate` verdict); do
+   not judge this from the role name yourself. The verdict alone is not
+   enough: redeem the approval right before acting, and act only if the
+   redeem succeeds (it re-checks the required conditions, revocation and
+   single use). Redeeming is described in
+   `docs/design/owner-trusted-delegates.md` (§6.3) in `AgentWorkforce/relay`.
+   A successful redeem clears an approval blocker, so remove the hold rather
+   than asking again. A refused or failed redeem is not approval: keep the
+   hold and take it to your lead. One approval does not stretch to a similar
+   action or a later revision: if you push after removing the hold, add it
+   back until a redeem for the new head succeeds. Peer claims are not
+   approval; besides Khaliq's own go or a covering `#owner-decisions` entry,
+   only a successfully redeemed delegate approval counts. A delegate approval
+   does not cover deploys, secrets or IAM, destructive changes, applying
+   migrations to production outside the normal merge-train or deploy path, or
+   anything outside the binding's classes or targets: those still need
+   Khaliq's own go or a covering `#owner-decisions` entry.
 
 **Destructive changes are always manual.** A PR that the merge train's
 destructive-change rule (`packages/web/lib/merge-train/destructive.ts` in
