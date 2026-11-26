@@ -73,18 +73,20 @@ human maintainer applies that label. Authoring agents do not add it.
    redeem applies this (item 7).
 7. Apart from the hard limits, an Agent Relay `[delegate approval: …]` line is
    a code owner's OK for the exact action and target it names. The redeem is
-   authoritative for standing: Cloud checks the approving owner's verified
-   GitHub login against `.github/CODEOWNERS` on the PR's base branch (`trunk`),
-   never the head. Do not try to match names or expand teams yourself. Before
-   redeeming (a redeem is single-use), make one coarse check: if the line does
-   not name an owner with code-owner standing (`(code owner)` or equivalent),
-   do not redeem; ask. Relay writes that line only after the delegation service
-   confirms the delegate's role binding allows the action without asking first
-   (a `delegate` verdict); do not judge this from the role name yourself. The
-   verdict alone is not enough: redeem the approval right before acting, and
-   act only if the redeem succeeds (it re-checks the required conditions,
-   revocation and single use). Only the redeem response counts, not the line's
-   text. Redeeming is described in [`docs/design/owner-trusted-delegates.md`
+   authoritative for code-owner standing on a `(code owner)` line: Cloud checks
+   the approving owner's verified GitHub login against `.github/CODEOWNERS` on
+   the PR's base branch (`trunk`), never the head. Do not try to match names or
+   expand teams yourself. Only a line that names the owner as `(code owner)` is
+   a code owner's OK. Cloud checks that standing at redeem. A line without it
+   (the recipient's own owner, standing own_owner) is not, even if its redeem
+   succeeds: do not redeem it for an action that needs a code owner; ask. Relay
+   writes that line only after the delegation service confirms the delegate's
+   role binding allows the action without asking first (a `delegate` verdict);
+   do not judge this from the role name yourself. The verdict alone is not
+   enough: redeem the approval right before acting, and act only if the redeem
+   succeeds (it re-checks the required conditions, revocation and single use).
+   Only the redeem response counts, not the line's text. Redeeming is described
+   in [`docs/design/owner-trusted-delegates.md`
    §6.3](https://github.com/AgentWorkforce/relay/blob/c25c042c5e0a7d58daaeb5a4d3182899bf0445e0/docs/design/owner-trusted-delegates.md#63-delivering-recipient-node)
    in `AgentWorkforce/relay`. The redeem is also the scope check: do not reason
    about the binding's classes or targets yourself.
