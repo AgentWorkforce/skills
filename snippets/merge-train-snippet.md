@@ -52,10 +52,11 @@ human maintainer applies that label. Authoring agents do not add it.
    `mergeable`.
 6. Hard limits come first. No delegate approval or redeem can grant these,
    so do not attempt a redeem for them: deploys or promotions (promoting or
-   deploying the train a merge lands in is one), secrets or IAM, destructive
-   changes (including merging a PR with a contract-step migration), changing
-   `.github/CODEOWNERS`, and applying migrations to production outside the
-   normal merge-train or deploy path. Only a code owner's own direct go, or a
+   deploying the train a merge lands in is one), releases or publishes
+   (publishing a package that includes a merge is one), secrets or IAM,
+   destructive changes (including merging a PR with a contract-step
+   migration), changing `.github/CODEOWNERS`, and applying migrations to
+   production outside the normal merge-train or deploy path. Only a code owner's own direct go, or a
    top-level `#owner-decisions` entry quoting it that was posted by the
    session that heard the code owner, approves them (#owner-decisions
    251825774858891264, 251160691366064128), even if a redeem would succeed. An
