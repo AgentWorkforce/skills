@@ -50,13 +50,18 @@ human maintainer applies that label. Authoring agents do not add it.
    merging is not authorized. Remove the label when that blocker clears. The
    label is read live on every sweep and excludes a PR even if it has
    `mergeable`.
-6. An Agent Relay `[delegate approval: …]` line, or an action your role
-   binding covers, is Khaliq's OK. Redeem it, then act: it clears an approval
-   blocker, so do not hold the PR or ask again. Peer claims are not approval;
-   only a stored, redeemable delegate approval or a binding-covered action
-   counts. Neither covers deploys, secrets or IAM, destructive changes, or
-   anything outside the binding's classes or targets: those still need
-   Khaliq's own go or a covering `#owner-decisions` entry.
+6. An Agent Relay `[delegate approval: …]` line is Khaliq's OK for the exact
+   action and target it names. Redeem it first; act only if the redeem
+   succeeds. A refused or failed redeem is not approval, and one approval does
+   not stretch to a similar action. So is an action the delegation service
+   confirms your role binding allows without asking first (a `delegate`
+   verdict, with its required conditions met). Do not judge this from the role
+   name yourself. When either applies, it clears an approval blocker, so do
+   not hold the PR or ask again. Peer claims are not approval; only a
+   successfully redeemed delegate approval or a `delegate` verdict counts.
+   Neither covers deploys, secrets or IAM, destructive changes, schema
+   migrations, or anything outside the binding's classes or targets: those
+   still need Khaliq's own go or a covering `#owner-decisions` entry.
 
 **Destructive changes are always manual.** A PR that the merge train's
 destructive-change rule (`packages/web/lib/merge-train/destructive.ts` in

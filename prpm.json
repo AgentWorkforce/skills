@@ -863,7 +863,7 @@
     {
       "name": "merge-train-snippet",
       "version": "1.2.0",
-      "description": "AGENTS.md snippet: feature PRs target trunk and are verified locally; once the merge train's autoEntry flag is on, ready non-draft PRs enter by themselves, `merge-train:hold` keeps one out, and destructive PRs are always merged by hand. Authoring agents no longer add the `mergeable` label. A redeemed Agent Relay delegate approval or a binding-covered action is Khaliq's OK, except for deploys, secrets or IAM, destructive changes and anything outside the binding.",
+      "description": "AGENTS.md snippet: feature PRs target trunk and are verified locally; once the merge train's autoEntry flag is on, ready non-draft PRs enter by themselves, `merge-train:hold` keeps one out, and destructive PRs are always merged by hand. Authoring agents no longer add the `mergeable` label. A successfully redeemed Agent Relay delegate approval (for the exact action and target) or a `delegate` verdict from the delegation service is Khaliq's OK, except for deploys, secrets or IAM, destructive changes, schema migrations and anything outside the binding.",
       "format": "generic",
       "subtype": "snippet",
       "snippet": {
