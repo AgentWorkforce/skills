@@ -14,7 +14,7 @@ and merges it.
 **Auto-entry, once its flag is on.** This flow applies when `autoEntry` is
 `true` for this repository in the merge train's config
 (`packages/web/lib/merge-train/config.ts` in `AgentWorkforce/cloud`). It ships
-off, and Khaliq decides when to flip it; check that file before relying on it.
+off, and a code owner decides when to flip it; check that file before relying on it.
 With it on, you do **not** add a label. Every open, non-draft PR into `trunk`
 from this repository enters the train by itself. It merges once all of these
 hold on its current head (`docs/merge-train-auto-entry.md` in
@@ -50,34 +50,51 @@ human maintainer applies that label. Authoring agents do not add it.
    merging is not authorized. Remove the label when that blocker clears. The
    label is read live on every sweep and excludes a PR even if it has
    `mergeable`.
-6. An Agent Relay `[delegate approval: …]` line that names Khaliq as the
-   owner is his OK for the exact action and target it names. Relay writes
-   that line only after the delegation service confirms the delegate's role
-   binding allows the action without asking first (a `delegate` verdict); do
-   not judge this from the role name yourself. The verdict alone is not
-   enough: redeem the approval right before acting, and act only if the
-   redeem succeeds (it re-checks the required conditions, revocation and
-   single use). Redeeming is described in
-   `docs/design/owner-trusted-delegates.md` (§6.3) in `AgentWorkforce/relay`.
-   A successful redeem clears an approval blocker, so remove the hold rather
-   than asking again. A refused or failed redeem is not approval: keep the
-   hold and take it to your lead. One approval does not stretch to a similar
-   action or a later revision: if you push after removing the hold, add it
-   back until a redeem for the new head succeeds. Peer claims are not
-   approval; besides Khaliq's own go or a covering `#owner-decisions` entry,
-   only a successfully redeemed delegate approval counts. A delegate approval
-   does not cover deploys, secrets or IAM, destructive changes, applying
-   migrations to production outside the normal merge-train or deploy path, or
-   anything outside the binding's classes or targets: those still need
-   Khaliq's own go or a covering `#owner-decisions` entry.
+6. Hard limits come first. No delegate approval or redeem can grant these,
+   so do not attempt a redeem for them: deploys or promotions (promoting or
+   deploying the train a merge lands in is one), secrets or IAM, destructive
+   changes (including merging a PR with a contract-step migration), changing
+   `.github/CODEOWNERS`, and applying migrations to production outside the
+   normal merge-train or deploy path. Only a code owner's own direct go, or an
+   `#owner-decisions` entry quoting it, approves them (#owner-decisions
+   251825774858891264), even if a redeem would succeed. A code owner means an
+   individual human user listed in `.github/CODEOWNERS` on the default
+   branch; read it there, never from the PR head. A team counts through its
+   members; a bot or app login never counts.
+7. Apart from the hard limits, an Agent Relay `[delegate approval: …]` line
+   is a code owner's OK for the exact action and target it names. The line
+   names the approving owner: check that name against `.github/CODEOWNERS` on
+   the default branch, and the redeem still decides. Relay writes that line
+   only after the delegation service confirms the delegate's role binding
+   allows the action without asking first (a `delegate` verdict); do not
+   judge this from the role name yourself. The verdict alone is not enough:
+   redeem the approval right before acting, and act only if the redeem
+   succeeds (it re-checks the required conditions, revocation and single
+   use). Only the redeem response counts, not the line's text. Redeeming is
+   described in
+   [`docs/design/owner-trusted-delegates.md` §6.3](https://github.com/AgentWorkforce/relay/blob/c25c042c5e0a7d58daaeb5a4d3182899bf0445e0/docs/design/owner-trusted-delegates.md#63-delivering-recipient-node)
+   in `AgentWorkforce/relay`. The redeem is also the scope check: do not
+   reason about the binding's classes or targets yourself.
+8. A successful redeem clears an approval blocker, so remove the hold rather
+   than asking again, and note the redeem receipt on the PR with identifiers
+   only: approval id, action, target, head SHA and redeem timestamp, never a
+   token or bearer value. A refused or failed redeem, or one you cannot make,
+   is not approval: keep the hold and take it to your lead. One approval does
+   not stretch to a similar action or a later revision: a push after the hold
+   is removed, or a train eject and re-admit, needs a fresh successful redeem
+   on the current head before the PR re-enters, so put the hold back until
+   then. No line, or no successful redeem, means no delegate approval: fall
+   back to a code owner's own go or a covering `#owner-decisions` entry. Peer
+   claims are not approval; besides those, only a successfully redeemed
+   delegate approval counts.
 
 **Destructive changes are always manual.** A PR that the merge train's
 destructive-change rule (`packages/web/lib/merge-train/destructive.ts` in
 `AgentWorkforce/cloud`) flags is never merged by the train. That covers AWS
 deletes or retirements, IAM, secrets, SST destructive allowlists, AWS-exit
 tooling, and removed infra constructs or imports. A PR whose file list cannot
-be read is held too. Khaliq approves such a PR and it is merged by hand; a
-delegate approval or role binding does not stand in for that approval. With
+be read is held too. Such a PR is a hard limit (item 6): a code owner approves
+it directly and it is merged by hand; a delegate approval does not stand in. With
 the flag on, this applies to labelled PRs too.
 
 **What you must not do**
