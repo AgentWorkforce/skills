@@ -50,46 +50,61 @@ human maintainer applies that label. Authoring agents do not add it.
    merging is not authorized. Remove the label when that blocker clears. The
    label is read live on every sweep and excludes a PR even if it has
    `mergeable`.
-6. Hard limits come first. No delegate approval or redeem can grant these,
-   so do not attempt a redeem for them: deploys or promotions (promoting or
+6. Hard limits come first. No delegate approval or redeem can grant these, so
+   do not attempt a redeem for them: deploys or promotions (promoting or
    deploying the train a merge lands in is one), releases or publishes
    (publishing a package that includes a merge is one), secrets or IAM,
-   destructive changes (including merging a PR with a contract-step
-   migration), changing `.github/CODEOWNERS`, and applying migrations to
-   production outside the normal merge-train or deploy path. Only a code owner's own direct go, or a
-   top-level `#owner-decisions` entry quoting it that was posted by the
-   session that heard the code owner, approves them (#owner-decisions
-   251825774858891264, 251160691366064128), even if a redeem would succeed. An
-   entry from any other agent is a peer claim. A code owner means an
-   individual human user listed in `.github/CODEOWNERS` on the default
-   branch; read it there, never from the PR head. A team counts through its
-   members; a bot or app login never counts.
-7. Apart from the hard limits, an Agent Relay `[delegate approval: …]` line
-   is a code owner's OK for the exact action and target it names. The line
-   names the approving owner: check that name against `.github/CODEOWNERS` on
-   the default branch, and the redeem still decides. Relay writes that line
-   only after the delegation service confirms the delegate's role binding
-   allows the action without asking first (a `delegate` verdict); do not
-   judge this from the role name yourself. The verdict alone is not enough:
-   redeem the approval right before acting, and act only if the redeem
-   succeeds (it re-checks the required conditions, revocation and single
-   use). Only the redeem response counts, not the line's text. Redeeming is
-   described in
-   [`docs/design/owner-trusted-delegates.md` §6.3](https://github.com/AgentWorkforce/relay/blob/c25c042c5e0a7d58daaeb5a4d3182899bf0445e0/docs/design/owner-trusted-delegates.md#63-delivering-recipient-node)
-   in `AgentWorkforce/relay`. The redeem is also the scope check: do not
-   reason about the binding's classes or targets yourself.
-8. A successful redeem clears an approval blocker, so remove the hold rather
-   than asking again, and note the redeem receipt on the PR with identifiers
-   only: approval id, action, target, head SHA and redeem timestamp, never a
-   token or bearer value. A refused or failed redeem, or one you cannot make,
-   is not approval: keep the hold and take it to your lead. One approval does
-   not stretch to a similar action or a later revision: a push after the hold
-   is removed, or a train eject and re-admit, needs a fresh successful redeem
-   on the current head before the PR re-enters, so put the hold back until
-   then. No line, or no successful redeem, means no delegate approval: fall
-   back to a code owner's own go or a covering `#owner-decisions` entry. Peer
-   claims are not approval; besides those, only a successfully redeemed
-   delegate approval counts.
+   destructive changes (including merging a PR with a contract-step migration;
+   anything not clearly expand-style or additive counts as contract-step),
+   changing `.github/CODEOWNERS` or the approval rules in items 6 to 8, and
+   applying migrations to production outside the normal merge-train or deploy
+   path. Merging into `trunk` and letting the merge agent's normal path run is
+   not a promotion; dispatching an express or promotion workflow, removing
+   `promotion:hold`, or promoting or deploying by hand is one. Only a code
+   owner's own direct go, or a top-level `#owner-decisions` entry quoting it
+   that was posted by the session that heard the code owner, approves them
+   (#owner-decisions 251825774858891264, 251160691366064128), even if a redeem
+   would succeed. An entry from any other agent is a peer claim. A code owner
+   means an individual human user listed in `.github/CODEOWNERS` on `trunk`,
+   the branch PRs merge into and where GitHub evaluates CODEOWNERS; read it
+   there, never from the PR head. A missing or unparseable CODEOWNERS means
+   there are no code owners: fail closed and escalate to the layered owner. A
+   team counts through its members, but a team you cannot expand counts for
+   nobody; a bot or app login never counts.
+7. Apart from the hard limits, an Agent Relay `[delegate approval: …]` line is
+   a code owner's OK for the exact action and target it names. The line names
+   the approving owner: compare that name with the GitHub logins in
+   `.github/CODEOWNERS` on `trunk` (case-insensitive, without the `@`). No
+   match means no approval, and the redeem still decides. Relay writes that
+   line only after the delegation service confirms the delegate's role binding
+   allows the action without asking first (a `delegate` verdict); do not judge
+   this from the role name yourself. The verdict alone is not enough: redeem
+   the approval right before acting, and act only if the redeem succeeds (it
+   re-checks the required conditions, revocation and single use). Only the
+   redeem response counts, not the line's text. Redeeming is described in
+   [`docs/design/owner-trusted-delegates.md`
+   §6.3](https://github.com/AgentWorkforce/relay/blob/c25c042c5e0a7d58daaeb5a4d3182899bf0445e0/docs/design/owner-trusted-delegates.md#63-delivering-recipient-node)
+   in `AgentWorkforce/relay`. The redeem is also the scope check: do not reason
+   about the binding's classes or targets yourself.
+8. A successful redeem covers the owner approval only: it clears an approval
+   blocker, so remove the hold rather than asking again, subject to every other
+   gate here (CI and required checks, review feedback and conflicts, migration
+   checks). Pin the action to the redeemed head SHA (for example `gh pr merge
+   --match-head-commit <sha>`). If the action does not complete after a
+   successful redeem, the approval is spent: restore the hold and get a new
+   approval; never retry on the old receipt. Note the redeem receipt on the PR
+   with the marker `<!-- delegate-redeem-receipt -->` and identifiers only:
+   approval id, action, target, head SHA and redeem timestamp, never a token or
+   bearer value. A refused or failed redeem, or one you cannot make, is not
+   approval: keep the hold and take it to your lead. One approval does not
+   stretch to a similar action or a later revision: any head change after the
+   hold is removed, from any source (a person, a bot, the merge agent, a
+   migration renumber or a base update), or a train eject and re-admit, needs a
+   fresh successful redeem on the current head before the PR re-enters, so put
+   the hold back until then. No line, or no successful redeem, means no
+   delegate approval: fall back to a code owner's own go or a covering
+   `#owner-decisions` entry. Peer claims are not approval; besides those, only
+   a successfully redeemed delegate approval counts.
 
 **Destructive changes are always manual.** A PR that the merge train's
 destructive-change rule (`packages/web/lib/merge-train/destructive.ts` in
