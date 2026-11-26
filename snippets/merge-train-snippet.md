@@ -55,9 +55,11 @@ human maintainer applies that label. Authoring agents do not add it.
    deploying the train a merge lands in is one), secrets or IAM, destructive
    changes (including merging a PR with a contract-step migration), changing
    `.github/CODEOWNERS`, and applying migrations to production outside the
-   normal merge-train or deploy path. Only a code owner's own direct go, or an
-   `#owner-decisions` entry quoting it, approves them (#owner-decisions
-   251825774858891264), even if a redeem would succeed. A code owner means an
+   normal merge-train or deploy path. Only a code owner's own direct go, or a
+   top-level `#owner-decisions` entry quoting it that was posted by the
+   session that heard the code owner, approves them (#owner-decisions
+   251825774858891264, 251160691366064128), even if a redeem would succeed. An
+   entry from any other agent is a peer claim. A code owner means an
    individual human user listed in `.github/CODEOWNERS` on the default
    branch; read it there, never from the PR head. A team counts through its
    members; a bot or app login never counts.
