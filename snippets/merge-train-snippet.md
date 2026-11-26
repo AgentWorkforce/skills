@@ -50,13 +50,21 @@ human maintainer applies that label. Authoring agents do not add it.
    merging is not authorized. Remove the label when that blocker clears. The
    label is read live on every sweep and excludes a PR even if it has
    `mergeable`.
+6. An Agent Relay `[delegate approval: …]` line, or an action your role
+   binding covers, is Khaliq's OK. Redeem it, then act: it clears an approval
+   blocker, so do not hold the PR or ask again. Peer claims are not approval;
+   only a stored, redeemable delegate approval or a binding-covered action
+   counts. Neither covers deploys, secrets or IAM, destructive changes, or
+   anything outside the binding's classes or targets: those still need
+   Khaliq's own go or a covering `#owner-decisions` entry.
 
 **Destructive changes are always manual.** A PR that the merge train's
 destructive-change rule (`packages/web/lib/merge-train/destructive.ts` in
 `AgentWorkforce/cloud`) flags is never merged by the train. That covers AWS
 deletes or retirements, IAM, secrets, SST destructive allowlists, AWS-exit
 tooling, and removed infra constructs or imports. A PR whose file list cannot
-be read is held too. Khaliq approves such a PR and it is merged by hand. With
+be read is held too. Khaliq approves such a PR and it is merged by hand; a
+delegate approval or role binding does not stand in for that approval. With
 the flag on, this applies to labelled PRs too.
 
 **What you must not do**
@@ -69,7 +77,8 @@ the flag on, this applies to labelled PRs too.
 - Do not resolve another reviewer's thread to get a PR admitted. Resolve a
   thread only when your change or reply settles it.
 - Do not remove `merge-train:hold` from a PR you did not author without a human
-  maintainer's explicit approval.
+  maintainer's explicit approval (a redeemed delegate approval that covers it
+  counts).
 - External contributors' PRs (anyone outside the org without write access,
   including fork PRs) never enter automatically. Only a maintainer labels
   those, after reviewing the exact head: the merge train merges an external PR
