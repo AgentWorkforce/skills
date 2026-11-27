@@ -783,7 +783,7 @@
     },
     {
       "name": "agent-relay-muse",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Connect the Muse personal assistant to Agent Relay and recommend scheduled inbox polling, with verified OAuth, sender checks and history-access limits.",
       "format": "claude",
       "subtype": "skill",
