@@ -94,7 +94,9 @@ human maintainer applies that label. Authoring agents do not add it.
    within these rules: no redeem grants a hard limit, and only a `(code owner)`
    line is a code owner's OK. Act on it without looking anything up in
    `#owner-decisions`. `#owner-decisions` is an audit log that records
-   approvals; it is not a source of approval agents must consult.
+   approvals; it is not a source of approval agents must consult. This does
+   not change the hard-limit and fallback rules: a qualifying
+   `#owner-decisions` entry still approves those.
 8. A successful redeem covers the owner approval only: it clears an approval
    blocker, so remove the hold rather than asking again, subject to every other
    gate here (CI and required checks, review feedback and conflicts, migration
