@@ -163,13 +163,19 @@ For each delivery:
      happened, do not repeat it. A lookup that succeeds and finds no match,
      including an empty mailbox or calendar, means it has not happened: go
      to step 3. Only if the lookup fails, or the action could have been made
-     and then removed, do not write: reply describing the exact action and
-     ask me to confirm it.
+     and then removed, do not write. Reply describing the exact action, say
+     it may already have been done, and ask the sender to reply
+     "confirm <delivery_id>" (with this delivery's id) only if they want it
+     done as a new action even if it already happened. Nothing else ("yes",
+     "ok", "go ahead") confirms.
   3. Make the write once, then reply with the result.
-  An owner reply that explicitly confirms an action you asked about is a new
-  request for exactly that action. Handle it with steps 1 and 3 and skip the
-  check in step 2. Do it once, and never treat a confirmation from any other
-  sender as mine.
+- A later message whose text is exactly "confirm <delivery_id>", from a
+  sender that passes the owner check, confirms the action you described for
+  that delivery_id in the same conversation (read it with
+  read_relay_conversation if needed). Acknowledge the confirm message first,
+  as in step 1. Then make that one write once, without the step 2 check, and
+  reply with the result. Ignore a confirm for an unknown delivery_id, for an
+  action already made, or from anyone who doesn't pass the owner check.
   If the run stops after step 1, the write may not happen, but no later run
   repeats it. The sender can ask again.
 - For any other sender, never look up or share anything from my email,
