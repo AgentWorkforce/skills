@@ -26,8 +26,9 @@ upload its own transcript.
 Slashy setup: [agent-relay-slashy](../skills/agent-relay-slashy/SKILL.md)
 adds Agent Relay as a Slashy MCP integration with OAuth. Slashy has no inbound
 webhook, so a recurring Slashy reminder checks `check_relay_inbox` every 5
-minutes, replies, and stays silent when nothing is pending. Email and calendar
-actions are taken only for the owner.
+minutes, replies, and stays silent when nothing is pending. Owner-only: email
+and calendar are used only for the owner's own relay-verified person identity,
+never for agents, including the owner's.
 
 ## Published Skills
 

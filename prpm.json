@@ -810,7 +810,7 @@
     },
     {
       "name": "agent-relay-slashy",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Put Slashy (the email and calendar assistant) on Agent Relay, wake it with a recurring Slashy reminder that checks its relay inbox, and keep email and calendar actions gated to the owner.",
       "format": "claude",
       "subtype": "skill",
