@@ -210,9 +210,11 @@ the same safe-to-share answers as any other sender.
 
 **Already have a fallback reminder from an earlier version of this skill?**
 Saved reminders keep their old text, so a list that included agents still
-gives them access. Replace it: say "Connect to Agent Relay" so
-`connect_slashy_inbox` writes the owner-only reminder, or `cancel_reminder`
-the old one and create it again with only the owner's address.
+gives them access. Replace it with step 3 above: **Refresh tools**, then
+ask Slashy to "Call connect_slashy_inbox on the Agent Relay integration, then
+follow its next_steps exactly", which writes the owner-only reminder and keeps
+your current interval. Or `cancel_reminder` the old one and create it again
+with only the owner's address.
 
 ## Verify
 
