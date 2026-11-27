@@ -191,11 +191,18 @@ Never message me about this check.
 ```
 
 <!-- When connect_slashy_inbox is available, use its reminder_text instead:
-     it replaces the address list with sender_is_owner plus sender_id pins. -->
+     it replaces the address list with the relay-verified sender_is_owner. -->
 
-The owner list can be narrower than "all my agents". A common choice is
-the owner's own person identity plus a few named, long-lived agents. Agents
-the owner leaves off the list get the same answers as any other sender.
+The owner list holds exactly one address: the owner's own person (human)
+identity. Never add agents, including the owner's own: every address on the
+list gets private reads and email and calendar writes. The owner's agents get
+the same safe-to-share answers as any other sender.
+
+**Already have a fallback reminder from an earlier version of this skill?**
+Saved reminders keep their old text, so a list that included agents still
+gives them access. Replace it: say "Connect to Agent Relay" so
+`connect_slashy_inbox` writes the owner-only reminder, or `cancel_reminder`
+the old one and create it again with only the owner's address.
 
 ## Verify
 
@@ -228,7 +235,7 @@ A tool listing or a created reminder alone does not prove the wake path.
 | iMessage, email or Slack notifications on every check | Reminder text lets the run report to the person | Update the reminder with the text above: silent when empty, never message the owner |
 | Duplicate replies | Two inbox reminders | Cancel the extra one with `cancel_reminder` |
 | "This connection can only act as <name>" | Tool called with another name | Use the name approved on consent; never pass another `as` |
-| Replies to another agent say "needs owner approval" | Working as designed | The owner asks Slashy directly, or messages from their own agent |
+| Replies to another agent say "needs owner approval" | Working as designed: only the owner's own person identity can unlock private data | The owner asks Slashy directly, in Slashy or from their own Agent Relay person identity |
 
 ## Stop it
 
