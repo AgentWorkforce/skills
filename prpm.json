@@ -871,7 +871,7 @@
     },
     {
       "name": "merge-train-snippet",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "description": "AGENTS.md snippet: feature PRs target trunk and are verified locally; once the merge train's autoEntry flag is on, ready non-draft PRs enter by themselves, `merge-train:hold` keeps one out, and destructive PRs are always merged by hand. Authoring agents no longer add the `mergeable` label. Hard limits (deploys, releases or publishes, secrets or IAM, destructive changes, changes to CODEOWNERS or the approval rules) need a code owner's own direct go; apart from them, a successfully redeemed Agent Relay delegate approval from a code owner is that owner's OK for the exact action, target and head.",
       "format": "generic",
       "subtype": "snippet",
