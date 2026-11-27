@@ -92,11 +92,12 @@ human maintainer applies that label. Authoring agents do not add it.
    about the binding's classes or targets yourself. A successfully redeemed
    owner approval is the authority for the exact action and target it names,
    within these rules: no redeem grants a hard limit, and only a `(code owner)`
-   line is a code owner's OK. Act on it without looking anything up in
-   `#owner-decisions`. `#owner-decisions` is an audit log that records
-   approvals; it is not a source of approval agents must consult. This does
-   not change the hard-limit and fallback rules: a qualifying
-   `#owner-decisions` entry still approves those.
+   line is a code owner's OK. Act on it without looking for a matching
+   `#owner-decisions` entry: for a redeemed approval, `#owner-decisions` is
+   only the audit log that records it, not a source of approval agents must
+   consult. Hard limits (item 6), and the fallback when there is no
+   successful redeem (item 8), still use a code owner's own go or a top-level
+   entry.
 8. A successful redeem covers the owner approval only: it clears an approval
    blocker, so remove the hold rather than asking again, subject to every other
    gate here (CI and required checks, review feedback and conflicts, migration
