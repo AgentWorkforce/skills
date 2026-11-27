@@ -120,10 +120,10 @@ connector account label itself will prefill the name.
    There is no Agent Relay setup page or credential step. If this replaces a
    webhook routine, pause or delete that older routine after the schedule is
    active.
-7. For webhook mode, create a Webhook routine, then point the signed-in owner
-   to the keyless `setup_url`; Agent Relay has separate
-   **Webhook URL** and masked **Authorization header** fields. Tell them to open this routine on
-   desktop and copy `POST to` and `header` from its Webhook section, then paste
+7. For webhook mode, create a Webhook routine. Tell the signed-in owner to open
+   this routine on desktop and copy `POST to` and `header` from its Webhook
+   section. Then point them to the keyless `setup_url`; Agent Relay has separate
+   **Webhook URL** and masked **Authorization header** fields. Have them paste
    each value into its matching field on the setup page. Never paste a link
    containing a key into an answer or another chat.
    Never send the URL or header through Agent Relay tools, relay messages, or
