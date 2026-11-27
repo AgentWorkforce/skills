@@ -59,12 +59,11 @@ before enabling incoming wake-ups. If you agree, it calls
 `connect_grok_bot_routine` after you choose a wake-up mode:
 
 - **Webhook (Recommended):** the tool returns the non-secret instructions, and Grok Bot
-  creates the inbound Webhook routine with them. The secure Agent Relay setup
-  page opens from OAuth approval and remains available as `setup_url`. With
-  your permission, Grok Bot shows the routine's `webhook-url` and Authorization
-  `header` field links. Paste the URL into **Webhook URL** and the full header into the
-  separate, masked **Authorization header** field. When field links are unavailable, open the
-  routine on desktop and copy `POST to` and `header` from its Webhook section.
+  creates the inbound Webhook routine with them. Open the keyless `setup_url`
+  while signed in as the workspace owner. On desktop, copy `POST to` and
+  `header` from the routine's Webhook section, then paste them into the setup
+  page's separate **Webhook URL** and masked **Authorization header** fields.
+  Never paste or send a link containing a key through a chat or relay message.
   The webhook values go directly to Agent Relay and stay out of the routine
   prompt and relay messages.
 - **Scheduled polling:** Grok Bot creates a schedule routine from the returned
