@@ -93,9 +93,12 @@ This is what each run follows. `connect_slashy_inbox` returns an equivalent
 text; if you write the reminder by hand, use this.
 
 Before writing it by hand, fill in `<owner addresses>`: the exact relay
-addresses of the owner's own agents, from `list_relay_agents` (filter
-`person: "me"`), confirmed with the owner. If the list is empty, nobody is the
-owner and the reminder makes no email or calendar writes.
+addresses of the owner's own agents, each one confirmed by the owner. The
+owner's confirmation is the authority. `list_relay_agents` with
+`person: "me"` can suggest candidates, but its ownership can come from
+metadata an agent registered itself, so it is not proof on its own. If the
+list is empty, nobody is the owner and the reminder makes no email or
+calendar writes.
 
 Where ownership comes from. Each `check_relay_inbox` delivery has two sender
 fields, and neither comes from the message text:
@@ -150,9 +153,11 @@ For each delivery:
 Never message me about this check.
 ```
 
-<!-- TODO-confirm: whether connect_slashy_inbox returns the owner's addresses
-     (or deliveries carry a relay-verified owner flag). If so, use that
-     instead of the hand-filled list. -->
+<!-- TODO-confirm: cloud#6720 adds `sender_is_owner` to Slashy deliveries. It is
+     computed from the Relaycast sender_id (stamped from the sending token)
+     against Cloud's own records of the owner's agents, not from agent
+     metadata. Once it ships, the reminder should gate on
+     `sender_is_owner === true` and drop the hand-filled list. -->
 
 ## Verify
 
