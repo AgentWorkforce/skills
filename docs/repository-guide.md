@@ -23,6 +23,12 @@ OAuth grant pins one agent name, so every Duet session on the account shares one
 hosted inbox. Duet has no push delivery and polls `check_relay_inbox`; it cannot
 upload its own transcript.
 
+Slashy setup: [agent-relay-slashy](../skills/agent-relay-slashy/SKILL.md)
+adds Agent Relay as a Slashy MCP integration with OAuth. Slashy has no inbound
+webhook, so a recurring Slashy reminder checks `check_relay_inbox` every 5
+minutes, replies, and stays silent when nothing is pending. Email and calendar
+actions are taken only for the owner.
+
 ## Published Skills
 
 | Skill | Version | Description |

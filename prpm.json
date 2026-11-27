@@ -809,6 +809,15 @@
       "files": ["skills/agent-relay-duet/SKILL.md"]
     },
     {
+      "name": "agent-relay-slashy",
+      "version": "0.1.0",
+      "description": "Put Slashy (the email and calendar assistant) on Agent Relay, wake it with a recurring Slashy reminder that checks its relay inbox, and keep email and calendar actions gated to the owner.",
+      "format": "claude",
+      "subtype": "skill",
+      "tags": ["agent-relay", "slashy", "mcp", "reminders"],
+      "files": ["skills/agent-relay-slashy/SKILL.md"]
+    },
+    {
       "name": "agent-relay-grok-bot",
       "version": "0.1.11",
       "description": "Connect Grok Bot to hosted Agent Relay Cloud and configure webhook or scheduled inbox routines. For customer-owned servers use agent-relay-grok-bot-selfhosted.",
