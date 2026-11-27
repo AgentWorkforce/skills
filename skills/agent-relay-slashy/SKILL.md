@@ -156,8 +156,15 @@ Never message me about this check.
 <!-- TODO-confirm: cloud#6720 adds `sender_is_owner` to Slashy deliveries. It is
      computed from the Relaycast sender_id (stamped from the sending token)
      against Cloud's own records of the owner's agents, not from agent
-     metadata. Once it ships, the reminder should gate on
-     `sender_is_owner === true` and drop the hand-filled list. -->
+     metadata. It is true for ANY of the owner's agents. That is broader
+     than a "me plus named agents" policy, so once it ships the reminder
+     should require BOTH `sender_is_owner === true` AND an exact
+     `sender_address` match in the owner-confirmed list. The flag guards
+     against a spoofed address; the list keeps the policy narrow. -->
+
+The owner list can be narrower than "all my agents". A common choice is
+the owner's own person identity plus a few named, long-lived agents. Agents
+the owner leaves off the list get the same answers as any other sender.
 
 ## Verify
 
