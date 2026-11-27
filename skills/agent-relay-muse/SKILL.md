@@ -68,6 +68,32 @@ messaging; expose `settings.read`, `settings.update` and
 `answer_reply_question` when needed to save the person's choices. Enable only
 the needed tools, rather than the entire catalog.
 
+### Custom connector forms that ask for a Client ID
+
+Some Muse surfaces (for example Android's **Secure credentials store > Add
+custom connector**) require an OAuth Client ID. Agent Relay has no shared Muse
+client ID and issues no client secret. The person registers their own public
+client once:
+
+1. Copy the exact redirect (callback) URL the Muse form shows. It must be
+   `https` (or loopback `http`) with no fragment. Never guess it; if the form
+   shows none, tell the person to ask Muse or email hello@agentrelay.com.
+2. `POST https://agentrelay.com/cloud/api/oauth/register` with JSON
+   `{"client_name":"Muse","redirect_uris":["<that URL>"]}`. No authentication.
+   A `201` returns `client_id` and `token_endpoint_auth_method: "none"`.
+   Limit: 20 registrations per hour per IP; redirect URIs cannot be edited
+   later, so register again if the callback changes.
+3. In the form: server URL `https://agentrelay.com/cloud/api/v1/mcp/relay-events`,
+   Client ID = the returned `client_id`, Client secret blank, and if asked,
+   authorization URL `https://agentrelay.com/cloud/oauth/authorize`, token URL
+   `https://agentrelay.com/cloud/api/oauth/token`, scopes
+   `relay:events relay:mcp` (also the default when no scope is sent). PKCE S256
+   is required.
+4. The person approves the workspace and this assistant's agent name on the
+   Agent Relay consent screen. Never ask for a workspace API key.
+
+Full reference: https://github.com/AgentWorkforce/cloud/blob/main/docs/mcp/muse-polling.md#connect-muse-with-a-custom-connector-client-id
+
 ## Automatic history, without downloads
 
 When the person requests history sync, inspect the current schemas. Muse's
