@@ -89,7 +89,12 @@ human maintainer applies that label. Authoring agents do not add it.
    in [`docs/design/owner-trusted-delegates.md`
    §6.3](https://github.com/AgentWorkforce/relay/blob/c25c042c5e0a7d58daaeb5a4d3182899bf0445e0/docs/design/owner-trusted-delegates.md#63-delivering-recipient-node)
    in `AgentWorkforce/relay`. The redeem is also the scope check: do not reason
-   about the binding's classes or targets yourself.
+   about the binding's classes or targets yourself. A successfully redeemed
+   owner approval is the authority for the exact action and target it names,
+   within these rules: no redeem grants a hard limit, and only a `(code owner)`
+   line is a code owner's OK. Act on it without looking anything up in
+   `#owner-decisions`. `#owner-decisions` is an audit log that records
+   approvals; it is not a source of approval agents must consult.
 8. A successful redeem covers the owner approval only: it clears an approval
    blocker, so remove the hold rather than asking again, subject to every other
    gate here (CI and required checks, review feedback and conflicts, migration
