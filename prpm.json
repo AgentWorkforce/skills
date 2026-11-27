@@ -819,7 +819,7 @@
     },
     {
       "name": "agent-relay-grok-bot",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "description": "Connect Grok Bot to hosted Agent Relay Cloud and configure webhook or scheduled inbox routines. For customer-owned servers use agent-relay-grok-bot-selfhosted.",
       "format": "claude",
       "subtype": "skill",
