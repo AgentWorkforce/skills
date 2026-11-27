@@ -13,9 +13,6 @@ can message: "is Thursday afternoon free?", "did the vendor reply?".
 This skill is written for two readers: a person (or an agent helping them)
 setting Slashy up, and Slashy itself once it is connected.
 
-<!-- TODO-confirm: tool name `connect_slashy_inbox` and the shape of its result
-     are being built now. Update this file with the final names before merge. -->
-
 ## How Slashy hears about messages
 
 Slashy has no inbound webhook, so Agent Relay cannot push a message into it.
@@ -70,13 +67,27 @@ In a Slashy chat, say:
 Connect to Agent Relay.
 ```
 
-Slashy calls `connect_slashy_inbox` on the Agent Relay integration. It returns
-the exact `set_reminder` arguments for this connection. Slashy then calls its
-own `set_reminder` with those arguments unchanged and reports the reminder's
-name and next run. The person does not copy anything.
-<!-- TODO-confirm: argument and result field names of connect_slashy_inbox. -->
+To also let specific agents of the owner act on email and calendar, name
+them: "Connect to Agent Relay and trust kjgdot and kjgrok."
 
-If `connect_slashy_inbox` is not in the tool list yet, create the reminder
+Slashy calls `connect_slashy_inbox` on the Agent Relay integration:
+
+- Input: `interval_minutes` (5 to 60, default 5) and `trusted_agents`
+  (up to 20 exact agent names).
+- Output: `agent`, `inbox_address`, `trusted_agents` (each with its `name`
+  and relay `sender_id`), `set_reminder_arguments` (`name`,
+  `schedule_expression`, `write_enabled: true`, `reminder_text`),
+  `next_steps` and `note`.
+- It refuses a connection Slashy didn't register, an unknown trusted name,
+  or an agent whose deliveries another inbox already consumes. Calling it
+  again is safe.
+
+Slashy then calls `list_reminders`. It keeps an identical reminder, cancels
+a same-name reminder whose text differs, and calls `set_reminder` with
+`set_reminder_arguments` plus its timezone. It reports the reminder's name
+and next run. The person does not copy anything.
+
+Only if `connect_slashy_inbox` is not in the tool list, create the reminder
 directly with `set_reminder`:
 
 - `name`: `Agent Relay inbox`
@@ -89,8 +100,18 @@ update it with its `reminder_id` instead of creating a second.
 
 ## Reminder text
 
-This is what each run follows. `connect_slashy_inbox` returns an equivalent
-text; if you write the reminder by hand, use this.
+`connect_slashy_inbox`'s `reminder_text` is the canonical version. It gates
+private access and writes on two relay-verified checks:
+
+- `sender_is_owner`, which `check_relay_inbox` adds to every delivery on a
+  Slashy connection. It is `true` only when the message's Relaycast
+  `sender_id` (stamped from the sending token) is the owner's own human
+  identity. It is `false` for every agent, including the owner's own, and
+  `false` when the check can't be read.
+- The `trusted_agents` named at connect time, pinned by their `sender_id`.
+
+The hand-written text below is the fallback for when the tool isn't
+available. It uses an owner address list instead.
 
 Before writing it by hand, fill in `<owner addresses>`: the exact relay
 addresses of the owner's own agents, each one confirmed by the owner. The
@@ -162,14 +183,8 @@ For each delivery:
 Never message me about this check.
 ```
 
-<!-- TODO-confirm: cloud#6720 adds `sender_is_owner` to Slashy deliveries. It is
-     computed from the Relaycast sender_id (stamped from the sending token)
-     against Cloud's own records of the owner's agents, not from agent
-     metadata. It is true for ANY of the owner's agents. That is broader
-     than a "me plus named agents" policy, so once it ships the reminder
-     should require BOTH `sender_is_owner === true` AND an exact
-     `sender_address` match in the owner-confirmed list. The flag guards
-     against a spoofed address; the list keeps the policy narrow. -->
+<!-- When connect_slashy_inbox is available, use its reminder_text instead:
+     it replaces the address list with sender_is_owner plus sender_id pins. -->
 
 The owner list can be narrower than "all my agents". A common choice is
 the owner's own person identity plus a few named, long-lived agents. Agents
@@ -180,8 +195,10 @@ the owner leaves off the list get the same answers as any other sender.
 1. In Slashy, ask: "Which agents are on Agent Relay?" (`list_relay_agents`).
    Expect your other agents, not only Slashy itself. Only Slashy means the
    consent screen picked the wrong workspace: reconnect and choose it by name.
-2. Ask Slashy: "List my reminders." Expect one **Agent Relay inbox** reminder,
-   recurring every 5 minutes, enabled.
+2. Ask Slashy: "Agent Relay inbox status" (`slashy_inbox_status`). Expect
+   `joined: true`, your `inbox_address`, `looks_active: true` once a check has
+   run in the last 15 minutes, and `pending_count`. Also ask "List my
+   reminders": expect one **Agent Relay inbox** reminder, recurring, enabled.
 3. From another agent on the same workspace (Claude Code, Codex, a Grok Bot),
    send Slashy a DM, for example: "What's on my calendar tomorrow morning?"
 4. Wait. Expect a reply in the same conversation within about 5 minutes,
