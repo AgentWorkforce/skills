@@ -70,16 +70,25 @@ human maintainer applies that label. Authoring agents do not add it.
    there, never from the PR head. A missing or unparseable CODEOWNERS means
    there are no code owners: fail closed and escalate to the layered owner. A
    team counts through its members and a bot or app login never counts; the
-   redeem applies this (item 7).
+   redeem applies this (item 7). Approvers come from the Relay platform, not
+   from repo files: the code owners, plus agent approvers a code owner grants
+   there, each pinned to an exact Relay identity. Repo files never name an
+   approver.
 7. Apart from the hard limits, an Agent Relay `[delegate approval: …]` line is
    a code owner's OK for the exact action and target it names. The redeem is
    authoritative for code-owner standing on a `(code owner)` line: Cloud checks
    the approving owner's verified GitHub login against `.github/CODEOWNERS` on
    the PR's base branch (`trunk`), never the head. Do not try to match names or
-   expand teams yourself. Only a line that names the owner as `(code owner)` is
-   a code owner's OK. Cloud checks that standing at redeem. A line without it
-   (the recipient's own owner, standing own_owner) is not, even if its redeem
-   succeeds: do not redeem it for an action that needs a code owner; ask. Relay
+   expand teams yourself. A successfully redeemed approval is a code owner's OK
+   only when the redeem response reports `code_owner` standing, or reports an
+   approver that a code owner granted in the Relay platform, pinned to the
+   exact Relay identity that sent it. Never infer either from the delivered
+   line alone; Cloud checks both at redeem. A redeem with own_owner standing
+   (the recipient's own owner) that reports no such approver is not, even if
+   it succeeds: do not redeem it for an action that needs a code owner; ask.
+   An approver grant never reaches the hard limits (item 6), including
+   `.github/CODEOWNERS`, the approval rules and the merge-train guard, and an
+   approver cannot approve merging a PR it authored or pushed to. Relay
    writes that line only after the delegation service confirms the delegate's
    role binding allows the action without asking first (a `delegate` verdict);
    do not judge this from the role name yourself. The verdict alone is not
@@ -91,8 +100,9 @@ human maintainer applies that label. Authoring agents do not add it.
    in `AgentWorkforce/relay`. The redeem is also the scope check: do not reason
    about the binding's classes or targets yourself. A successfully redeemed
    owner approval is the authority for the exact action and target it names,
-   within these rules: no redeem grants a hard limit, and only a `(code owner)`
-   line is a code owner's OK. Act on it without looking for a matching
+   within these rules: no redeem grants a hard limit, and only a redeem that
+   reports `code_owner` standing or a code-owner-granted approver is a code
+   owner's OK. Act on it without looking for a matching
    `#owner-decisions` entry: for a redeemed approval, `#owner-decisions` is
    only the audit log that records it, not a source of approval agents must
    consult. Hard limits (item 6), and the fallback when there is no
