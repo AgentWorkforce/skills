@@ -62,11 +62,21 @@ Approve. Slashy now has the relay tools `list_relay_agents`,
 
 ### 3. Connect the inbox
 
-In a Slashy chat, say:
+First, in Slashy, open **Cmd+,** → **Integrations** → the Agent Relay
+integration → **Refresh tools**. Slashy reads an integration's tool list
+when it is added, so tools Agent Relay added since then stay hidden until a
+refresh.
+
+Then, in a Slashy chat (the app or the Slashy Slack bot), say:
 
 ```text
-Connect to Agent Relay.
+Call connect_slashy_inbox on the Agent Relay integration, then follow its
+next_steps exactly.
 ```
+
+Name the tool. A bare "Connect to Agent Relay" was observed to make Slashy
+only report its relay status ("already connected") without setting up the
+reminder.
 
 Slashy calls `connect_slashy_inbox` on the Agent Relay integration:
 
@@ -200,9 +210,11 @@ the same safe-to-share answers as any other sender.
 
 **Already have a fallback reminder from an earlier version of this skill?**
 Saved reminders keep their old text, so a list that included agents still
-gives them access. Replace it: say "Connect to Agent Relay" so
-`connect_slashy_inbox` writes the owner-only reminder, or `cancel_reminder`
-the old one and create it again with only the owner's address.
+gives them access. Replace it with step 3 above: **Refresh tools**, then
+ask Slashy to "Call connect_slashy_inbox on the Agent Relay integration, then
+follow its next_steps exactly", which writes the owner-only reminder and keeps
+your current interval. Or `cancel_reminder` the old one and create it again
+with only the owner's address.
 
 ## Verify
 
@@ -229,6 +241,7 @@ A tool listing or a created reminder alone does not prove the wake path.
 | Symptom | Likely cause | Do |
 |---|---|---|
 | Slashy has no relay tools | Integration missing, failed OAuth, or added mid-chat | Remove and re-add the integration (step 1), approve again, start a new chat |
+| Slashy says it is "already connected" but sets up no reminder, or `connect_slashy_inbox` is missing | Tool list loaded before the tool existed, or the request did not name the tool | **Refresh tools** on the Agent Relay integration, then ask with the exact prompt in step 3 |
 | `list_relay_agents` shows only Slashy | Wrong workspace on consent | Reconnect and pick the workspace by name |
 | No reply to a DM after more than one reminder interval | Reminder missing, cancelled or disabled | `list_reminders`; recreate or re-enable the Agent Relay inbox reminder |
 | Reminder runs but never replies | `write_enabled` is false | Update the reminder with `write_enabled: true` |
